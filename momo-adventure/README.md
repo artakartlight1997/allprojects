@@ -81,7 +81,12 @@ https://artakartlight1997.github.io/allprojects
 https://github.com/artakartlight1997/allprojects/releases/tag/dev
 
 配布ページの中身は `site/index.html`。`.github/workflows/pages.yml` が
-push のたびに GitHub Pages へ配信する。
+main への push で GitHub Pages へ配信する。
+
+**最初に一度だけ手動設定が必要**: リポジトリの Settings → Pages →
+Build and deployment → Source を「GitHub Actions」にする。
+Actions の自動トークンには Pages を新規作成する権限がないため、
+この操作だけはワークフローから行えない。
 
 `hello-android.apk` は以前のダウンロード URL を壊さないための同名コピー。
 中身は `momo-adventure.apk` と同一なのでどちらを入れても同じ。

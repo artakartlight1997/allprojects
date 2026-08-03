@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Compose だけで UI を組むので、AppCompat 等に依存しない
-         プラットフォーム標準テーマをベースにしている。 -->
-    <style name="Theme.HelloAndroid" parent="android:Theme.Material.Light.NoActionBar" />
-</resources>

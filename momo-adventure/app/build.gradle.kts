@@ -5,15 +5,18 @@ plugins {
 }
 
 android {
-    namespace = "com.example.helloandroid"
+    namespace = "com.example.momo"
     compileSdk = 35
 
     defaultConfig {
+        // applicationId は Hello Android 時代から変えていない。変えると
+        // 別アプリ扱いになり、古いアプリが端末に残ってしまうため。
+        // 同じ ID + 同じ署名なので、インストールすると上書き更新される。
         applicationId = "com.example.helloandroid"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 8
+        versionName = "3.4"
     }
 
     // リポジトリに固定の debug keystore を置くことで、ビルドのたびに署名が
@@ -30,6 +33,19 @@ android {
 
     buildTypes {
         getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        getByName("release") {
+            // R8 で未使用コードを削る。Compose を丸ごと同梱すると 8MB を
+            // 超えるが、実際に使っているのはごく一部なので大きく減る。
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // 配布は Play ストアを通さないサイドロードなので、debug と同じ鍵で
+            // 署名する。鍵を変えると既存のインストールを上書きできなくなる。
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -53,5 +69,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
 }

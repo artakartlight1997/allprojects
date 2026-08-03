@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     paths:
-      - 'android-hello/**'
+      - 'momo-adventure/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
@@ -24,28 +24,55 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Build debug APK
-        working-directory: android-hello
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      # release は R8 で圧縮した配布用、debug は圧縮なしの予備。
+      # R8 が何かを削りすぎて動かなくなったときに debug 版へ戻せるようにしておく。
+      - name: Build APKs
+        working-directory: momo-adventure
+        run: ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
-      - name: Collect APK
-        run: cp android-hello/app/build/outputs/apk/debug/app-debug.apk hello-android.apk
+      # hello-android.apk は Hello Android 時代のダウンロード URL を
+      # 壊さないための同名コピー。中身は momo-adventure.apk と同じ。
+      - name: Collect APKs
+        run: |
+          cp momo-adventure/app/build/outputs/apk/release/app-release.apk momo-adventure.apk
+          cp momo-adventure.apk hello-android.apk
+          cp momo-adventure/app/build/outputs/apk/debug/app-debug.apk momo-adventure-debug.apk
+          ls -l ./*.apk
+          {
+            echo "REL_BYTES=$(stat -c%s momo-adventure.apk)"
+            echo "DBG_BYTES=$(stat -c%s momo-adventure-debug.apk)"
+          } >> "$GITHUB_ENV"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hello-android-apk
-          path: hello-android.apk
+          name: momo-adventure-apk
+          path: momo-adventure.apk
 
-      # スマホから直接ダウンロードできるように、"dev" タグのプレリリースを
-      # 毎回作り直して APK を添付する。
+      # スマホから直接ダウンロードできるように、"dev" タグのプレリリースに
+      # APK を添付する。
+      #
+      # リリースを削除してから作り直すと、その数秒間 URL が 404 になり、
+      # 運悪くその瞬間にアクセスすると見えない。そのため
+      # 「無ければ作る / あればアセットだけ差し替える」方式にしている。
       - name: Publish to dev release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete dev --yes --cleanup-tag || true
-          gh release create dev hello-android.apk \
-            --title "Dev build ${GITHUB_SHA::7}" \
-            --notes "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}" \
-            --prerelease \
-            --target "$GITHUB_SHA"
+          if ! gh release view dev >/dev/null 2>&1; then
+            gh release create dev \
+              --title "Dev build" \
+              --notes "初回作成" \
+              --prerelease \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload dev \
+            momo-adventure.apk hello-android.apk momo-adventure-debug.apk --clobber
+          gh release edit dev \
+            --title "モモの大冒険 (${GITHUB_SHA::7})" \
+            --notes "$(printf '%s\n' \
+              "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}" \
+              "" \
+              "- **momo-adventure.apk** — 配布用（R8 で圧縮済み） $(numfmt --to=iec "$REL_BYTES")B" \
+              "- hello-android.apk — 上と同じ中身。旧リンク互換用" \
+              "- momo-adventure-debug.apk — 圧縮なしの予備 $(numfmt --to=iec "$DBG_BYTES")B")"

@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.helloandroid"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "3.1"
+        versionCode = 6
+        versionName = "3.2"
     }
 
     // リポジトリに固定の debug keystore を置くことで、ビルドのたびに署名が
@@ -33,6 +33,19 @@ android {
 
     buildTypes {
         getByName("debug") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        getByName("release") {
+            // R8 で未使用コードを削る。Compose を丸ごと同梱すると 8MB を
+            // 超えるが、実際に使っているのはごく一部なので大きく減る。
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            // 配布は Play ストアを通さないサイドロードなので、debug と同じ鍵で
+            // 署名する。鍵を変えると既存のインストールを上書きできなくなる。
             signingConfig = signingConfigs.getByName("debug")
         }
     }

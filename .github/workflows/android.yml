@@ -24,16 +24,24 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Build debug APK
+      # release は R8 で圧縮した配布用、debug は圧縮なしの予備。
+      # R8 が何かを削りすぎて動かなくなったときに debug 版へ戻せるようにしておく。
+      - name: Build APKs
         working-directory: momo-adventure
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
 
       # hello-android.apk は Hello Android 時代のダウンロード URL を
       # 壊さないための同名コピー。中身は momo-adventure.apk と同じ。
-      - name: Collect APK
+      - name: Collect APKs
         run: |
-          cp momo-adventure/app/build/outputs/apk/debug/app-debug.apk momo-adventure.apk
+          cp momo-adventure/app/build/outputs/apk/release/app-release.apk momo-adventure.apk
           cp momo-adventure.apk hello-android.apk
+          cp momo-adventure/app/build/outputs/apk/debug/app-debug.apk momo-adventure-debug.apk
+          ls -l ./*.apk
+          {
+            echo "REL_BYTES=$(stat -c%s momo-adventure.apk)"
+            echo "DBG_BYTES=$(stat -c%s momo-adventure-debug.apk)"
+          } >> "$GITHUB_ENV"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -58,7 +66,13 @@ jobs:
               --prerelease \
               --target "$GITHUB_SHA"
           fi
-          gh release upload dev momo-adventure.apk hello-android.apk --clobber
+          gh release upload dev \
+            momo-adventure.apk hello-android.apk momo-adventure-debug.apk --clobber
           gh release edit dev \
             --title "モモの大冒険 (${GITHUB_SHA::7})" \
-            --notes "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}"
+            --notes "$(printf '%s\n' \
+              "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}" \
+              "" \
+              "- **momo-adventure.apk** — 配布用（R8 で圧縮済み） $(numfmt --to=iec "$REL_BYTES")B" \
+              "- hello-android.apk — 上と同じ中身。旧リンク互換用" \
+              "- momo-adventure-debug.apk — 圧縮なしの予備 $(numfmt --to=iec "$DBG_BYTES")B")"

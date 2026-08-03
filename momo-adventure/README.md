@@ -74,6 +74,17 @@ Jetpack Compose の Canvas だけで作った横スクロールアクション�
 2. 数分後、**Releases** の `dev` プレリリースに APK が添付される
 3. スマホのブラウザで開き、`momo-adventure.apk` をタップしてインストール
 
+リリースには 3 つの APK が付く。
+
+| ファイル | 中身 |
+|---|---|
+| `momo-adventure.apk` | 配布用。R8 で圧縮したもの |
+| `hello-android.apk` | 上と同一。以前の URL を壊さないためのコピー |
+| `momo-adventure-debug.apk` | 圧縮なしの予備。R8 が原因の不具合が疑われるときに使う |
+
+release ビルドも debug と同じ鍵で署名している。鍵を変えると既存の
+インストールを上書きできなくなるため。
+
 配布ページ（短い URL・インストール手順つき）:
 https://artakartlight1997.github.io/allprojects
 
@@ -121,6 +132,7 @@ python3 tools/genlevels.py app/src/main/java/com/example/momo/Levels.kt
 | compileSdk / targetSdk | 35 |
 | minSdk | 24 (Android 7.0 以上) |
 | AGP / Kotlin / Gradle | 8.7.3 / 2.1.0 / 8.9 |
+| 配布ビルド | release（R8 で圧縮・リソース削減） |
 
 `applicationId` は `com.example.helloandroid` のまま変えていない。
 変えると別アプリ扱いになり、以前入れたアプリが端末に残るため。

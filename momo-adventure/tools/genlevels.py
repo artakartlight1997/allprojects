@@ -614,3 +614,26 @@ dest = sys.argv[1]
 with io.open(dest, 'w', encoding='utf-8') as f:
     f.write('\n'.join(out))
 print('wrote %s (%d bytes)' % (dest, os.path.getsize(dest)))
+
+# Web 版にも同じステージを渡す。マップの正解を 1 か所に保つため、
+# Kotlin と JavaScript の両方をこのスクリプトから生成する。
+if len(sys.argv) > 2:
+    js = [
+        '// このファイルは tools/genlevels.py が生成する。手で編集しないこと。',
+        'const LEVELS = [',
+    ]
+    for name, theme, grid in LEVELS:
+        js.append('  {')
+        js.append('    title: "%s",' % name)
+        js.append('    theme: "%s",' % theme)
+        js.append('    rows: [')
+        for r in grid.rows():
+            js.append('      "%s",' % r)
+        js.append('    ],')
+        js.append('  },')
+    js.append('];')
+    js.append('')
+    jsdest = sys.argv[2]
+    with io.open(jsdest, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(js))
+    print('wrote %s (%d bytes)' % (jsdest, os.path.getsize(jsdest)))

@@ -110,6 +110,27 @@ Actions の自動トークンには Pages を新規作成する権限がない�
 `hello-android.apk` は以前のダウンロード URL を壊さないための同名コピー。
 中身は `momo-adventure.apk` と同一なのでどちらを入れても同じ。
 
+## Web 版
+
+`site/play/` に、同じゲームを JavaScript + HTML Canvas で実装したものがある。
+サーバー処理は不要で、静的ファイルを置くだけで動く。iPhone や PC でも遊べる。
+
+https://artakartlight1997.github.io/allprojects/play/
+
+| ファイル | 役割 |
+|---|---|
+| `game.js` | 物理・当たり判定・ゲーム進行（Android 版の Game.kt に対応） |
+| `render.js` | キャラと背景の描画（Render.kt に対応） |
+| `ui.js` | HUD・操作ボタン・エンディング・入力・ループ |
+| `levels.js` | ステージデータ。`tools/genlevels.py` が Kotlin 版と同時に生成する |
+
+物理定数は Android 版と同じ値を使っている。ステージデータは生成元が同じ
+なので、マップが両者でズレることはない。それ以外のコードは独立しているので、
+片方を直しても自動では反映されない。
+
+縦画面のときは「よこ向きにしてね」と表示してゲームを止める。iPhone の
+Safari には画面の向きを固定する手段がないため。
+
 ## ステージデータについて
 
 `app/src/main/java/com/example/momo/Levels.kt` は

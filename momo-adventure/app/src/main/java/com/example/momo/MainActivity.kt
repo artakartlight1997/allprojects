@@ -3,12 +3,15 @@ package com.example.momo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,12 +36,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.ceil
@@ -50,11 +55,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** 操作ボタンの大きさ。小さい端末向けにタイトル画面から変えられる。 */
+private val BUTTON_SCALES = listOf(0.78f to "小", 1.0f to "中", 1.22f to "大")
+
 @Composable
 fun GameScreen() {
     val game = remember { Game() }
     val viewTilesX = remember { mutableFloatStateOf(20f) }
     var frame by remember { mutableIntStateOf(0) }
+    var uiScale by remember { mutableFloatStateOf(1f) }
 
     LaunchedEffect(Unit) {
         var last = 0L
@@ -69,7 +78,7 @@ fun GameScreen() {
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF101018))
@@ -79,102 +88,134 @@ fun GameScreen() {
                 }
             },
     ) {
+        // 画面の高さに対する比率でボタンを決める。端末が小さくても
+        // ゲーム画面に対する占有率が変わらないようにするため。
+        val h = maxHeight
+        val compact = h < 380.dp
+        val moveBtn = (h * 0.185f * uiScale).coerceIn(46.dp, 84.dp)
+        val jumpBtn = (h * 0.225f * uiScale).coerceIn(56.dp, 100.dp)
+        val pad = (h * 0.045f).coerceIn(10.dp, 22.dp)
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             frame.let { }   // 毎フレーム描き直すための購読
             drawGame(game)
         }
 
         // エンディング中は画面を邪魔しないよう HUD を出さない
-        if (game.phase != Phase.ENDING) Hud(game)
+        if (game.phase != Phase.ENDING) Hud(game, compact)
 
         when (game.phase) {
-            Phase.PLAYING, Phase.DYING -> Controls(game)
+            Phase.PLAYING, Phase.DYING -> Controls(game, moveBtn, jumpBtn, pad)
             Phase.ENDING -> EndingOverlay(game)
-            else -> Overlay(game)
+            else -> Overlay(game, uiScale) { uiScale = it }
         }
     }
 }
 
 @Composable
-private fun Hud(game: Game) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+private fun Hud(game: Game, compact: Boolean) {
+    val fs = if (compact) 12.sp else 14.sp
+    Column(
+        modifier = Modifier.padding(
+            horizontal = if (compact) 10.dp else 16.dp,
+            vertical = if (compact) 5.dp else 8.dp,
+        ),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Badge("♥ ${game.lives}", Color(0xCCFF6B8A))
-            Spacer(Modifier.width(8.dp))
-            Badge("● ${game.coinCount}", Color(0xCCFFC93D))
-            Spacer(Modifier.width(8.dp))
-            Badge("${game.score}", Color(0xAA2B2B3A))
+            Badge("♥ ${game.lives}", Color(0xCCFF6B8A), fs)
+            Spacer(Modifier.width(6.dp))
+            Badge("● ${game.coinCount}", Color(0xCCFFC93D), fs)
+            Spacer(Modifier.width(6.dp))
+            Badge("${game.score}", Color(0xAA2B2B3A), fs)
             Spacer(Modifier.weight(1f))
             if (game.goalLocked) {
-                Badge("ボスを たおせ!", Color(0xCCE0483F))
-                Spacer(Modifier.width(8.dp))
+                Badge("ボスを たおせ!", Color(0xCCE0483F), fs)
+                Spacer(Modifier.width(6.dp))
             }
             Badge(
-                "${game.levelIndex + 1}/${LEVELS.size}  ${game.level.title}",
-                Color(0xAA2B2B3A),
+                if (compact) "${game.levelIndex + 1}/${LEVELS.size}"
+                else "${game.levelIndex + 1}/${LEVELS.size}  ${game.level.title}",
+                Color(0xAA2B2B3A), fs,
             )
         }
-        PowerUps(game)
+        PowerUps(game, fs)
     }
 }
 
 /** 効果時間のあるアイテムを、残り秒数つきで表示する。 */
 @Composable
-private fun PowerUps(game: Game) {
+private fun PowerUps(game: Game, fs: androidx.compose.ui.unit.TextUnit) {
     game.hudTick.let { }   // 残り時間を更新するための購読
     val p = game.player
     val items = buildList {
-        if (p.starT > 0f) add(Triple("★ 無敵", p.starT, Color(0xCCFFC93D)))
-        if (p.dashT > 0f) add(Triple("⚡ ダッシュ", p.dashT, Color(0xCC4FC3F7)))
-        if (p.featherT > 0f) add(Triple("羽 二段ジャンプ", p.featherT, Color(0xCC5FD8A0)))
-        if (p.magnetT > 0f) add(Triple("磁 マグネット", p.magnetT, Color(0xCCFF7A7A)))
+        if (p.starT > 0f) add(Triple("★", p.starT, Color(0xCCFFC93D)))
+        if (p.dashT > 0f) add(Triple("⚡", p.dashT, Color(0xCC4FC3F7)))
+        if (p.featherT > 0f) add(Triple("羽", p.featherT, Color(0xCC5FD8A0)))
+        if (p.magnetT > 0f) add(Triple("磁", p.magnetT, Color(0xCCFF7A7A)))
     }
     if (items.isEmpty() && !p.hasShield) return
-    Row(modifier = Modifier.padding(top = 6.dp)) {
+    Row(modifier = Modifier.padding(top = 5.dp)) {
         if (p.hasShield) {
-            Badge("◎ バリア", Color(0xCC7FB5FF))
-            Spacer(Modifier.width(8.dp))
+            Badge("◎ バリア", Color(0xCC7FB5FF), fs)
+            Spacer(Modifier.width(6.dp))
         }
         for ((label, remain, color) in items) {
-            Badge("$label ${ceil(remain).toInt()}", color)
-            Spacer(Modifier.width(8.dp))
+            Badge("$label ${ceil(remain).toInt()}", color, fs)
+            Spacer(Modifier.width(6.dp))
         }
     }
 }
 
 @Composable
-private fun Badge(text: String, color: Color) {
+private fun Badge(text: String, color: Color, fs: androidx.compose.ui.unit.TextUnit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(13.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(color)
-            .padding(horizontal = 11.dp, vertical = 4.dp),
+            .padding(horizontal = 9.dp, vertical = 3.dp),
     ) {
-        Text(text, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Color.White, fontSize = fs, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-private fun Controls(game: Game) {
+private fun Controls(game: Game, moveBtn: Dp, jumpBtn: Dp, pad: Dp) {
+    game.hudTick.let { }   // モモの位置に追従して薄くするための購読
+
+    // 画面下のほうにモモがいると、そのままではボタンに隠れてしまう。
+    // ステージ開始直後はカメラが左端で止まるので特に重なりやすい。
+    // 重なる位置にいるあいだだけボタンを薄くする（押せることは変わらない）。
+    val low = game.playerViewY > 0.62f
+    val leftAlpha by animateFloatAsState(
+        if (low && game.playerViewX < 0.34f) 0.2f else 1f,
+        label = "leftPad",
+    )
+    val rightAlpha by animateFloatAsState(
+        if (low && game.playerViewX > 0.74f) 0.2f else 1f,
+        label = "jumpPad",
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(start = 22.dp, bottom = 22.dp),
+                .padding(start = pad, bottom = pad)
+                .alpha(leftAlpha),
         ) {
-            HoldButton("◀", { game.inputLeft = true }, { game.inputLeft = false })
-            Spacer(Modifier.width(14.dp))
-            HoldButton("▶", { game.inputRight = true }, { game.inputRight = false })
+            HoldButton("◀", { game.inputLeft = true }, { game.inputLeft = false }, moveBtn)
+            Spacer(Modifier.width(pad * 0.6f))
+            HoldButton("▶", { game.inputRight = true }, { game.inputRight = false }, moveBtn)
         }
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 26.dp, bottom = 22.dp),
+                .padding(end = pad, bottom = pad)
+                .alpha(rightAlpha),
         ) {
-            HoldButton("▲", { game.pressJump() }, { game.releaseJump() }, size = 96)
+            HoldButton("▲", { game.pressJump() }, { game.releaseJump() }, jumpBtn)
         }
     }
 }
@@ -184,7 +225,7 @@ private fun HoldButton(
     label: String,
     onDown: () -> Unit,
     onUp: () -> Unit,
-    size: Int = 82,
+    size: Dp,
 ) {
     // 押されたままボタンが画面から消えると「離した」イベントが届かないので、
     // 破棄されるときに必ず離した扱いにする。
@@ -193,10 +234,10 @@ private fun HoldButton(
     }
     Box(
         modifier = Modifier
-            .size(size.dp)
+            .size(size)
             .clip(CircleShape)
-            .background(Color(0x4DFFFFFF))
-            .border(2.dp, Color(0x99FFFFFF), CircleShape)
+            .background(Color(0x40FFFFFF))
+            .border(2.dp, Color(0x8CFFFFFF), CircleShape)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -212,7 +253,12 @@ private fun HoldButton(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = Color.White, fontSize = (size / 3).sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = Color.White,
+            fontSize = (size.value / 3f).sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -249,7 +295,7 @@ private fun EndingOverlay(game: Game) {
 }
 
 @Composable
-private fun Overlay(game: Game) {
+private fun Overlay(game: Game, uiScale: Float, onUiScale: (Float) -> Unit) {
     val (title, body, button) = when (game.phase) {
         Phase.TITLE -> Triple(
             "モモの大冒険",
@@ -291,21 +337,20 @@ private fun Overlay(game: Game) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                title,
-                color = Color(0xFFFFE9F2),
-                fontSize = 38.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.size(12.dp))
+            Text(title, color = Color(0xFFFFE9F2), fontSize = 36.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.size(10.dp))
             Text(
                 body,
                 color = Color(0xFFE8E4F0),
-                fontSize = 16.sp,
-                lineHeight = 25.sp,
+                fontSize = 15.sp,
+                lineHeight = 23.sp,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.size(22.dp))
+            if (game.phase == Phase.TITLE) {
+                Spacer(Modifier.size(14.dp))
+                ButtonSizePicker(uiScale, onUiScale)
+            }
+            Spacer(Modifier.size(18.dp))
             Button(
                 onClick = { game.advance() },
                 colors = ButtonDefaults.buttonColors(
@@ -321,6 +366,33 @@ private fun Overlay(game: Game) {
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                 )
             }
+        }
+    }
+}
+
+/** 画面が小さい端末向けに、操作ボタンの大きさを選べるようにする。 */
+@Composable
+private fun ButtonSizePicker(uiScale: Float, onUiScale: (Float) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("ボタンの大きさ", color = Color(0xFFB9A9C9), fontSize = 14.sp)
+        Spacer(Modifier.width(10.dp))
+        for ((scale, label) in BUTTON_SCALES) {
+            val selected = uiScale == scale
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selected) Color(0xFFFF8FBB) else Color(0x33FFFFFF))
+                    .clickable { onUiScale(scale) }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    label,
+                    color = if (selected) Color(0xFF3A2430) else Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
         }
     }
 }

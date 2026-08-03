@@ -236,6 +236,11 @@ class Game {
         private set
     var combo = 0
         private set
+    /** 画面内でのモモの位置（左上 0,0 〜 右下 1,1）。 */
+    var playerViewX = 0.5f
+        private set
+    var playerViewY = 0.5f
+        private set
     /** エンディングの経過秒。スタッフロールの進み具合に使う。 */
     var endingT = 0f
         private set
@@ -815,5 +820,10 @@ class Game {
         val target = player.x + Player.W / 2f - viewTilesX / 2f
         val maxX = (level.width - viewTilesX).coerceAtLeast(0f)
         cameraX = target.coerceIn(0f, maxX)
+
+        // 画面内でのモモの位置（0〜1）。操作ボタンと重なったときに
+        // ボタンを薄くするために UI 側が参照する。
+        playerViewX = ((player.x + Player.W / 2f - cameraX) / viewTilesX).coerceIn(0f, 1f)
+        playerViewY = ((player.y + Player.H / 2f) / level.height).coerceIn(0f, 1f)
     }
 }

@@ -266,6 +266,21 @@ class Game {
         jumpHeld = false
     }
 
+    /**
+     * 押しっぱなしの入力を捨てる。
+     *
+     * ゴールに触れると操作ボタンが画面から消えるが、そのとき指がまだ
+     * ボタンに触れていると「離した」イベントが誰にも届かず、入力が
+     * 押されたまま固定されてしまう。ゴールは走り込んで触れるものなので、
+     * 放置すると次のステージが勝手に右へ走り出す。
+     */
+    private fun clearInput() {
+        inputLeft = false
+        inputRight = false
+        jumpHeld = false
+        jumpQueued = false
+    }
+
     fun startGame() {
         lives = 3
         score = 0
@@ -340,7 +355,7 @@ class Game {
         pops.clear()
         cameraX = 0f
         phaseT = 0f
-        jumpQueued = false
+        clearInput()
     }
 
     fun update(dt: Float, viewTilesX: Float) {
@@ -783,6 +798,7 @@ class Game {
         player.vy = -12f
         player.hurtT = HURT_TIME
         phaseT = 0f
+        clearInput()
         phase = Phase.DYING
     }
 
@@ -791,6 +807,7 @@ class Game {
         totalTime += stageTime
         lastBonus = timeBonus
         score += 1000 + timeBonus
+        clearInput()
         phase = Phase.LEVEL_CLEAR
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -185,6 +186,11 @@ private fun HoldButton(
     onUp: () -> Unit,
     size: Int = 82,
 ) {
+    // 押されたままボタンが画面から消えると「離した」イベントが届かないので、
+    // 破棄されるときに必ず離した扱いにする。
+    DisposableEffect(Unit) {
+        onDispose { onUp() }
+    }
     Box(
         modifier = Modifier
             .size(size.dp)

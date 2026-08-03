@@ -125,6 +125,10 @@ private fun paletteOf(theme: Theme): Palette = when (theme) {
 
 // --- エントリポイント ----------------------------------------------------
 fun DrawScope.drawGame(game: Game) {
+    if (game.phase == Phase.ENDING) {
+        drawEnding(game)
+        return
+    }
     val s = size.height / VIEW_TILES_Y
     val cam = game.cameraX
     val pal = paletteOf(game.level.theme)
@@ -827,6 +831,52 @@ private fun DrawScope.drawBoss(
 }
 
 // --- 主人公 モモ ---------------------------------------------------------
+
+/** モモの見た目そのもの。ゲーム中とエンディングの両方から使う。 */
+private fun DrawScope.momoSprite(
+    x: Float, y: Float, w: Float, h: Float,
+    faceRight: Boolean, stepPhase: Float, stretch: Float,
+    body: Color, dark: Color,
+) {
+    val cx = x + w / 2f
+    drawOval(
+        MOMO_FOOT,
+        Offset(cx - w * 0.4f + stepPhase * w * 0.14f, y + h * 0.8f), Size(w * 0.34f, h * 0.2f),
+    )
+    drawOval(
+        MOMO_FOOT,
+        Offset(cx + w * 0.06f - stepPhase * w * 0.14f, y + h * 0.8f), Size(w * 0.34f, h * 0.2f),
+    )
+    scale(1f / stretch, stretch, Offset(cx, y + h)) {
+        drawCircle(body, w * 0.19f, Offset(cx - w * 0.32f, y + h * 0.15f))
+        drawCircle(body, w * 0.19f, Offset(cx + w * 0.32f, y + h * 0.15f))
+        drawCircle(dark.copy(alpha = 0.55f), w * 0.1f, Offset(cx - w * 0.32f, y + h * 0.16f))
+        drawCircle(dark.copy(alpha = 0.55f), w * 0.1f, Offset(cx + w * 0.32f, y + h * 0.16f))
+        drawRoundRect(
+            body, Offset(cx - w * 0.46f, y + h * 0.16f), Size(w * 0.92f, h * 0.68f),
+            CornerRadius(w * 0.42f, h * 0.36f),
+        )
+        drawOval(
+            WHITE.copy(alpha = 0.55f),
+            Offset(cx - w * 0.24f, y + h * 0.48f), Size(w * 0.48f, h * 0.3f),
+        )
+        drawCircle(CHEEK.copy(alpha = 0.55f), w * 0.11f, Offset(cx - w * 0.31f, y + h * 0.45f))
+        drawCircle(CHEEK.copy(alpha = 0.55f), w * 0.11f, Offset(cx + w * 0.31f, y + h * 0.45f))
+        val ex = if (faceRight) w * 0.05f else -w * 0.05f
+        drawCircle(WHITE, w * 0.16f, Offset(cx - w * 0.17f + ex, y + h * 0.36f))
+        drawCircle(WHITE, w * 0.16f, Offset(cx + w * 0.17f + ex, y + h * 0.36f))
+        drawCircle(INK, w * 0.085f, Offset(cx - w * 0.15f + ex, y + h * 0.375f))
+        drawCircle(INK, w * 0.085f, Offset(cx + w * 0.19f + ex, y + h * 0.375f))
+        drawCircle(WHITE, w * 0.03f, Offset(cx - w * 0.17f + ex, y + h * 0.35f))
+        drawCircle(WHITE, w * 0.03f, Offset(cx + w * 0.17f + ex, y + h * 0.35f))
+        drawArc(
+            INK, 15f, 150f, false,
+            Offset(cx - w * 0.1f + ex, y + h * 0.45f), Size(w * 0.2f, h * 0.12f),
+            style = Stroke(width = w * 0.04f),
+        )
+    }
+}
+
 private fun DrawScope.drawPlayer(game: Game, cam: Float, s: Float) {
     val p = game.player
     val x = (p.x - cam) * s
@@ -874,43 +924,7 @@ private fun DrawScope.drawPlayer(game: Game, cam: Float, s: Float) {
         }
     }
 
-    drawOval(
-        MOMO_FOOT,
-        Offset(cx - w * 0.4f + stepPhase * w * 0.14f, y + h * 0.8f), Size(w * 0.34f, h * 0.2f),
-    )
-    drawOval(
-        MOMO_FOOT,
-        Offset(cx + w * 0.06f - stepPhase * w * 0.14f, y + h * 0.8f), Size(w * 0.34f, h * 0.2f),
-    )
-
-    scale(1f / stretch, stretch, Offset(cx, y + h)) {
-        drawCircle(body, w * 0.19f, Offset(cx - w * 0.32f, y + h * 0.15f))
-        drawCircle(body, w * 0.19f, Offset(cx + w * 0.32f, y + h * 0.15f))
-        drawCircle(dark.copy(alpha = 0.55f), w * 0.1f, Offset(cx - w * 0.32f, y + h * 0.16f))
-        drawCircle(dark.copy(alpha = 0.55f), w * 0.1f, Offset(cx + w * 0.32f, y + h * 0.16f))
-        drawRoundRect(
-            body, Offset(cx - w * 0.46f, y + h * 0.16f), Size(w * 0.92f, h * 0.68f),
-            CornerRadius(w * 0.42f, h * 0.36f),
-        )
-        drawOval(
-            WHITE.copy(alpha = 0.55f),
-            Offset(cx - w * 0.24f, y + h * 0.48f), Size(w * 0.48f, h * 0.3f),
-        )
-        drawCircle(CHEEK.copy(alpha = 0.55f), w * 0.11f, Offset(cx - w * 0.31f, y + h * 0.45f))
-        drawCircle(CHEEK.copy(alpha = 0.55f), w * 0.11f, Offset(cx + w * 0.31f, y + h * 0.45f))
-        val ex = if (p.faceRight) w * 0.05f else -w * 0.05f
-        drawCircle(WHITE, w * 0.16f, Offset(cx - w * 0.17f + ex, y + h * 0.36f))
-        drawCircle(WHITE, w * 0.16f, Offset(cx + w * 0.17f + ex, y + h * 0.36f))
-        drawCircle(INK, w * 0.085f, Offset(cx - w * 0.15f + ex, y + h * 0.375f))
-        drawCircle(INK, w * 0.085f, Offset(cx + w * 0.19f + ex, y + h * 0.375f))
-        drawCircle(WHITE, w * 0.03f, Offset(cx - w * 0.17f + ex, y + h * 0.35f))
-        drawCircle(WHITE, w * 0.03f, Offset(cx + w * 0.17f + ex, y + h * 0.35f))
-        drawArc(
-            INK, 15f, 150f, false,
-            Offset(cx - w * 0.1f + ex, y + h * 0.45f), Size(w * 0.2f, h * 0.12f),
-            style = Stroke(width = w * 0.04f),
-        )
-    }
+    momoSprite(x, y, w, h, p.faceRight, stepPhase, stretch, body, dark)
 
     if (star) {
         val a = (sin(p.animT * 12f) * 0.5f + 0.5f) * 0.5f
@@ -929,6 +943,195 @@ private fun DrawScope.drawPlayer(game: Game, cam: Float, s: Float) {
         drawCircle(
             MAGNET_A.copy(alpha = a), MAGNET_RANGE * s, Offset(cx, y + h * 0.5f),
             style = Stroke(width = s * 0.06f),
+        )
+    }
+}
+
+// --- エンディング --------------------------------------------------------
+
+private val creditPaint = android.graphics.Paint().apply {
+    isAntiAlias = true
+    textAlign = android.graphics.Paint.Align.CENTER
+    typeface = android.graphics.Typeface.DEFAULT_BOLD
+}
+
+private val CONFETTI = listOf(
+    Color(0xFFFFD84D), Color(0xFF7BD5F2), Color(0xFFFF9EC4),
+    Color(0xFF86DC64), Color(0xFFB289E8),
+)
+
+/** スタッフロールの行。見出しは "■" で始める。 */
+private fun creditLines(game: Game): List<String> {
+    val minutes = (game.totalTime / 60f).toInt()
+    val seconds = (game.totalTime % 60f).toInt()
+    return listOf(
+        "■ モモの大冒険",
+        "",
+        "■ とうじょうキャラクター",
+        "モモ",
+        "ぷにまる    とげのすけ    ぱたぽん",
+        "ぴょんた    おいかけ",
+        "おうさま",
+        "",
+        "■ ぼうけんしたステージ",
+    ) + LEVELS.map { it.title } + listOf(
+        "",
+        "■ きろく",
+        "あつめたコイン    ${game.coinCount} まい",
+        "さいしゅうスコア    ${game.score}",
+        "クリアタイム    ${minutes}分${seconds}秒",
+        "",
+        "■ おわりに",
+        "さいごまであそんでくれて",
+        "ほんとうにありがとう！",
+        "",
+        "また あそびにきてね",
+    )
+}
+
+fun DrawScope.drawEnding(game: Game) {
+    val s = size.height / VIEW_TILES_Y
+    val t = game.endingT
+    val groundY = size.height * 0.78f
+
+    // 夕暮れの空
+    drawRect(
+        brush = Brush.verticalGradient(
+            listOf(
+                Color(0xFF2C1E4A), Color(0xFF6B3A6E),
+                Color(0xFFE8735C), Color(0xFFFFC98A),
+            ),
+        ),
+        topLeft = Offset.Zero, size = size,
+    )
+    for (i in 0 until 50) {
+        val x = ((i * 137) % 100) / 100f * size.width
+        val y = ((i * 71) % 45) / 100f * size.height
+        val twinkle = sin(t * 2f + i) * 0.5f + 0.5f
+        drawCircle(
+            WHITE.copy(alpha = 0.2f + twinkle * 0.5f),
+            s * 0.035f * (1 + i % 2), Offset(x, y),
+        )
+    }
+
+    // 沈んでいく夕日
+    val sunY = size.height * (0.5f + 0.12f * (t / 25f).coerceAtMost(1f))
+    drawCircle(Color(0xFFFFF0CC).copy(alpha = 0.3f), s * 3.6f, Offset(size.width * 0.5f, sunY))
+    drawCircle(Color(0xFFFFD9A0), s * 2.3f, Offset(size.width * 0.5f, sunY))
+
+    // 遠景
+    for (layer in 0 until 2) {
+        val c = if (layer == 0) Color(0xFF6B4A78) else Color(0xFF3E2C51)
+        val r = s * (if (layer == 0) 3.2f else 2.4f)
+        val step = r * 1.4f
+        val baseY = groundY - (if (layer == 0) s * 0.9f else 0f)
+        val offset = if (layer == 0) s * 0.7f else 0f
+        var i = -1
+        while (i * step + offset < size.width + step) {
+            drawCircle(c, r, Offset(i * step + offset, baseY + r * 0.6f))
+            i += 1
+        }
+        drawRect(c, Offset(0f, baseY + r * 0.55f), Size(size.width, size.height))
+    }
+    drawRect(Color(0xFF2A1F3D), Offset(0f, groundY), Size(size.width, size.height - groundY))
+    drawRect(Color(0xFF4A3770), Offset(0f, groundY), Size(size.width, s * 0.2f))
+
+    // 花火
+    for (f in 0 until 3) {
+        val phase = (t + f * 1.4f) % 3.4f
+        if (phase > 1.7f) continue
+        val k = phase / 1.7f
+        val fx = size.width * (0.18f + 0.32f * f)
+        val fy = size.height * (0.16f + 0.09f * (f % 2))
+        val rad = s * 3.4f * k
+        val col = CONFETTI[f]
+        for (i in 0 until 14) {
+            val a = i * (360f / 14f) * (Math.PI / 180.0).toFloat()
+            drawCircle(
+                col.copy(alpha = (1f - k) * 0.9f), s * 0.085f,
+                Offset(fx + cos(a) * rad, fy + sin(a) * rad * 0.85f),
+            )
+        }
+    }
+
+    // 紙吹雪
+    for (i in 0 until 55) {
+        val speed = 1.2f + ((i * 37) % 60) / 60f
+        val span = size.height + s * 3f
+        val y = ((t * speed * s * 1.6f + i * s * 1.9f) % span) - s
+        val x = ((i * 73) % 100) / 100f * size.width + sin(t * 1.6f + i) * s * 0.6f
+        rotate(t * 140f + i * 31f, Offset(x, y)) {
+            drawRect(
+                CONFETTI[i % CONFETTI.size].copy(alpha = 0.85f),
+                Offset(x - s * 0.09f, y - s * 0.05f), Size(s * 0.18f, s * 0.1f),
+            )
+        }
+    }
+
+    // モモと仲間たちの行進
+    val span = size.width + s * 9f
+    val paradeSpeed = s * 1.7f
+    val followers = listOf(
+        EnemyKind.WALKER, EnemyKind.JUMPER, EnemyKind.FLYER,
+        EnemyKind.CHASER, EnemyKind.SPIKY, EnemyKind.BOSS,
+    )
+    for ((i, kind) in followers.withIndex()) {
+        val raw = t * paradeSpeed - (i + 1) * s * 2.7f
+        val x = ((raw % span) + span) % span - s * 4.5f
+        val w = if (kind == EnemyKind.BOSS) s * 1.7f else s * 0.8f
+        val h = if (kind == EnemyKind.BOSS) s * 1.5f else s * 0.8f
+        val y = groundY - h + s * 0.1f
+        when (kind) {
+            EnemyKind.WALKER -> drawWalker(x, y, w, h, t * 1.4f, true)
+            EnemyKind.JUMPER -> drawJumper(x, y, w, h, t * 1.4f, false)
+            EnemyKind.CHASER -> drawChaser(x, y, w, h, t * 1.4f, true)
+            EnemyKind.SPIKY -> drawSpiky(x, y, w, h, t * 1.4f)
+            EnemyKind.BOSS -> drawBoss(x, y, w, h, t * 1.4f, true, BOSS_HP)
+            EnemyKind.FLYER -> drawFlyer(
+                x, groundY - h - s * 1.7f + sin(t * 2.4f) * s * 0.35f, w, h, t * 1.4f, true,
+            )
+        }
+    }
+    val momoRaw = t * paradeSpeed
+    val momoX = ((momoRaw % span) + span) % span - s * 4.5f
+    momoSprite(
+        momoX, groundY - s * 0.92f + s * 0.1f, s * 0.72f, s * 0.92f,
+        true, sin(t * 13f), 1f, MOMO_BODY, MOMO_DARK,
+    )
+
+    // スタッフロール
+    val lines = creditLines(game)
+    val lineH = s * 0.7f
+    val scroll = ((t - 1.5f).coerceAtLeast(0f)) * s * 1.15f
+    val fadeTop = size.height * 0.2f
+    for ((i, line) in lines.withIndex()) {
+        if (line.isEmpty()) continue
+        val y = groundY + s * 1.6f + i * lineH - scroll
+        if (y < fadeTop - lineH || y > size.height + lineH) continue
+        val alpha = ((y - fadeTop) / (s * 1.6f)).coerceIn(0f, 1f)
+        val heading = line.startsWith("■")
+        creditPaint.textSize = if (heading) s * 0.52f else s * 0.44f
+        creditPaint.color =
+            if (heading) android.graphics.Color.rgb(255, 226, 150)
+            else android.graphics.Color.WHITE
+        creditPaint.alpha = (255 * alpha).toInt().coerceIn(0, 255)
+        creditPaint.setShadowLayer(s * 0.16f, 0f, 0f, android.graphics.Color.BLACK)
+        drawContext.canvas.nativeCanvas.drawText(
+            if (heading) line.removePrefix("■ ") else line,
+            size.width * 0.5f, y, creditPaint,
+        )
+    }
+
+    // 「おしまい」
+    val titleAlpha = ((t - 1f) / 1.5f).coerceIn(0f, 1f)
+    if (titleAlpha > 0f) {
+        val bounce = 1f + sin(t * 2f) * 0.03f
+        creditPaint.textSize = s * 1.05f * bounce
+        creditPaint.color = android.graphics.Color.rgb(255, 240, 245)
+        creditPaint.alpha = (255 * titleAlpha).toInt().coerceIn(0, 255)
+        creditPaint.setShadowLayer(s * 0.24f, 0f, s * 0.04f, android.graphics.Color.BLACK)
+        drawContext.canvas.nativeCanvas.drawText(
+            "おしまい", size.width * 0.5f, size.height * 0.145f, creditPaint,
         )
     }
 }

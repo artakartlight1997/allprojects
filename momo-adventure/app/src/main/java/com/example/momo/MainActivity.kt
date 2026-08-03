@@ -83,12 +83,13 @@ fun GameScreen() {
             drawGame(game)
         }
 
-        Hud(game)
+        // エンディング中は画面を邪魔しないよう HUD を出さない
+        if (game.phase != Phase.ENDING) Hud(game)
 
-        if (game.phase == Phase.PLAYING || game.phase == Phase.DYING) {
-            Controls(game)
-        } else {
-            Overlay(game)
+        when (game.phase) {
+            Phase.PLAYING, Phase.DYING -> Controls(game)
+            Phase.ENDING -> EndingOverlay(game)
+            else -> Overlay(game)
         }
     }
 }
@@ -209,6 +210,38 @@ private fun HoldButton(
     }
 }
 
+/**
+ * エンディング中は暗幕を出さず、スタッフロールをそのまま見せる。
+ * 見飽きた人のために少し経ってから先へ進むボタンだけ出す。
+ */
+@Composable
+private fun EndingOverlay(game: Game) {
+    game.hudTick.let { }
+    if (game.endingT < 4f) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(end = 24.dp, bottom = 20.dp),
+        contentAlignment = Alignment.BottomEnd,
+    ) {
+        Button(
+            onClick = { game.advance() },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xCCFF8FBB),
+                contentColor = Color(0xFF3A2430),
+            ),
+            shape = RoundedCornerShape(24.dp),
+        ) {
+            Text(
+                "けっかを みる",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun Overlay(game: Game) {
     val (title, body, button) = when (game.phase) {
@@ -231,9 +264,12 @@ private fun Overlay(game: Game) {
             "タイトルへ",
         )
         Phase.ALL_CLEAR -> Triple(
-            "ぜんステージ クリア！",
-            "おめでとう！ボスもやっつけた！\n" +
-                "コイン ${game.coinCount} まい / さいしゅうスコア ${game.score}",
+            "ぼうけんの きろく",
+            "ぜん ${LEVELS.size} ステージ クリア！\n" +
+                "あつめたコイン ${game.coinCount} まい\n" +
+                "さいしゅうスコア ${game.score}\n" +
+                "クリアタイム ${(game.totalTime / 60f).toInt()}分" +
+                "${(game.totalTime % 60f).toInt()}秒",
             "タイトルへ",
         )
         else -> Triple("", "", "")

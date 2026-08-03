@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.helloandroid"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "3.0"
+        versionCode = 5
+        versionName = "3.1"
     }
 
     // リポジトリに固定の debug keystore を置くことで、ビルドのたびに署名が

@@ -49,7 +49,7 @@ const val VIEW_TILES_Y = 12f  // 画面の高さ = ステージの高さ
 fun isSolid(c: Char): Boolean =
     c == '#' || c == '=' || c == '?' || c == 'x' || c == '^'
 
-enum class Phase { TITLE, PLAYING, DYING, LEVEL_CLEAR, GAME_OVER, ALL_CLEAR }
+enum class Phase { TITLE, PLAYING, DYING, LEVEL_CLEAR, GAME_OVER, ENDING, ALL_CLEAR }
 
 enum class EnemyKind { WALKER, SPIKY, FLYER, JUMPER, CHASER, BOSS }
 
@@ -236,6 +236,11 @@ class Game {
         private set
     var combo = 0
         private set
+    /** エンディングの経過秒。スタッフロールの進み具合に使う。 */
+    var endingT = 0f
+        private set
+    var totalTime = 0f
+        private set
 
     private var phaseT = 0f
     private var hudFrame = 0
@@ -266,6 +271,7 @@ class Game {
         score = 0
         coinCount = 0
         levelIndex = 0
+        totalTime = 0f
         loadLevel(0)
         phase = Phase.PLAYING
     }
@@ -275,13 +281,15 @@ class Game {
             Phase.TITLE -> startGame()
             Phase.LEVEL_CLEAR -> {
                 if (levelIndex + 1 >= LEVELS.size) {
-                    phase = Phase.ALL_CLEAR
+                    endingT = 0f
+                    phase = Phase.ENDING
                 } else {
                     levelIndex += 1
                     loadLevel(levelIndex)
                     phase = Phase.PLAYING
                 }
             }
+            Phase.ENDING -> phase = Phase.ALL_CLEAR
             Phase.GAME_OVER, Phase.ALL_CLEAR -> {
                 phase = Phase.TITLE
                 levelIndex = 0
@@ -361,6 +369,10 @@ class Game {
                         phase = Phase.PLAYING
                     }
                 }
+            }
+            Phase.ENDING -> {
+                endingT += dt
+                player.animT += dt
             }
             else -> {
                 player.animT += dt
@@ -776,6 +788,7 @@ class Game {
 
     private fun clearStage() {
         val timeBonus = ((CLEAR_TIME_LIMIT - stageTime).coerceAtLeast(0f) * 10f).toInt()
+        totalTime += stageTime
         lastBonus = timeBonus
         score += 1000 + timeBonus
         phase = Phase.LEVEL_CLEAR

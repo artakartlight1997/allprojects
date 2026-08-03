@@ -37,15 +37,24 @@ jobs:
           name: hello-android-apk
           path: hello-android.apk
 
-      # スマホから直接ダウンロードできるように、"dev" タグのプレリリースを
-      # 毎回作り直して APK を添付する。
+      # スマホから直接ダウンロードできるように、"dev" タグのプレリリースに
+      # APK を添付する。
+      #
+      # リリースを削除してから作り直すと、その数秒間 URL が 404 になり、
+      # 運悪くその瞬間にアクセスすると見えない。そのため
+      # 「無ければ作る / あればアセットだけ差し替える」方式にしている。
       - name: Publish to dev release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete dev --yes --cleanup-tag || true
-          gh release create dev hello-android.apk \
+          if ! gh release view dev >/dev/null 2>&1; then
+            gh release create dev \
+              --title "Dev build" \
+              --notes "初回作成" \
+              --prerelease \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload dev hello-android.apk --clobber
+          gh release edit dev \
             --title "Dev build ${GITHUB_SHA::7}" \
-            --notes "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}" \
-            --prerelease \
-            --target "$GITHUB_SHA"
+            --notes "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}"

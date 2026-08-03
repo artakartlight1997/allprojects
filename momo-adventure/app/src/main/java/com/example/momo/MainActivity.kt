@@ -37,8 +37,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.ceil
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,19 +95,51 @@ fun GameScreen() {
 
 @Composable
 private fun Hud(game: Game) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Badge("♥ ${game.lives}", Color(0xCCFF6B8A))
-        Spacer(Modifier.width(10.dp))
-        Badge("● ${game.coinCount}", Color(0xCCFFC93D))
-        Spacer(Modifier.width(10.dp))
-        Badge("${game.score}", Color(0xAA2B2B3A))
-        Spacer(Modifier.weight(1f))
-        Badge("${game.levelIndex + 1}-${LEVELS.size}  ${game.level.title}", Color(0xAA2B2B3A))
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Badge("♥ ${game.lives}", Color(0xCCFF6B8A))
+            Spacer(Modifier.width(8.dp))
+            Badge("● ${game.coinCount}", Color(0xCCFFC93D))
+            Spacer(Modifier.width(8.dp))
+            Badge("${game.score}", Color(0xAA2B2B3A))
+            Spacer(Modifier.weight(1f))
+            if (game.goalLocked) {
+                Badge("ボスを たおせ!", Color(0xCCE0483F))
+                Spacer(Modifier.width(8.dp))
+            }
+            Badge(
+                "${game.levelIndex + 1}/${LEVELS.size}  ${game.level.title}",
+                Color(0xAA2B2B3A),
+            )
+        }
+        PowerUps(game)
+    }
+}
+
+/** 効果時間のあるアイテムを、残り秒数つきで表示する。 */
+@Composable
+private fun PowerUps(game: Game) {
+    game.hudTick.let { }   // 残り時間を更新するための購読
+    val p = game.player
+    val items = buildList {
+        if (p.starT > 0f) add(Triple("★ 無敵", p.starT, Color(0xCCFFC93D)))
+        if (p.dashT > 0f) add(Triple("⚡ ダッシュ", p.dashT, Color(0xCC4FC3F7)))
+        if (p.featherT > 0f) add(Triple("羽 二段ジャンプ", p.featherT, Color(0xCC5FD8A0)))
+        if (p.magnetT > 0f) add(Triple("磁 マグネット", p.magnetT, Color(0xCCFF7A7A)))
+    }
+    if (items.isEmpty() && !p.hasShield) return
+    Row(modifier = Modifier.padding(top = 6.dp)) {
+        if (p.hasShield) {
+            Badge("◎ バリア", Color(0xCC7FB5FF))
+            Spacer(Modifier.width(8.dp))
+        }
+        for ((label, remain, color) in items) {
+            Badge("$label ${ceil(remain).toInt()}", color)
+            Spacer(Modifier.width(8.dp))
+        }
     }
 }
 
@@ -113,11 +147,11 @@ private fun Hud(game: Game) {
 private fun Badge(text: String, color: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(13.dp))
             .background(color)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
+            .padding(horizontal = 11.dp, vertical = 4.dp),
     ) {
-        Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -180,13 +214,16 @@ private fun Overlay(game: Game) {
     val (title, body, button) = when (game.phase) {
         Phase.TITLE -> Triple(
             "モモの大冒険",
-            "◀ ▶ で歩いて、▲ でジャンプ。\n敵は上から踏むとやっつけられます。\nぜんぶで ${LEVELS.size} ステージ！",
-            "はじめる",
+            "◀ ▶ で歩いて、▲ でジャンプ（長押しで高く跳ぶ）\n" +
+                "敵は上から踏むとやっつけられる。紫のトゲだけは踏めない！\n" +
+                "ぜんぶで ${LEVELS.size} ステージ。最後はボスが待っている",
+            "ぼうけんを はじめる",
         )
         Phase.LEVEL_CLEAR -> Triple(
             "ステージ ${game.levelIndex + 1} クリア！",
-            "コイン ${game.coinCount} まい / スコア ${game.score}",
-            if (game.levelIndex + 1 >= LEVELS.size) "けっか" else "つぎのステージへ",
+            "コイン ${game.coinCount} まい / スコア ${game.score}\n" +
+                if (game.lastBonus > 0) "タイムボーナス +${game.lastBonus}" else "つぎはもっと速く！",
+            if (game.levelIndex + 1 >= LEVELS.size) "けっかを みる" else "つぎのステージへ",
         )
         Phase.GAME_OVER -> Triple(
             "ゲームオーバー",
@@ -195,7 +232,8 @@ private fun Overlay(game: Game) {
         )
         Phase.ALL_CLEAR -> Triple(
             "ぜんステージ クリア！",
-            "おめでとう！\nコイン ${game.coinCount} まい / スコア ${game.score}",
+            "おめでとう！ボスもやっつけた！\n" +
+                "コイン ${game.coinCount} まい / さいしゅうスコア ${game.score}",
             "タイトルへ",
         )
         else -> Triple("", "", "")
@@ -214,18 +252,18 @@ private fun Overlay(game: Game) {
             Text(
                 title,
                 color = Color(0xFFFFE9F2),
-                fontSize = 40.sp,
+                fontSize = 38.sp,
                 fontWeight = FontWeight.Bold,
             )
-            Spacer(Modifier.size(14.dp))
+            Spacer(Modifier.size(12.dp))
             Text(
                 body,
                 color = Color(0xFFE8E4F0),
-                fontSize = 17.sp,
-                lineHeight = 26.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                fontSize = 16.sp,
+                lineHeight = 25.sp,
+                textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.size(26.dp))
+            Spacer(Modifier.size(22.dp))
             Button(
                 onClick = { game.advance() },
                 colors = ButtonDefaults.buttonColors(
@@ -236,7 +274,7 @@ private fun Overlay(game: Game) {
             ) {
                 Text(
                     button,
-                    fontSize = 20.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp),
                 )

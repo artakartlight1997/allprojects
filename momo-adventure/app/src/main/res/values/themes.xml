@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose だけで UI を組むので、AppCompat 等に依存しない
+         プラットフォーム標準テーマをベースにしている。
+         ゲームなのでステータスバーを隠す Fullscreen 版を使う。 -->
+    <style name="Theme.Momo" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">#FF101018</item>
+    </style>
+</resources>

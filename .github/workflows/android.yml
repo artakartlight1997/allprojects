@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     paths:
-      - 'android-hello/**'
+      - 'momo-adventure/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
 
@@ -25,17 +25,21 @@ jobs:
           cache: gradle
 
       - name: Build debug APK
-        working-directory: android-hello
+        working-directory: momo-adventure
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      # hello-android.apk は Hello Android 時代のダウンロード URL を
+      # 壊さないための同名コピー。中身は momo-adventure.apk と同じ。
       - name: Collect APK
-        run: cp android-hello/app/build/outputs/apk/debug/app-debug.apk hello-android.apk
+        run: |
+          cp momo-adventure/app/build/outputs/apk/debug/app-debug.apk momo-adventure.apk
+          cp momo-adventure.apk hello-android.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hello-android-apk
-          path: hello-android.apk
+          name: momo-adventure-apk
+          path: momo-adventure.apk
 
       # スマホから直接ダウンロードできるように、"dev" タグのプレリリースに
       # APK を添付する。
@@ -54,7 +58,7 @@ jobs:
               --prerelease \
               --target "$GITHUB_SHA"
           fi
-          gh release upload dev hello-android.apk --clobber
+          gh release upload dev momo-adventure.apk hello-android.apk --clobber
           gh release edit dev \
-            --title "Dev build ${GITHUB_SHA::7}" \
+            --title "モモの大冒険 (${GITHUB_SHA::7})" \
             --notes "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}"

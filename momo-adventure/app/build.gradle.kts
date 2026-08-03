@@ -5,15 +5,18 @@ plugins {
 }
 
 android {
-    namespace = "com.example.helloandroid"
+    namespace = "com.example.momo"
     compileSdk = 35
 
     defaultConfig {
+        // applicationId は Hello Android 時代から変えていない。変えると
+        // 別アプリ扱いになり、古いアプリが端末に残ってしまうため。
+        // 同じ ID + 同じ署名なので、インストールすると上書き更新される。
         applicationId = "com.example.helloandroid"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
     }
 
     // リポジトリに固定の debug keystore を置くことで、ビルドのたびに署名が
@@ -53,5 +56,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
 }

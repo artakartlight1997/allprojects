@@ -74,7 +74,14 @@ Jetpack Compose の Canvas だけで作った横スクロールアクション�
 2. 数分後、**Releases** の `dev` プレリリースに APK が添付される
 3. スマホのブラウザで開き、`momo-adventure.apk` をタップしてインストール
 
-固定リンク: https://github.com/artakartlight1997/allprojects/releases/tag/dev
+配布ページ（短い URL・インストール手順つき）:
+https://artakartlight1997.github.io/allprojects
+
+リリース一覧:
+https://github.com/artakartlight1997/allprojects/releases/tag/dev
+
+配布ページの中身は `site/index.html`。`.github/workflows/pages.yml` が
+push のたびに GitHub Pages へ配信する。
 
 `hello-android.apk` は以前のダウンロード URL を壊さないための同名コピー。
 中身は `momo-adventure.apk` と同一なのでどちらを入れても同じ。

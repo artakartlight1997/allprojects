@@ -1,0 +1,45 @@
+name: Deploy download page
+
+# 配布ページを GitHub Pages に置くためのワークフロー。
+# APK の直リンクは長いので、短い URL から入れるようにする。
+#   https://artakartlight1997.github.io/allprojects
+on:
+  push:
+    paths:
+      - 'momo-adventure/site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages への配信は同時に 1 つだけ。実行中でもキャンセルはしない。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # enablement: true にしておくと、リポジトリ設定で Pages を
+      # 有効にしていなくてもこのワークフローが有効化してくれる。
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: momo-adventure/site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

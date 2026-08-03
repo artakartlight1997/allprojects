@@ -12,6 +12,11 @@
 H = 12
 SOLID = set('#=?x')
 
+# 開始地点から敵までの最低距離。敵は毎秒 2.3 タイル歩くので、これだけ
+# 空けておけば復活直後の無敵時間（Game.kt の SPAWN_GRACE）が切れる前に
+# ぶつかることはない。
+START_CLEARANCE = 10
+
 class Grid:
     def __init__(self, w):
         self.w = w
@@ -63,6 +68,17 @@ def check(name, grid):
                 below = grid.g[y + 1][x] if y + 1 < H else '.'
                 if below not in SOLID:
                     errs.append('%s (%d,%d) の足元が空中' % (c, x, y))
+
+    # 開始地点のまわりに敵がいないか。敵は歩き出すので、近すぎると
+    # プレイヤーが操作を始める前にぶつかって即死する。
+    start = [(x, y) for y in range(H) for x in range(grid.w) if grid.g[y][x] == '@']
+    if start:
+        sx, sy = start[0]
+        for y in range(H):
+            for x in range(grid.w):
+                if grid.g[y][x] in 'wkp' and abs(x - sx) < START_CLEARANCE:
+                    errs.append('敵 %s (%d,%d) が開始地点 x=%d に近すぎる（%d タイル）'
+                                % (grid.g[y][x], x, y, sx, abs(x - sx)))
     # 固いタイルの「上面」を列ごとに集めて到達可能性をざっくり検査
     surf = {}
     for x in range(grid.w):
@@ -173,7 +189,7 @@ def level2():
     g.coins(94, 97, 6)
     g.coins(100, 103, 5)
 
-    for x in (5, 26, 55, 86):
+    for x in (13, 26, 55, 86):
         g.put(x, 9, 'w')
     g.put(33, 7, 'w')
     g.put(76, 7, 'w')

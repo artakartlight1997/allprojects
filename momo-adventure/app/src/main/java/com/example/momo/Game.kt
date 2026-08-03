@@ -18,6 +18,11 @@ const val STOMP_BOUNCE = -12f
 const val STAR_TIME = 8f
 const val HURT_TIME = 1.2f
 
+// 開始・復活した直後の無敵時間。敵が近くまで歩いてきている状態で復活すると
+// 何もできずに連続でやられてしまうため、点滅しながら少しだけ無敵にする。
+// tools/genlevels.py の START_CLEARANCE とセットで効く。
+const val SPAWN_GRACE = 1.6f
+
 const val VIEW_TILES_Y = 12f  // 画面の高さ = ステージの高さ
 
 fun isSolid(c: Char): Boolean = c == '#' || c == '=' || c == '?' || c == 'x'
@@ -187,7 +192,7 @@ class Game {
         player.vx = 0f
         player.vy = 0f
         player.starT = 0f
-        player.hurtT = 0f
+        player.hurtT = SPAWN_GRACE
         player.faceRight = true
         enemies.clear()
         for ((kind, ex, ey) in level.enemySpawns) enemies += Enemy(kind, ex, ey)

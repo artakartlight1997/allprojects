@@ -69,7 +69,7 @@ jobs:
           gh release upload dev \
             momo-adventure.apk hello-android.apk momo-adventure-debug.apk --clobber
           gh release edit dev \
-            --title "モモの大冒険 (${GITHUB_SHA::7})" \
+            --title "りなの大冒険 (${GITHUB_SHA::7})" \
             --notes "$(printf '%s\n' \
               "ブランチ: ${GITHUB_REF_NAME} / コミット: ${GITHUB_SHA::7}" \
               "" \

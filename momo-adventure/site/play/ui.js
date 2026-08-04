@@ -48,8 +48,8 @@ function creditLines() {
     '■ とうじょうキャラクター',
     'りな',
     'ぷにまる    とげのすけ    ぱたぽん',
-    'ぴょんた    おいかけ',
-    'おうさま', '',
+    'ぴょんた    おいかけ    どんぐり',
+    'パパ    ママ', '',
     '■ ぼうけんしたステージ',
     ...LEVELS.map((l) => l.title), '',
     '■ きろく',
@@ -129,12 +129,13 @@ function drawEnding() {
   // りなと仲間たちの行進
   const span = viewW + s * 9;
   const speed = s * 1.7;
-  const followers = ['WALKER', 'JUMPER', 'FLYER', 'CHASER', 'DROPPER', 'SPIKY', 'BOSS'];
+  const followers = ['WALKER', 'JUMPER', 'FLYER', 'CHASER', 'DROPPER', 'SPIKY', 'PAPA', 'BOSS'];
   followers.forEach((kind, i) => {
     const raw = t * speed - (i + 1) * s * 2.7;
     const x = (((raw % span) + span) % span) - s * 4.5;
-    const w = kind === 'BOSS' ? s * 1.7 : s * 0.8;
-    const h = kind === 'BOSS' ? s * 1.5 : s * 0.8;
+    const big = kind === 'BOSS' || kind === 'PAPA';
+    const w = big ? s * 1.7 : s * 0.8;
+    const h = big ? s * 1.5 : s * 0.8;
     const y = groundY - h + s * 0.1;
     const tt = t * 1.4;
     if (kind === 'WALKER') drawWalker(x, y, w, h, tt, true);
@@ -142,7 +143,8 @@ function drawEnding() {
     else if (kind === 'CHASER') drawChaser(x, y, w, h, tt, true);
     else if (kind === 'SPIKY') drawSpiky(x, y, w, h, tt);
     else if (kind === 'DROPPER') drawDropper(x, y, w, h, tt, false);
-    else if (kind === 'BOSS') drawBoss(x, y, w, h, tt, true, BOSS_HP);
+    else if (kind === 'PAPA') drawBoss(x, y, w, h, tt, true, PAPA_HP, 'PAPA', PAPA_HP);
+    else if (kind === 'BOSS') drawBoss(x, y, w, h, tt, true, BOSS_HP, 'MAMA', BOSS_HP);
     else drawFlyer(x, groundY - h - s * 1.7 + Math.sin(t * 2.4) * s * 0.35, w, h, tt, true);
   });
   const rinaX = (((t * speed % span) + span) % span) - s * 4.5;
@@ -211,9 +213,10 @@ function drawHud() {
   const rw = ctx.measureText(label).width + fs * 1.3;
   badge(viewW - pad - rw, y, label, 'rgba(43,43,58,0.67)', fs);
   if (game.goalLocked) {
+    const who = game.aliveBoss() === 'PAPA' ? 'パパと しょうぶ!' : 'ママと しょうぶ!';
     setFont(fs);
-    const bw = ctx.measureText('ボスを たおせ!').width + fs * 1.3;
-    badge(viewW - pad - rw - bw - 6, y, 'ボスを たおせ!', 'rgba(224,72,63,0.8)', fs);
+    const bw = ctx.measureText(who).width + fs * 1.3;
+    badge(viewW - pad - rw - bw - 6, y, who, 'rgba(224,72,63,0.8)', fs);
   }
 
   // 効果時間つきアイテム

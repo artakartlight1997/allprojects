@@ -21,6 +21,11 @@
   @  開始  G  ゴール  C  中間地点
   w  ぷにまる  k  とげのすけ  p  ぱたぽん  j  ぴょんた  c  おいかけ  B  ボス
   D  どんぐり（真下を通ると落ちてくる）
+  P  パパ（ステージ2 のやさしいボス）  B  ママ（ステージ10 のボス）
+
+P は Web 版だけの要素。Android 版の Level は未知の文字を空白として
+読み飛ばすので、Android 版のステージ2 にはボスが出ない（遊べなくは
+ならない）。
   m  横移動床  v  縦移動床
   o  コイン  g  ジェム  h  ハート  *  スター
   d  ダッシュ  f  はね  b  バリア  M  マグネット
@@ -32,8 +37,8 @@ import sys
 
 H = 12
 SOLID = set('#=?x^F')
-ENEMIES = 'wkpjcBD'
-GROUND_ENTITIES = 'wkjcB@GC'
+ENEMIES = 'wkpjcBDP'
+GROUND_ENTITIES = 'wkjcBP@GC'
 
 # 開始地点から敵までの最低距離。敵は毎秒 2.3 タイル歩くので、これだけ
 # 空けておけば開始直後の無敵時間（Game.kt の SPAWN_GRACE）が切れる前に
@@ -73,7 +78,7 @@ class Grid:
     def _claim(self, x, y, ch):
         """仕掛けを置く。敵やアイテムを消してしまっていたら記録する。"""
         old = self.g[y][x]
-        if old in 'wkpjcBD@GCmvghd*fbM':
+        if old in 'wkpjcBDP@GCmvghd*fbM':
             self.clobbered.append((ch, x, y, old))
         self.g[y][x] = ch
 
@@ -280,6 +285,7 @@ def s2_meadow():
     g.put(46, 1, 'g')
     g.put(70, 2, 'h')
     g.put(56, 9, 'C')
+    g.put(92, 9, 'P')      # やさしいボス。倒すとゴールが開く
     g.put(2, 9, '@')
     g.put(101, 9, 'G')
     return g

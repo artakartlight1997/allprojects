@@ -50,6 +50,15 @@ const BOSS_INTRO_RANGE = 11;
 const SHOT_INTERVAL = 2.6;
 const SHOT_SPEED_X = 7;
 const SHOT_SPEED_Y = -9;
+
+// たまに大きいスライムを投げてくる。大きいぶん当たり判定も広いが、
+// そのかわり ゆっくり・高く飛ぶので、見てから避けられる。
+// 投げる前の「ためる」ポーズで、手に持つスライムも大きくなるので予告になる。
+const SHOT_BIG_CHANCE = 0.34;
+const SHOT_BIG_R = 0.46;       // 当たり判定の半径
+const SHOT_R = 0.28;
+const SHOT_BIG_SLOW = 0.72;    // 横の速さの倍率
+const SHOT_BIG_LIFT = 1.15;    // 上に飛ぶ強さの倍率
 const CLEAR_TIME_LIMIT = 90;
 const VIEW_TILES_Y = 12;
 
@@ -538,7 +547,8 @@ class Game {
       if (isSolid(this.tileAt(tx, ty)) || sh.y > this.level.height + 1 ||
           sh.x < -1 || sh.x > this.level.width + 1) {
         sh.dead = true;
-        this.pops.push({ x: sh.x, y: sh.y - 0.5, kind: null, text: 'ぺちゃ', t: 0 });
+        this.pops.push({ x: sh.x, y: sh.y - 0.5, kind: null,
+          text: sh.big ? 'どしーん' : 'ぺちゃ', t: 0 });
       }
     }
     this.shots = this.shots.filter((sh) => !sh.dead);
@@ -774,12 +784,18 @@ class Game {
 
     // スライムを投げる
     e.shotT = (e.shotT || 0) + dt;
+    if (e.nextBig === undefined) e.nextBig = Math.random() < SHOT_BIG_CHANCE;
     if (e.shotT > SHOT_INTERVAL && Math.abs(dx) < 16) {
       e.shotT = 0;
+      const big = !!e.nextBig;
       this.shots.push({
         x: e.x + e.w / 2, y: e.y + e.h * 0.3,
-        vx: sign(dx) * SHOT_SPEED_X, vy: SHOT_SPEED_Y, t: 0, dead: false,
+        vx: sign(dx) * SHOT_SPEED_X * (big ? SHOT_BIG_SLOW : 1),
+        vy: SHOT_SPEED_Y * (big ? SHOT_BIG_LIFT : 1),
+        t: 0, dead: false, big,
       });
+      // つぎに投げるのが大きいかを先に決める。ためるポーズで予告するため
+      e.nextBig = Math.random() < SHOT_BIG_CHANCE;
     }
   }
 
@@ -856,7 +872,8 @@ class Game {
 
     for (const sh of this.shots) {
       if (sh.dead) continue;
-      if (this.overlaps(p.x, p.y, PLAYER_W, PLAYER_H, sh.x - 0.28, sh.y - 0.28, 0.56, 0.56)) {
+      const r = sh.big ? SHOT_BIG_R : SHOT_R;
+      if (this.overlaps(p.x, p.y, PLAYER_W, PLAYER_H, sh.x - r, sh.y - r, r * 2, r * 2)) {
         sh.dead = true;
         this.hurt();
       }

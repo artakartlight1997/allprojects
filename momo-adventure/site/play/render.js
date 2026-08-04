@@ -521,42 +521,106 @@ function drawChaser(x, y, w, h, t, right) {
   strokeArc(cx - w * 0.12, cy + h * 0.18, w * 0.24, h * 0.13, 200, 140, INK, w * 0.045);
 }
 
-function drawBoss(x, y, w, h, t, right, hp) {
-  const cx = x + w / 2, cy = y + h * 0.54, r = w * 0.4;
-  const breathe = 1 + Math.sin(t * 3) * 0.04;
-  const step = Math.sin(t * 7) * w * 0.08;
-  fillOval(cx - w * 0.32 + step, y + h * 0.82, w * 0.26, h * 0.2, BOSS_DARK);
-  fillOval(cx + w * 0.06 - step, y + h * 0.82, w * 0.26, h * 0.2, BOSS_DARK);
+const PAPA_SHIRT = '#7FA9E8', PAPA_SHIRT_D = '#5A82BF';
+const MAMA_DRESS = '#F0819F', MAMA_DRESS_D = '#CB5A79';
+const SKIN = '#F6CDA8', SKIN_D = '#E0AE84';
+const HAIR = '#4A3A44';
+
+/** ボスの残り HP を頭の上に丸で出す。 */
+function bossPips(cx, y, w, h, hp, maxHp, color) {
+  const step = w * 0.12;
+  const left = cx - (step * (maxHp - 1)) / 2;
+  for (let i = 0; i < maxHp; i++) {
+    fillCircle(left + i * step, y - h * 0.16, w * 0.055,
+      i < hp ? color : 'rgba(255,255,255,0.33)');
+  }
+}
+
+/** パパ。メガネをかけた、やさしいボス。 */
+function drawPapa(x, y, w, h, t, right, hp, maxHp) {
+  const cx = x + w / 2;
+  const breathe = 1 + Math.sin(t * 2.2) * 0.03;
+  const step = Math.sin(t * 5) * w * 0.06;
+  // 足
+  fillRoundRect(cx - w * 0.3 + step, y + h * 0.78, w * 0.22, h * 0.22, w * 0.06, '#3E4A63');
+  fillRoundRect(cx + w * 0.08 - step, y + h * 0.78, w * 0.22, h * 0.22, w * 0.06, '#3E4A63');
   ctx.save();
-  ctx.translate(cx, y + h); ctx.scale(breathe, breathe); ctx.translate(-cx, -(y + h));
-  fillCircle(cx, cy, r, BOSS_BODY);
-  fillCircle(cx, cy + r * 0.25, r * 0.7, rgba(BOSS_DARK, 0.4));
-  for (const side of [-1, 1]) {
-    poly([
-      [cx + side * r * 0.62, cy - r * 0.6],
-      [cx + side * r * 1.05, cy - r * 1.4],
-      [cx + side * r * 0.24, cy - r * 0.95],
-    ], BOSS_DARK);
-  }
-  poly([
-    [cx - r * 0.5, cy - r * 0.82], [cx - r * 0.5, cy - r * 1.3], [cx - r * 0.22, cy - r * 1.02],
-    [cx, cy - r * 1.45], [cx + r * 0.22, cy - r * 1.02], [cx + r * 0.5, cy - r * 1.3],
-    [cx + r * 0.5, cy - r * 0.82],
-  ], '#FFD34D');
+  ctx.translate(cx, y + h);
+  ctx.scale(breathe, breathe);
+  ctx.translate(-cx, -(y + h));
+  // シャツ
+  fillRoundRect(cx - w * 0.34, y + h * 0.42, w * 0.68, h * 0.42, w * 0.14, PAPA_SHIRT);
+  fillRect(cx - w * 0.05, y + h * 0.42, w * 0.1, h * 0.42, PAPA_SHIRT_D);
+  // 腕
+  fillRoundRect(cx - w * 0.46, y + h * 0.46, w * 0.14, h * 0.3, w * 0.07, PAPA_SHIRT_D);
+  fillRoundRect(cx + w * 0.32, y + h * 0.46, w * 0.14, h * 0.3, w * 0.07, PAPA_SHIRT_D);
+  // 顔
+  const hy = y + h * 0.3;
+  fillCircle(cx, hy, w * 0.26, SKIN);
+  // 髪
+  fillArc(cx - w * 0.27, hy - w * 0.3, w * 0.54, w * 0.5, 180, 180, HAIR);
   ctx.restore();
-  eyes(cx, cy - h * 0.04, w, 0.13, 0.11, right ? w * 0.03 : -w * 0.03);
-  fillArc(cx - w * 0.16, cy + h * 0.1, w * 0.32, h * 0.18, 200, 140, INK);
-  for (let i = 0; i < 3; i++) {
-    const fx = cx - w * 0.11 + i * w * 0.11;
-    const tr = w * 0.035;
-    poly([[fx, cy + h * 0.15 + tr], [fx - tr, cy + h * 0.15 - tr], [fx + tr, cy + h * 0.15 - tr]], '#FFFFFF');
-  }
-  for (let i = 0; i < BOSS_HP; i++) {
-    fillCircle(
-      cx - w * 0.12 + i * w * 0.12, y - h * 0.16, w * 0.055,
-      i < hp ? '#FF6B8A' : 'rgba(255,255,255,0.33)',
-    );
-  }
+  // メガネ
+  const gy = y + h * 0.32;
+  const gr = w * 0.1;
+  const ex = right ? w * 0.02 : -w * 0.02;
+  fillCircle(cx - w * 0.12 + ex, gy, gr, 'rgba(255,255,255,0.85)');
+  fillCircle(cx + w * 0.12 + ex, gy, gr, 'rgba(255,255,255,0.85)');
+  strokeCircle(cx - w * 0.12 + ex, gy, gr, HAIR, w * 0.028);
+  strokeCircle(cx + w * 0.12 + ex, gy, gr, HAIR, w * 0.028);
+  line(cx - w * 0.02 + ex, gy, cx + w * 0.02 + ex, gy, HAIR, w * 0.028);
+  fillCircle(cx - w * 0.12 + ex, gy + w * 0.01, w * 0.038, INK);
+  fillCircle(cx + w * 0.12 + ex, gy + w * 0.01, w * 0.038, INK);
+  // やさしい笑顔
+  strokeArc(cx - w * 0.08 + ex, y + h * 0.38, w * 0.16, h * 0.1, 20, 140, INK, w * 0.028);
+  fillCircle(cx - w * 0.24, y + h * 0.37, w * 0.05, 'rgba(255,140,160,0.4)');
+  fillCircle(cx + w * 0.24, y + h * 0.37, w * 0.05, 'rgba(255,140,160,0.4)');
+  bossPips(cx, y, w, h, hp, maxHp, '#7FD6B0');
+}
+
+/** ママ。ステージ10 のボス。 */
+function drawMama(x, y, w, h, t, right, hp, maxHp) {
+  const cx = x + w / 2;
+  const breathe = 1 + Math.sin(t * 3) * 0.04;
+  const step = Math.sin(t * 7) * w * 0.07;
+  fillRoundRect(cx - w * 0.3 + step, y + h * 0.8, w * 0.22, h * 0.2, w * 0.06, '#5A3F55');
+  fillRoundRect(cx + w * 0.08 - step, y + h * 0.8, w * 0.22, h * 0.2, w * 0.06, '#5A3F55');
+  ctx.save();
+  ctx.translate(cx, y + h);
+  ctx.scale(breathe, breathe);
+  ctx.translate(-cx, -(y + h));
+  // ワンピース
+  poly([
+    [cx - w * 0.24, y + h * 0.44], [cx + w * 0.24, y + h * 0.44],
+    [cx + w * 0.38, y + h * 0.84], [cx - w * 0.38, y + h * 0.84],
+  ], MAMA_DRESS);
+  // エプロン
+  poly([
+    [cx - w * 0.13, y + h * 0.48], [cx + w * 0.13, y + h * 0.48],
+    [cx + w * 0.2, y + h * 0.82], [cx - w * 0.2, y + h * 0.82],
+  ], 'rgba(255,255,255,0.85)');
+  fillRoundRect(cx - w * 0.44, y + h * 0.48, w * 0.14, h * 0.28, w * 0.07, MAMA_DRESS_D);
+  fillRoundRect(cx + w * 0.3, y + h * 0.48, w * 0.14, h * 0.28, w * 0.07, MAMA_DRESS_D);
+  // 長い髪（顔の後ろ）
+  const hy = y + h * 0.3;
+  fillOval(cx - w * 0.34, hy - w * 0.24, w * 0.68, h * 0.56, HAIR);
+  fillCircle(cx, hy, w * 0.26, SKIN);
+  fillArc(cx - w * 0.29, hy - w * 0.32, w * 0.58, w * 0.5, 180, 180, HAIR);
+  ctx.restore();
+  const ex = right ? w * 0.02 : -w * 0.02;
+  eyes(cx + ex, y + h * 0.31, w, 0.12, 0.1, 0);
+  // まつげ
+  line(cx - w * 0.2 + ex, y + h * 0.26, cx - w * 0.1 + ex, y + h * 0.28, INK, w * 0.025);
+  line(cx + w * 0.2 + ex, y + h * 0.26, cx + w * 0.1 + ex, y + h * 0.28, INK, w * 0.025);
+  strokeArc(cx - w * 0.07 + ex, y + h * 0.36, w * 0.14, h * 0.09, 20, 140, INK, w * 0.028);
+  fillCircle(cx - w * 0.23, y + h * 0.36, w * 0.05, 'rgba(255,140,160,0.45)');
+  fillCircle(cx + w * 0.23, y + h * 0.36, w * 0.05, 'rgba(255,140,160,0.45)');
+  bossPips(cx, y, w, h, hp, maxHp, '#FF6B8A');
+}
+
+function drawBoss(x, y, w, h, t, right, hp, variant, maxHp) {
+  if (variant === 'PAPA') drawPapa(x, y, w, h, t, right, hp, maxHp || PAPA_HP);
+  else drawMama(x, y, w, h, t, right, hp, maxHp || BOSS_HP);
 }
 
 const DON_BODY = '#D9A566', DON_CAP = '#7A5334';
@@ -589,7 +653,7 @@ function drawDropper(x, y, w, h, t, hanging) {
 
 const ENEMY_BODY = {
   WALKER: PUNI_BODY, SPIKY: TOGE_BODY, FLYER: PATA_BODY,
-  JUMPER: PYON_BODY, CHASER: OIKA_BODY, DROPPER: DON_BODY, BOSS: BOSS_BODY,
+  JUMPER: PYON_BODY, CHASER: OIKA_BODY, DROPPER: DON_BODY, BOSS: MAMA_DRESS,
 };
 
 function drawEnemies(cam, s) {
@@ -610,7 +674,7 @@ function drawEnemies(cam, s) {
       case 'JUMPER': drawJumper(x, y, w, h, e.t, e.vy !== 0); break;
       case 'CHASER': drawChaser(x, y, w, h, e.t, e.vx > 0); break;
       case 'DROPPER': drawDropper(x, y, w, h, e.t, !e.dropped); break;
-      case 'BOSS': drawBoss(x, y, w, h, e.t, e.vx > 0, e.hp); break;
+      case 'BOSS': drawBoss(x, y, w, h, e.t, e.vx > 0, e.hp, e.boss, e.maxHp); break;
     }
   }
 }

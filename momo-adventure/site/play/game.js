@@ -38,7 +38,8 @@ const TRAP_UP = 2.2;         // トゲが出ている時間
 const TRAP_SENSE = 3.2;      // トゲが反応する距離
 const DROP_SENSE = 1.5;      // どんぐりが落ちてくる距離
 
-const BOSS_HP = 3;
+const BOSS_HP = 3;      // ママ
+const PAPA_HP = 2;      // パパ。子供でも倒せるように少なめ
 const CLEAR_TIME_LIMIT = 90;
 const VIEW_TILES_Y = 12;
 
@@ -144,7 +145,8 @@ class Level {
           case 'D': this.enemySpawns.push(['DROPPER', col, ey]); break;
           case 'F': this.crumbleSpawns.push([col, row]); break;
           case 'T': this.trapSpawns.push([col, row]); break;
-          case 'B': this.enemySpawns.push(['BOSS', col, row + 1 - 1.5]); this.hasBoss = true; break;
+          case 'B': this.enemySpawns.push(['BOSS', col, row + 1 - 1.5, 'MAMA']); this.hasBoss = true; break;
+          case 'P': this.enemySpawns.push(['BOSS', col, row + 1 - 1.5, 'PAPA']); this.hasBoss = true; break;
           case 'm': this.moverSpawns.push([col, row, false]); break;
           case 'v': this.moverSpawns.push([col, row, true]); break;
           case 'o': this.pickupSpawns.push(['COIN', col, row]); break;
@@ -169,21 +171,25 @@ const ENEMY_SIZE = {
 };
 
 class Enemy {
-  constructor(kind, homeX, homeY) {
+  constructor(kind, homeX, homeY, variant) {
     this.kind = kind;
+    // ボスの中身。パパはやさしく、ママは本気で追いかけてくる。
+    this.boss = variant || 'MAMA';
     this.homeX = homeX;
     this.homeY = homeY;
     this.x = homeX;
     this.y = homeY;
     // どんぐりは落ちてくるまで動かない
     this.vx = kind === 'SPIKY' ? -1.6 : kind === 'CHASER' ? -2.0
-      : kind === 'BOSS' ? -2.2 : kind === 'DROPPER' ? 0 : -2.3;
+      : kind === 'BOSS' ? (this.boss === 'PAPA' ? -1.4 : -2.2)
+      : kind === 'DROPPER' ? 0 : -2.3;
     this.dropped = false;
     this.vy = 0;
     this.alive = true;
     this.squashT = 0;
     this.t = 0;
-    this.hp = kind === 'BOSS' ? BOSS_HP : 1;
+    this.hp = kind === 'BOSS' ? (this.boss === 'PAPA' ? PAPA_HP : BOSS_HP) : 1;
+    this.maxHp = this.hp;
     this.invulnT = 0;
     this.actionT = 0;
     this.minX = -Infinity;
@@ -312,8 +318,8 @@ class Game {
     this.combo = 0;
     this.enemies = [];
     this.bossRemaining = 0;
-    for (const [kind, x, y] of this.level.enemySpawns) {
-      const e = new Enemy(kind, x, y);
+    for (const [kind, x, y, variant] of this.level.enemySpawns) {
+      const e = new Enemy(kind, x, y, variant);
       this.enemies.push(e);
       if (kind === 'BOSS') { this.bossRemaining += 1; this.computeArena(e); }
     }
@@ -614,6 +620,16 @@ class Game {
 
   updateBoss(e, dt) {
     e.actionT += dt;
+    if (e.boss === 'PAPA') {
+      // やさしいボス。追いかけてこず、ゆっくり往復してたまに小さく跳ぶ。
+      if (e.vx === 0) e.vx = -1.4;
+      if (e.actionT > 3.2 && e.vy === 0) { e.vy = -11; e.actionT = 0; }
+      e.x += e.vx * dt;
+      this.walkCollide(e, dt, false);
+      if (e.x <= e.minX || e.x >= e.maxX) e.vx = -e.vx;
+      e.x = clamp(e.x, e.minX, e.maxX);
+      return;
+    }
     const dx = this.player.x - e.x;
     const speed = 2.0 + (BOSS_HP - e.hp) * 0.9;
     e.vx = sign(dx) * speed;
@@ -621,6 +637,12 @@ class Game {
     e.x += e.vx * dt;
     this.walkCollide(e, dt, false);
     e.x = clamp(e.x, e.minX, e.maxX);
+  }
+
+  /** 生きているボスの種類。HUD の表示に使う。 */
+  aliveBoss() {
+    const e = this.enemies.find((x) => x.kind === 'BOSS' && x.alive);
+    return e ? e.boss : null;
   }
 
   overlaps(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -713,7 +735,8 @@ class Game {
     if (e.kind === 'BOSS') {
       this.bossRemaining -= 1;
       this.score += 3000;
-      this.pops.push({ x: e.x + e.w / 2, y: e.y, kind: null, text: 'ボス撃破!', t: 0 });
+      const who = e.boss === 'PAPA' ? 'パパに かった!' : 'ママに かった!';
+      this.pops.push({ x: e.x + e.w / 2, y: e.y, kind: null, text: who, t: 0 });
     } else {
       this.combo += 1;
       const gained = 200 * Math.min(this.combo, 5);

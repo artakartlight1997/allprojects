@@ -1,0 +1,10 @@
+{
+  "name": "めっちゃリナレオン",
+  "short_name": "リナレオン",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#16281F",
+  "theme_color": "#16281F",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

@@ -17,6 +17,7 @@ on:
     branches: [main]
     paths:
       - 'momo-adventure/site/**'
+      - 'nihon-quest/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -43,9 +44,22 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      # 公開するファイルを 1 つのフォルダにまとめる。
+      #   /            りなの大冒険（配布ページ）
+      #   /play/       りなの大冒険（ブラウザ版）
+      #   /nihon/      にっぽん大冒険（都道府県クイズ）
+      # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
+      - name: Assemble site
+        run: |
+          mkdir -p public
+          cp -r momo-adventure/site/. public/
+          mkdir -p public/nihon
+          cp -r nihon-quest/site/. public/nihon/
+          ls -R public | head -40
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: momo-adventure/site
+          path: public
 
       - id: deployment
         uses: actions/deploy-pages@v4

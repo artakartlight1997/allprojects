@@ -304,9 +304,10 @@ private fun DrawScope.drawTiles(game: Game, pal: Palette, cam: Float, s: Float) 
                 'T' -> {
                     // とつぜんトゲ。近づくまでは地面に埋まっている。
                     val trap = game.trapAtTile(tx, ty)
+                    val grow = trap?.t ?: 0f
                     val out = when (trap?.state) {
                         2 -> 1f
-                        1 -> (trap.t / TRAP_WARN).coerceIn(0f, 1f) * 0.35f
+                        1 -> (grow / TRAP_WARN).coerceIn(0f, 1f) * 0.35f
                         else -> 0f
                     }
                     if (out > 0.02f) {

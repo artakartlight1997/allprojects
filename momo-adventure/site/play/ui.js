@@ -94,7 +94,7 @@ function drawEnding() {
   // りなと仲間たちの行進
   const span = viewW + s * 9;
   const speed = s * 1.7;
-  const followers = ['WALKER', 'JUMPER', 'FLYER', 'CHASER', 'SPIKY', 'BOSS'];
+  const followers = ['WALKER', 'JUMPER', 'FLYER', 'CHASER', 'DROPPER', 'SPIKY', 'BOSS'];
   followers.forEach((kind, i) => {
     const raw = t * speed - (i + 1) * s * 2.7;
     const x = (((raw % span) + span) % span) - s * 4.5;
@@ -106,11 +106,14 @@ function drawEnding() {
     else if (kind === 'JUMPER') drawJumper(x, y, w, h, tt, false);
     else if (kind === 'CHASER') drawChaser(x, y, w, h, tt, true);
     else if (kind === 'SPIKY') drawSpiky(x, y, w, h, tt);
+    else if (kind === 'DROPPER') drawDropper(x, y, w, h, tt, false);
     else if (kind === 'BOSS') drawBoss(x, y, w, h, tt, true, BOSS_HP);
     else drawFlyer(x, groundY - h - s * 1.7 + Math.sin(t * 2.4) * s * 0.35, w, h, tt, true);
   });
   const rinaX = (((t * speed % span) + span) % span) - s * 4.5;
-  rinaSprite(rinaX, groundY - s * 0.92 + s * 0.1, s * 0.72, s * 0.92,
+  const rw = s * 0.72 * PLAYER_DRAW_SCALE;
+  const rh = s * 0.92 * PLAYER_DRAW_SCALE;
+  rinaSprite(rinaX, groundY - rh + s * 0.1, rw, rh,
     true, Math.sin(t * 13), 1, RINA_BODY, RINA_DARK);
 
   // スタッフロール

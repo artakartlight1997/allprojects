@@ -643,10 +643,13 @@ function rinaSprite(x, y, w, h, faceRight, stepPhase, stretch, body, dark) {
 
 function drawPlayer(cam, s) {
   const p = game.player;
-  const x = (p.x - cam) * s;
-  const y = p.y * s;
-  const w = PLAYER_W * s;
-  const h = PLAYER_H * s;
+  // 当たり判定より少し大きく描く。足元と中心を合わせて、地面から浮かせない。
+  const hitW = PLAYER_W * s;
+  const hitH = PLAYER_H * s;
+  const w = hitW * PLAYER_DRAW_SCALE;
+  const h = hitH * PLAYER_DRAW_SCALE;
+  const x = (p.x - cam) * s - (w - hitW) / 2;
+  const y = p.y * s - (h - hitH);
   const cx = x + w / 2;
 
   const star = p.starT > 0;

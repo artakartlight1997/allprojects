@@ -4,6 +4,41 @@
 const CONFETTI = ['#FFD84D', '#7BD5F2', '#FF9EC4', '#86DC64', '#B289E8'];
 const BUTTON_SCALES = [[0.78, '小'], [1.0, '中'], [1.22, '大']];
 
+// --- 全画面 -------------------------------------------------------------
+// iPhone の Safari は要素の全画面表示に対応していない（対応しているのは
+// 動画だけ）。その場合は「ホーム画面に追加」を案内する。
+const FS_EL = document.documentElement;
+const fullscreenSupported = !!(FS_EL.requestFullscreen || FS_EL.webkitRequestFullscreen);
+const isStandalone = window.navigator.standalone === true ||
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.matchMedia('(display-mode: fullscreen)').matches;
+
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function enterFullscreen() {
+  if (!fullscreenSupported || isFullscreen()) return;
+  try {
+    if (FS_EL.requestFullscreen) FS_EL.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    else FS_EL.webkitRequestFullscreen();
+  } catch (e) { /* 使えない端末では何もしない */ }
+  // 対応している端末では横向きに固定する
+  if (screen.orientation && screen.orientation.lock) {
+    try {
+      const r = screen.orientation.lock('landscape');
+      if (r && r.catch) r.catch(() => {});
+    } catch (e) { /* 非対応は無視 */ }
+  }
+}
+
+function exitFullscreen() {
+  try {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } catch (e) { /* 何もしない */ }
+}
+
 // --- エンディング --------------------------------------------------------
 function creditLines() {
   const minutes = Math.floor(game.totalTime / 60);
@@ -308,6 +343,26 @@ function drawOverlay() {
       ctx.textAlign = 'left';
     }
     y += cellH * 0.5;
+
+    // 全画面。iPhone の Safari は非対応なので、その場合は案内文にする。
+    y += bodySize * 1.9;
+    if (fullscreenSupported && !isStandalone) {
+      const label = isFullscreen() ? 'ぜんがめんを やめる' : 'ぜんがめんにする';
+      setFont(bodySize);
+      const fw = ctx.measureText(label).width + cellH * 1.4;
+      const fx = viewW / 2 - fw / 2;
+      fillRoundRect(fx, y - cellH * 0.72, fw, cellH, cellH * 0.35, 'rgba(255,255,255,0.2)');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, viewW / 2, y + cellH * 0.08);
+      ui.fsBtn = { x: fx, y: y - cellH * 0.72, w: fw, h: cellH };
+    } else if (!isStandalone) {
+      setFont(bodySize * 0.92);
+      ctx.fillStyle = '#B9A9C9';
+      ctx.textAlign = 'center';
+      ctx.fillText('共有ボタン → ホーム画面に追加 で全画面になります', viewW / 2, y);
+    }
+    ctx.textAlign = 'left';
   }
 
   y += 18;
@@ -340,7 +395,7 @@ function drawEndingButton() {
 
 // --- 画面全体 -----------------------------------------------------------
 function drawScene() {
-  ui.left = ui.right = ui.jump = ui.overlayBtn = null;
+  ui.left = ui.right = ui.jump = ui.overlayBtn = ui.fsBtn = null;
   ui.sizeBtns = [];
 
   if (game.phase === 'ENDING') {
@@ -417,7 +472,15 @@ function onDown(e) {
   for (const b of ui.sizeBtns) {
     if (hitRect(b, x, y)) { uiScale = b.scale; return; }
   }
-  if (hitRect(ui.overlayBtn, x, y)) game.advance();
+  if (hitRect(ui.fsBtn, x, y)) {
+    if (isFullscreen()) exitFullscreen(); else enterFullscreen();
+    return;
+  }
+  if (hitRect(ui.overlayBtn, x, y)) {
+    // 「はじめる」を押した流れでそのまま全画面にする（操作が必要なため）
+    if (game.phase === 'TITLE') enterFullscreen();
+    game.advance();
+  }
 }
 
 function onUp(e) {

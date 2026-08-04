@@ -12,8 +12,12 @@
 <link rel="apple-touch-icon" href="icon.png">
 <style>
   html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    margin: 0; height: 100%; overflow: hidden;
     background: #101018;
+    /* ノッチやホームバーの下に操作ボタンが入り込まないようにする */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-sizing: border-box;
     /* ダブルタップ拡大やスクロールでゲームが乱れないようにする */
     touch-action: none; overscroll-behavior: none;
     -webkit-user-select: none; user-select: none;

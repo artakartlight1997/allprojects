@@ -330,19 +330,31 @@ function drawControls() {
 // --- オーバーレイ -------------------------------------------------------
 function overlayText() {
   switch (game.phase) {
-    case 'TITLE':
-      return ['りなの大冒険', [
+    case 'TITLE': {
+      const body = [
         '◀ ▶ で歩いて、▲ でジャンプ（長押しで高く跳ぶ）',
         '敵は上から踏むとやっつけられる。紫のトゲだけは踏めない！',
-        `ぜんぶで ${LEVELS.length} ステージ。最後はボスが待っている`,
-      ], 'ぼうけんを はじめる'];
+      ];
+      if (save.maxStage > 0) {
+        body.push(`クリアしたステージから つづきができるよ（最高 ${save.best} 点）`);
+      } else {
+        body.push(`ぜんぶで ${LEVELS.length} ステージ。最後はボスが待っている`);
+      }
+      const label = game.startIndex > 0
+        ? `ステージ ${game.startIndex + 1} から はじめる`
+        : 'ぼうけんを はじめる';
+      return ['りなの大冒険', body, label];
+    }
     case 'LEVEL_CLEAR':
       return [`ステージ ${game.levelIndex + 1} クリア！`, [
         `コイン ${game.coinCount} まい / スコア ${game.score}`,
         game.lastBonus > 0 ? `タイムボーナス +${game.lastBonus}` : 'つぎはもっと速く！',
       ], game.levelIndex + 1 >= LEVELS.length ? 'けっかを みる' : 'つぎのステージへ'];
     case 'GAME_OVER':
-      return ['ゲームオーバー', [`スコア ${game.score}`, 'もういちど挑戦しよう！'], 'タイトルへ'];
+      return ['ゲームオーバー', [
+        `スコア ${game.score}`,
+        `ステージ ${Math.min(save.maxStage, LEVELS.length - 1) + 1} から やりなおせるよ`,
+      ], 'タイトルへ'];
     case 'ALL_CLEAR':
       return ['ぼうけんの きろく', [
         `ぜん ${LEVELS.length} ステージ クリア！`,
@@ -360,14 +372,32 @@ function drawOverlay() {
   fillRect(0, 0, viewW, viewH, 'rgba(0,0,0,0.67)');
 
   const isTitle = game.phase === 'TITLE';
-  const titleSize = clamp(viewH * 0.095, 24, 42);
-  const bodySize = clamp(viewH * 0.042, 12, 17);
-  const lineH = bodySize * 1.55;
-  const pickerH = isTitle ? bodySize * 3.4 : 0;
-  const btnH = clamp(viewH * 0.115, 38, 54);
+  const showFs = isTitle && !isStandalone;
+  let titleSize = clamp(viewH * 0.095, 24, 42);
+  let bodySize = clamp(viewH * 0.042, 12, 17);
+  let btnH = clamp(viewH * 0.115, 38, 54);
 
-  const total = titleSize + 12 + body.length * lineH + pickerH + 18 + btnH;
-  let y = (viewH - total) / 2 + titleSize;
+  // タイトルは「ステージえらび」「ボタンの大きさ」「ぜんがめん」と中身が多い。
+  // 画面の低い端末で「はじめる」が下にはみ出さないよう、
+  // 全部の高さを足してから、入らないぶんだけ縮める。
+  const measure = () => {
+    let h = titleSize + 12 + body.length * bodySize * 1.55;
+    if (isTitle) {
+      h += bodySize * 2.1 + stagePickerHeight(bodySize);   // ステージえらび
+      h += bodySize * 2.2 + bodySize * 2.2;                // ボタンの大きさ
+      if (showFs) h += bodySize * 1.9 + bodySize * 2.2;    // ぜんがめん
+    }
+    return h + 18 + btnH;
+  };
+  let total = measure();
+  const room = viewH - 10;
+  if (total > room) {
+    const k = room / total;
+    titleSize *= k; bodySize *= k; btnH *= k;
+    total = measure();
+  }
+  const lineH = bodySize * 1.55;
+  let y = Math.max(titleSize + 4, (viewH - total) / 2 + titleSize);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
@@ -378,6 +408,12 @@ function drawOverlay() {
   for (const lineText of body) {
     y += lineH;
     ctx.fillText(lineText, viewW / 2, y);
+  }
+
+  ui.stageBtns = [];
+  if (isTitle) {
+    y += bodySize * 2.1;
+    y += drawStagePicker(y, bodySize);
   }
 
   ui.sizeBtns = [];
@@ -439,6 +475,53 @@ function drawOverlay() {
   ui.overlayBtn = { x: bxx, y, w: bw, h: btnH };
 }
 
+// ステージえらびのマスの大きさ。高さの見積もりと描画で同じ値を使う
+function stageCellSize(bodySize) {
+  const n = LEVELS.length;
+  const gapX = Math.max(3, bodySize * 0.28);
+  return { n, gapX, cell: Math.min(bodySize * 2.1, (viewW * 0.86 - gapX * (n - 1)) / n) };
+}
+
+function stagePickerHeight(bodySize) {
+  return stageCellSize(bodySize).cell + bodySize * 0.6;
+}
+
+// ステージえらび。クリアした先までのステージを選んで始められる。
+// 行けていないステージは灰色にして、押しても始まらないようにする。
+function drawStagePicker(y, bodySize) {
+  const { n, gapX, cell } = stageCellSize(bodySize);
+  const h = cell;
+  const totalW = cell * n + gapX * (n - 1);
+  let x = viewW / 2 - totalW / 2;
+
+  setFont(bodySize * 0.85);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#B9A9C9';
+  ctx.fillText('ステージをえらぶ', viewW / 2, y - cell * 0.35);
+
+  for (let i = 0; i < n; i++) {
+    const unlocked = i <= save.maxStage;
+    const selected = i === game.startIndex;
+    fillRoundRect(x, y, cell, h, cell * 0.28,
+      selected ? '#FF8FBB' : unlocked ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.07)');
+    if (selected) {
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, cell, h);
+    }
+    setFont(cell * 0.5);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = selected ? '#3A2430' : unlocked ? '#FFFFFF' : '#6B5C7A';
+    ctx.fillText(unlocked ? String(i + 1) : '×', x + cell / 2, y + h * 0.54);
+    ctx.textBaseline = 'alphabetic';
+    if (unlocked) ui.stageBtns.push({ x, y, w: cell, h, index: i });
+    x += cell + gapX;
+  }
+  ctx.textAlign = 'center';
+  return stagePickerHeight(bodySize);
+}
+
 function drawEndingButton() {
   if (game.endingT < 4) { ui.overlayBtn = null; return; }
   const h = clamp(viewH * 0.1, 34, 48);
@@ -459,6 +542,7 @@ function drawEndingButton() {
 function drawScene() {
   ui.left = ui.right = ui.jump = ui.overlayBtn = ui.fsBtn = null;
   ui.sizeBtns = [];
+  ui.stageBtns = [];
 
   if (game.phase === 'ENDING') {
     drawEnding();
@@ -533,8 +617,12 @@ function onDown(e) {
     if (hitCircle(ui.jump, x, y)) { pointerTargets.set(e.pointerId, 'jump'); game.pressJump(); return; }
     return;
   }
+  for (const b of ui.stageBtns || []) {
+    // うしろの景色も選んだステージに変えて、どの面か分かるようにする
+    if (hitRect(b, x, y)) { game.selectStage(b.index); return; }
+  }
   for (const b of ui.sizeBtns) {
-    if (hitRect(b, x, y)) { uiScale = b.scale; return; }
+    if (hitRect(b, x, y)) { uiScale = b.scale; save.btn = b.scale; storeSave(); return; }
   }
   if (hitRect(ui.fsBtn, x, y)) {
     if (isFullscreen()) exitFullscreen(); else enterFullscreen();

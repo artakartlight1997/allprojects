@@ -214,6 +214,44 @@ class Enemy {
 }
 
 // --- ゲーム本体 ---------------------------------------------------------
+// --- とちゅうから遊べるようにする記録 ---------------------------------
+//
+// クリアしたステージまでは、次に開いたときに選んで始められる。
+// 子どもが最後まで行けなくても、毎回1面からやり直さずにすむようにするため。
+// ブラウザの localStorage に入れるので、同じ端末の同じブラウザなら残る。
+
+const SAVE_KEY = 'rina-adventure.v1';
+
+const save = {
+  maxStage: 0,   // 選べるいちばん先のステージ（0 が 1 面）
+  best: 0,       // 最高スコア
+  btn: 1,        // 操作ボタンの大きさ
+  cleared: 0,    // 全ステージクリアした回数
+};
+
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return;
+    if (Number.isFinite(o.maxStage)) {
+      save.maxStage = Math.max(0, Math.min(LEVELS.length - 1, Math.floor(o.maxStage)));
+    }
+    if (Number.isFinite(o.best)) save.best = Math.max(0, Math.floor(o.best));
+    if (Number.isFinite(o.btn)) save.btn = o.btn;
+    if (Number.isFinite(o.cleared)) save.cleared = Math.max(0, Math.floor(o.cleared));
+  } catch (e) {
+    // 記録が壊れていても、遊べなくはしない
+  }
+}
+
+function storeSave() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+}
+
+loadSave();
+
 class Game {
   constructor() {
     this.phase = 'TITLE';
@@ -221,6 +259,8 @@ class Game {
     this.score = 0;
     this.coinCount = 0;
     this.levelIndex = 0;
+    // タイトルで選んだ「どのステージから始めるか」。前回の続きを初期値にする
+    this.startIndex = save.maxStage;
     this.lastBonus = 0;
     this.elapsed = 0;
     this.stageTime = 0;
@@ -256,7 +296,8 @@ class Game {
     this.jumpHeld = false;
     this.jumpQueued = false;
 
-    this.loadLevel(0);
+    this.loadLevel(this.startIndex);
+    this.levelIndex = this.startIndex;
   }
 
   get goalLocked() { return this.level.hasBoss && this.bossRemaining > 0; }
@@ -272,19 +313,31 @@ class Game {
     this.jumpQueued = false;
   }
 
-  startGame() {
+  // タイトルでステージを選ぶ。うしろに映る景色もそのステージにする
+  selectStage(index) {
+    const i = Math.max(0, Math.min(LEVELS.length - 1, index || 0));
+    this.startIndex = i;
+    if (this.phase === 'TITLE') {
+      this.levelIndex = i;
+      this.loadLevel(i);
+    }
+  }
+
+  // index を渡すとそのステージから始める（コンテニュー）
+  startGame(index) {
+    const i = Math.max(0, Math.min(LEVELS.length - 1, index || 0));
     this.lives = 3;
     this.score = 0;
     this.coinCount = 0;
-    this.levelIndex = 0;
+    this.levelIndex = i;
     this.totalTime = 0;
-    this.loadLevel(0);
+    this.loadLevel(i);
     this.phase = 'PLAYING';
   }
 
   advance() {
     switch (this.phase) {
-      case 'TITLE': this.startGame(); break;
+      case 'TITLE': this.startGame(this.startIndex); break;
       case 'LEVEL_CLEAR':
         if (this.levelIndex + 1 >= LEVELS.length) {
           this.endingT = 0;
@@ -298,9 +351,13 @@ class Game {
       case 'ENDING': this.phase = 'ALL_CLEAR'; break;
       case 'GAME_OVER':
       case 'ALL_CLEAR':
+        // タイトルに戻るとき、次に始めるステージを「行けたところ」に合わせる。
+        // ゲームオーバーでも 1 面まで戻されないようにするため。
+        this.startIndex = Math.min(save.maxStage,
+          this.phase === 'GAME_OVER' ? this.levelIndex : LEVELS.length - 1);
         this.phase = 'TITLE';
-        this.levelIndex = 0;
-        this.loadLevel(0);
+        this.levelIndex = this.startIndex;
+        this.loadLevel(this.startIndex);
         break;
     }
   }
@@ -889,6 +946,12 @@ class Game {
     this.score += 1000 + bonus;
     this.clearInput();
     this.phase = 'LEVEL_CLEAR';
+    // つぎのステージを解放する。ここを通ったぶんだけ先から始められる
+    const next = Math.min(LEVELS.length - 1, this.levelIndex + 1);
+    if (next > save.maxStage) save.maxStage = next;
+    if (this.score > save.best) save.best = this.score;
+    if (this.levelIndex + 1 >= LEVELS.length) save.cleared += 1;
+    storeSave();
   }
 
   updateCamera(viewTilesX) {

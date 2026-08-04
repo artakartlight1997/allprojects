@@ -5,7 +5,7 @@ const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d', { alpha: false });
 
 const game = new Game();
-let uiScale = 1;
+let uiScale = save.btn;   // 前回えらんだボタンの大きさ
 let viewW = 0, viewH = 0;
 
 // 当たり判定用に、その時点で描いたボタンの位置を覚えておく

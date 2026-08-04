@@ -9,7 +9,7 @@ let uiScale = 1;
 let viewW = 0, viewH = 0;
 
 // 当たり判定用に、その時点で描いたボタンの位置を覚えておく
-const ui = { left: null, right: null, jump: null, overlayBtn: null, sizeBtns: [] };
+const ui = { left: null, right: null, jump: null, overlayBtn: null, sizeBtns: [], fsBtn: null };
 
 // --- 描画ヘルパ ---------------------------------------------------------
 const FONT_STACK = 'system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif';

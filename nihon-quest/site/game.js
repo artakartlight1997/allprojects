@@ -471,6 +471,11 @@ function answerQuiz(i) {
   const ok = i === qz.q.answer;
   qz.ok = ok;
   recordAnswer(qz.q.target.id, ok);
+  if (qz.mode === 'board') {
+    // すごろくでは、正解するとその県のカードがもらえる
+    qz.bonus = ok ? CARD_COINS : 100;
+    return;
+  }
   game.quizDone++;
   if (ok) {
     game.quizOk++;
@@ -489,6 +494,11 @@ function answerQuiz(i) {
 function closeQuiz() {
   const qz = game.quiz;
   if (!qz) return;
+  if (qz.mode === 'board') {
+    game.quiz = null;
+    boardQuizDone(!!qz.ok);
+    return;
+  }
   const p = game.player;
   if (qz.reward && qz.reward !== 'coinsmall') {
     takeItem(qz.reward, p.x, p.y - 1);

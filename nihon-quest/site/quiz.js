@@ -35,6 +35,8 @@ const save = {
   best: 0,       // 最高スコア
   journeys: 0,   // 旅を終えた回数
   quizC: 0, quizW: 0,
+  board: null,   // すごろくのとちゅう経過（board.js が入れる）
+  conquered: 0,  // 全国制覇した回数
 };
 
 function loadSave() {
@@ -161,11 +163,12 @@ function kindsFor(level) {
   return QUIZ_KINDS;
 }
 
-function makeQuestion(rnd, region, used) {
+// forced を渡すと、その都道府県の問題を作る（すごろくで止まった県など）
+function makeQuestion(rnd, region, used, forced) {
   const level = masteryTotal();
   const bias = level < 8 ? 0 : level < 20 ? 1 : 2;   // 同じ地方から混ぜる数
   let kind = pick(rnd, kindsFor(level));
-  let target = chooseTarget(rnd, region, used);
+  let target = forced || chooseTarget(rnd, region, used);
 
   // 「この名物はどこ？」は、答えが 1 つに決まる名物がないと出せない
   if (kind === 'famous2pref' && !target.famous.some(f => UNIQUE_FAMOUS.includes(f))) {

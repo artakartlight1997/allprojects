@@ -139,6 +139,21 @@ def rings_of(geom):
 
 REGIONS = ["北海道", "東北", "関東", "中部", "近畿", "中国", "四国", "九州・沖縄"]
 
+# となり合っているかは県境の点の近さから自動で求める。
+# ただし海をまたぐつながり（橋・フェリー）は点が離れているので手で足す。
+# すごろくの「道」になるので、実際に行き来できる所だけを入れている。
+SEA_LINKS = [
+    (1, 2, "青函トンネル"),
+    (28, 36, "淡路島・大鳴門橋"),
+    (33, 37, "瀬戸大橋"),
+    (34, 38, "しまなみ海道"),
+    (35, 40, "関門トンネル"),
+    (46, 47, "船・ひこうき"),
+]
+
+# 点がこれだけ近ければ「となり」とみなす（量子化した単位。1 ≒ 0.9km）
+ADJ_EPS = 3
+
 PREF = {
  1: ("北海道", "ほっかいどう", "札幌", "さっぽろ", "北海道",
      ["じゃがいも", "カニ", "ラベンダー", "さっぽろ雪まつり"],
@@ -361,6 +376,48 @@ def main():
                           capKana=capkana, region=region, famous=famous,
                           memo=memo, cx=round(cx), cy=round(cy), rings=rings))
 
+    # ---- となり合う県を求める
+    cell = ADJ_EPS
+    buckets = {}
+    for p in prefs:
+        for r in p["rings"]:
+            for i in range(0, len(r), 2):
+                key = (r[i] // cell, r[i + 1] // cell)
+                buckets.setdefault(key, []).append((p["id"], r[i], r[i + 1]))
+    adj = {p["id"]: set() for p in prefs}
+    for (gx, gy), pts in buckets.items():
+        near = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                near += buckets.get((gx + dx, gy + dy), [])
+        for aid, ax, ay in pts:
+            for bid, bx, by in near:
+                if aid >= bid:
+                    continue
+                if (ax - bx) ** 2 + (ay - by) ** 2 <= ADJ_EPS ** 2:
+                    adj[aid].add(bid)
+                    adj[bid].add(aid)
+    for a, b, _why in SEA_LINKS:
+        adj[a].add(b)
+        adj[b].add(a)
+    for p in prefs:
+        p["adj"] = sorted(adj[p["id"]])
+
+    # つながっていない県があると、すごろくで行けなくなる
+    seen, stack = {1}, [1]
+    while stack:
+        cur = stack.pop()
+        for n in adj[cur]:
+            if n not in seen:
+                seen.add(n)
+                stack.append(n)
+    if len(seen) != 47:
+        missing = [PREF[i][0] for i in range(1, 48) if i not in seen]
+        sys.exit("すごろくの道がつながっていない: " + "・".join(missing))
+    lonely = [PREF[p["id"]][0] for p in prefs if len(p["adj"]) == 0]
+    if lonely:
+        sys.exit("となりがない県: " + "・".join(lonely))
+
     npts = sum(len(r) // 2 for p in prefs for r in p["rings"])
     lines = []
     lines.append("// 自動生成: tools/genprefdata.py")
@@ -401,6 +458,8 @@ def main():
         sys.exit("県庁所在地に重複がある")
     print("地方ごとの数:", {r: sum(1 for p in prefs if p["region"] == r)
                             for r in REGIONS})
+    print("となりの数:", {PREF[p["id"]][0]: len(p["adj"]) for p in prefs
+                          if len(p["adj"]) >= 7 or len(p["adj"]) <= 1})
 
 
 if __name__ == "__main__":

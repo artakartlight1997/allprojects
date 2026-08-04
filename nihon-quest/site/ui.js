@@ -141,6 +141,15 @@ window.addEventListener('keydown', e => {
     input.jump = true; input.jumpPressed = true; e.preventDefault();
   }
   if (game.screen === 'quiz' && '1234'.includes(e.key)) answerOrNext(+e.key - 1);
+  if (game.screen === 'mini' && mini.kind === 'quiz3' && '1234'.includes(e.key)) {
+    miniAnswer(+e.key - 1);
+  }
+  if (game.screen === 'mini' && mini.kind === 'run'
+      && (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w')) runJump();
+  if (game.screen === 'mini' && mini.kind === 'catch') {
+    if (e.key === 'ArrowLeft') mini.aim = Math.max(0.08, mini.aim - 0.12);
+    if (e.key === 'ArrowRight') mini.aim = Math.min(0.92, mini.aim + 0.12);
+  }
 });
 window.addEventListener('keyup', e => {
   keys[e.key] = false;
@@ -271,46 +280,109 @@ function drawTitle() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   const t = view.h;
   ctx.fillStyle = '#fff';
-  fitFont('にっぽん大冒険', view.w * 0.5, t * 0.14, 'bold ');
-  ctx.fillText('にっぽん大冒険', t * 0.08, t * 0.09);
-  ctx.font = Math.round(t * 0.05) + 'px system-ui, sans-serif';
+  fitFont('りなの全国制覇', view.w * 0.5, t * 0.13, 'bold ');
+  ctx.fillText('りなの全国制覇', t * 0.06, t * 0.05);
   ctx.fillStyle = '#dbe8ff';
-  ctx.fillText('とりいをくぐって 都道府県クイズ！', t * 0.09, t * 0.26);
+  fitFont('日本地図をめぐって、47都道府県のカードを集めよう', view.w * 0.5, t * 0.042);
+  ctx.fillText('日本地図をめぐって、47都道府県のカードを集めよう', t * 0.07, t * 0.2);
 
-  const known = masteryTotal();
-  ctx.font = Math.round(t * 0.042) + 'px system-ui, sans-serif';
   ctx.fillStyle = '#ffe9a8';
-  ctx.fillText('おぼえた県 ' + known + ' / 47' +
-               (save.best ? '　さいこう ' + save.best.toLocaleString() + '点' : ''),
-               t * 0.09, t * 0.34);
+  ctx.font = Math.round(t * 0.04) + 'px system-ui, sans-serif';
+  ctx.fillText('おぼえた県 ' + masteryTotal() + ' / 47' +
+               (save.conquered ? '　全国制覇 ' + save.conquered + '回' : ''),
+               t * 0.07, t * 0.26);
 
-  const bw = t * 0.62, bh = t * 0.15;
-  let by = t * 0.46;
-  drawButton(button(t * 0.08, by, bw, bh, () => { if (ui.fsWanted) enterFullscreen(); startJourney(); }),
-             'はじめる', '#ffd166');
-  by += bh * 1.2;
-  drawButton(button(t * 0.08, by, bw * 0.48, bh * 0.85, () => { game.screen = 'book'; }),
+  const bw = t * 0.66, bh = t * 0.135;
+  let by = t * 0.34;
+  const hasSave = !!save.board;
+  drawButton(button(t * 0.06, by, bw, bh, () => {
+    if (ui.fsWanted) enterFullscreen();
+    if (hasSave) { boardResume(); game.screen = 'board'; }
+    else game.screen = 'select';
+  }), hasSave ? 'すごろくの つづき' : 'すごろくで あそぶ', '#ffd166');
+  by += bh * 1.15;
+  if (hasSave) {
+    drawButton(button(t * 0.06, by, bw * 0.48, bh * 0.8, () => {
+      if (ui.fsWanted) enterFullscreen();
+      game.screen = 'select';
+    }), 'はじめから', '#ffe2a8');
+    drawButton(button(t * 0.06 + bw * 0.52, by, bw * 0.48, bh * 0.8, () => {
+      if (ui.fsWanted) enterFullscreen();
+      startJourney();
+    }), 'アクション', '#c8dcff');
+  } else {
+    drawButton(button(t * 0.06, by, bw, bh * 0.8, () => {
+      if (ui.fsWanted) enterFullscreen();
+      startJourney();
+    }), 'アクションで あそぶ', '#c8dcff');
+  }
+  by += bh * 0.95;
+  drawButton(button(t * 0.06, by, bw * 0.48, bh * 0.8, () => { game.screen = 'book'; }),
              'スタンプ帳', '#bfe8c8');
   const fsLabel = fullscreenSupported()
     ? (ui.fsWanted ? 'ぜんがめん ON' : 'ぜんがめん OFF')
     : 'ホーム画面に追加';
-  drawButton(button(t * 0.08 + bw * 0.52, by, bw * 0.48, bh * 0.85, () => {
+  drawButton(button(t * 0.06 + bw * 0.52, by, bw * 0.48, bh * 0.8, () => {
     if (fullscreenSupported()) { ui.fsWanted = !ui.fsWanted; if (ui.fsWanted) enterFullscreen(); }
   }), fsLabel, '#cfd8ea');
 
   ctx.textAlign = 'left';
-  ctx.font = Math.round(t * 0.033) + 'px system-ui, sans-serif';
+  ctx.font = Math.round(t * 0.03) + 'px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.fillText('◀▶ うごく　▲ ジャンプ（長おしで高く）', t * 0.08, t * 0.87);
+  ctx.fillText('すごろく＝サイコロで日本一周。アクション＝横スクロール', t * 0.06, t * 0.9);
   if (!fullscreenSupported() && !isStandalone()) {
-    ctx.fillText('iPhone は「ホーム画面に追加」してから開くと大きく遊べます', t * 0.08, t * 0.92);
+    ctx.fillText('iPhone は「ホーム画面に追加」してから開くと大きく遊べます', t * 0.06, t * 0.945);
   }
+}
+
+// どこを回るか選ぶ画面。地方ごとに区切って遊べる
+function drawSelect() {
+  const t = view.h;
+  ctx.fillStyle = '#eef4f7'; ctx.fillRect(0, 0, view.w, view.h);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#26374f';
+  ctx.font = 'bold ' + Math.round(t * 0.06) + 'px system-ui, sans-serif';
+  ctx.fillText('どこを めぐる？', t * 0.04, t * 0.04);
+  ctx.font = Math.round(t * 0.032) + 'px system-ui, sans-serif';
+  ctx.fillStyle = '#5f7185';
+  ctx.fillText('地方をえらぶと、その地方だけの短いすごろくになるよ', t * 0.04, t * 0.115);
+
+  const ms = Math.min(view.w * 0.32, view.h * 0.72);
+  drawJapanMap(ctx, view.w - ms - t * 0.04, view.h - ms - t * 0.04, ms, {});
+
+  // 北海道は 1 県しかないので東北と、四国は 4 県なので中国とまとめている
+  const COURSES = [
+    { n: '日本一周', v: null },
+    { n: '北海道・東北', v: ['北海道', '東北'] },
+    { n: '関東', v: ['関東'] },
+    { n: '中部', v: ['中部'] },
+    { n: '近畿', v: ['近畿'] },
+    { n: '中国・四国', v: ['中国', '四国'] },
+    { n: '九州・沖縄', v: ['九州・沖縄'] },
+  ];
+  const cols = 3, cw = (view.w - ms - t * 0.12) / cols, chh = t * 0.135;
+  COURSES.forEach((it, i) => {
+    const x = t * 0.04 + (i % cols) * cw;
+    const y = t * 0.18 + ((i / cols) | 0) * (chh + t * 0.02);
+    const cnt = it.v ? PREFS.filter(p => it.v.includes(p.region)).length : 47;
+    drawButton(button(x, y, cw - t * 0.02, chh,
+                      () => { boardStart(it.v); game.screen = 'board'; }),
+               it.n + '（' + cnt + '県）', it.v ? '#ffe2a8' : '#ffd166');
+  });
+  const bh = t * 0.1;
+  drawButton(button(t * 0.04, view.h - bh - t * 0.04, cw - t * 0.02, bh,
+                    () => { game.screen = 'title'; }), 'もどる', '#dfe4ec');
 }
 
 // ---------------------------------------------------------------- クイズ
 
 function drawQuiz(dt) {
-  drawWorld(ctx);
+  if (game.quiz.mode === 'board') {
+    drawBoard(0);                       // うしろに地図を出したまま
+  } else {
+    drawWorld(ctx);
+  }
+  ui.buttons = [];                      // うしろのボタンは押せないようにする
   ctx.fillStyle = 'rgba(8,12,24,0.72)';
   ctx.fillRect(0, 0, view.w, view.h);
 
@@ -450,7 +522,9 @@ function drawQuiz(dt) {
 
     const bw2 = pw * 0.3, bh2 = t * 0.09;
     const nb = button(px + pw / 2 - bw2 / 2, ry + rh - bh2 * 0.55, bw2, bh2, closeQuiz);
-    drawButton(nb, qz.ok ? 'アイテムをもらう' : 'つぎへ', '#ffd166');
+    drawButton(nb, qz.mode === 'board'
+                     ? (qz.ok ? 'カードをもらう' : 'つぎへ')
+                     : (qz.ok ? 'アイテムをもらう' : 'つぎへ'), '#ffd166');
   }
 }
 
@@ -609,7 +683,8 @@ function drawBook() {
 
   const bw = t * 0.28, bh = t * 0.09;
   drawButton(button(view.w - bw - t * 0.04, view.h - bh - t * 0.03, bw, bh,
-                    () => { game.screen = game.result && game.result.last ? 'end' : 'title'; }),
+                    () => { game.screen = board.active ? 'board'
+                                    : (game.result && game.result.last ? 'end' : 'title'); }),
              'もどる', '#ffd166');
 }
 
@@ -622,18 +697,36 @@ function wrapText(c, text, x, y, maxW, lh) {
   if (line) c.fillText(line, x, y);
 }
 
-// 地図タップ
-canvas.addEventListener('pointerdown', ev => {
-  if (game.screen !== 'book') return;
+// 地図やミニゲームの、ボタン以外のタップ
+function canvasPoint(ev) {
   const r = canvas.getBoundingClientRect();
-  const px = ev.clientX - r.left, py = ev.clientY - r.top;
-  for (const b of ui.buttons) {
-    if (!b.map) continue;
-    if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
-      const p = prefAt(px, py, b.mapBox.x, b.mapBox.y, b.mapBox.s);
-      if (p) ui.book.sel = p;
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+
+canvas.addEventListener('pointerdown', ev => {
+  const { x: px, y: py } = canvasPoint(ev);
+  if (game.screen === 'book') {
+    for (const b of ui.buttons) {
+      if (!b.map) continue;
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
+        const p = prefAt(px, py, b.mapBox.x, b.mapBox.y, b.mapBox.s);
+        if (p) ui.book.sel = p;
+      }
     }
+  } else if (game.screen === 'board' && board.phase === 'choose') {
+    const p = prefAt(px, py, boardView.x, boardView.y, boardView.s);
+    if (p) chooseDest(p.id);
+  } else if (game.screen === 'mini' && !mini.over) {
+    if (mini.kind === 'catch') mini.aim = Math.max(0.08, Math.min(0.92, px / view.w));
+    else if (mini.kind === 'run' && !hit(px, py)) runJump();
   }
+});
+
+canvas.addEventListener('pointermove', ev => {
+  if (game.screen !== 'mini' || mini.kind !== 'catch') return;
+  if (ev.buttons === 0 && ev.pointerType === 'mouse') return;
+  const { x: px } = canvasPoint(ev);
+  mini.aim = Math.max(0.08, Math.min(0.92, px / view.w));
 });
 
 // ---------------------------------------------------------------- たて画面
@@ -676,6 +769,18 @@ function frame(now) {
     drawEnd();
   } else if (game.screen === 'book') {
     drawBook();
+  } else if (game.screen === 'select') {
+    drawSelect();
+  } else if (game.screen === 'board') {
+    game.t += dt;
+    drawBoard(dt);
+  } else if (game.screen === 'mini') {
+    game.t += dt;
+    miniUpdate(dt);
+    drawMini(dt);
+  } else if (game.screen === 'conquer') {
+    game.t += dt;
+    drawConquer();
   } else {
     drawTitle();
   }

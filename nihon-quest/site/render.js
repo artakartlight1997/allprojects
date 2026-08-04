@@ -64,6 +64,7 @@ const MARK_COLORS = ['#e8503f', '#2f7de0', '#2fa85a', '#d9a02b'];
 //   hi:[id]      赤くする
 //   marks:[id]   ①〜④の色を付けて番号を書く
 //   mastery:true おぼえ具合で色を変える
+//   fills:{id:色} 県ごとに色を指定（すごろく用）
 //   sel:id       枠を太くする
 function drawJapanMap(ctx, x, y, size, opts) {
   opts = opts || {};
@@ -81,6 +82,7 @@ function drawJapanMap(ctx, x, y, size, opts) {
 
   for (const p of PREFS) {
     let fill = opts.base || '#dfeacd';
+    if (opts.fills && opts.fills[p.id]) fill = opts.fills[p.id];
     if (opts.hi && opts.hi.includes(p.id)) fill = '#e8503f';
     else if (opts.marks && opts.marks.includes(p.id)) {
       fill = MARK_COLORS[opts.marks.indexOf(p.id)];

@@ -18,6 +18,7 @@ on:
     paths:
       - 'momo-adventure/site/**'
       - 'nihon-quest/site/**'
+      - 'rinaleon/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -47,15 +48,17 @@ jobs:
       # 公開するファイルを 1 つのフォルダにまとめる。
       #   /            りなの大冒険（配布ページ）
       #   /play/       りなの大冒険（ブラウザ版）
-      #   /nihon/      にっぽん大冒険（都道府県クイズ）
+      #   /nihon/      りなの全国制覇（都道府県すごろく）
+      #   /rinaleon/   めっちゃリナレオン（ぬって隠れるかくれんぼ）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon
+          mkdir -p public/nihon public/rinaleon
           cp -r nihon-quest/site/. public/nihon/
-          ls -R public | head -40
+          cp -r rinaleon/site/. public/rinaleon/
+          ls -R public | head -50
 
       - uses: actions/upload-pages-artifact@v3
         with:

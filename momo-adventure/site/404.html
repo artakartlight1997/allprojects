@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ページが見つかりません</title>
+<!--
+  GitHub Pages は、無いページを開いたときにこのファイルを出す。
+  URL を打ちまちがえても行き先が分かるように、両方のゲームへの入口を置いている。
+  リンクはぜんぶ /allprojects/ から始まる絶対パスにしてある。
+  相対リンクだと、末尾のスラッシュの有無で行き先がずれることがあるため。
+-->
+<style>
+  :root {
+    --bg: #1b1426; --card: #271c36; --line: #3b2c4f;
+    --text: #f4ecf7; --muted: #b9a9c9; --pink: #ff8fbb; --pink-dark: #3a2430;
+  }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(120% 80% at 50% 0%, #3a2450 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", sans-serif;
+    padding: 28px 18px 40px; box-sizing: border-box;
+  }
+  main { max-width: 460px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 6px; }
+  p { color: var(--muted); font-size: .95rem; line-height: 1.7; }
+  a.cta {
+    display: block; text-align: center; text-decoration: none;
+    background: var(--pink); color: var(--pink-dark);
+    font-weight: 700; font-size: 1.1rem;
+    padding: 16px; border-radius: 14px; margin: 14px 0;
+  }
+  a.cta.blue { background: #7fb3ea; color: #16283d; }
+  a.cta small { display: block; font-weight: 500; font-size: .8rem; opacity: .75; margin-top: 2px; }
+  code { background: #00000040; padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--pink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>ページが見つかりません</h1>
+  <p>URL がちがうかもしれません。下のどちらかをどうぞ。</p>
+
+  <a class="cta blue" href="/allprojects/nihon/">
+    りなの全国制覇
+    <small>日本地図のすごろく＋都道府県クイズ</small>
+  </a>
+
+  <a class="cta" href="/allprojects/play/">
+    りなの大冒険
+    <small>横スクロールアクション・全10ステージ</small>
+  </a>
+
+  <p>
+    トップページは <a href="/allprojects/">artakartlight1997.github.io/allprojects/</a> です。<br>
+    ふるいページが残っているときは、ブラウザを引っぱって更新するか、
+    URL のうしろに <code>?1</code> を付けて開いてみてください。
+  </p>
+</main>
+</body>
+</html>

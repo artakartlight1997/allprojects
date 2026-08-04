@@ -132,7 +132,13 @@ https://artakartlight1997.github.io/allprojects
 https://github.com/artakartlight1997/allprojects/releases/tag/dev
 
 配布ページの中身は `site/index.html`。`.github/workflows/pages.yml` が
-main への push で GitHub Pages へ配信する。
+main への push で GitHub Pages へ配信する。同じサイトの `/nihon/` に
+「りなの全国制覇」（`nihon-quest/site`）も入る。
+
+`site/404.html` は、無い URL を開いたときに GitHub Pages が出すページ。
+打ちまちがえても両方のゲームへ行けるようにしてある。ページ内のリンクは
+`/allprojects/...` の絶対パスにしている。相対リンクだと、末尾のスラッシュが
+無い URL（`.../allprojects`）から踏んだときに行き先がずれるため。
 
 **最初に一度だけ手動設定が必要**: リポジトリの Settings → Pages →
 Build and deployment → Source を「GitHub Actions」にする。

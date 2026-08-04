@@ -579,7 +579,7 @@ function drawPapa(x, y, w, h, t, right, hp, maxHp) {
 }
 
 /** ママ。セミロングで中肉中背。スライムを投げてくる。 */
-function drawMama(x, y, w, h, t, right, hp, maxHp, charging) {
+function drawMama(x, y, w, h, t, right, hp, maxHp, charging, nextBig) {
   const cx = x + w / 2;
   const breathe = 1 + Math.sin(t * 3) * 0.035;
   const step = Math.sin(t * 7) * w * 0.06;
@@ -620,14 +620,21 @@ function drawMama(x, y, w, h, t, right, hp, maxHp, charging) {
   strokeArc(cx - w * 0.055 + ex, y + h * 0.34, w * 0.11, h * 0.08, 20, 140, INK, w * 0.024);
   fillCircle(cx - w * 0.17, y + h * 0.335, w * 0.04, 'rgba(255,140,160,0.45)');
   fillCircle(cx + w * 0.17, y + h * 0.335, w * 0.04, 'rgba(255,140,160,0.45)');
-  // 手に持ったスライム
-  drawShot(cx + w * (charging ? 0.235 : 0.235), y + h * (charging ? 0.24 : 0.74), w * 0.11, t * 2);
+  // 手に持ったスライム。つぎが大きいときは大きく持つので、予告になる
+  const holdR = w * (nextBig ? 0.19 : 0.11);
+  drawShot(cx + w * 0.235, y + h * (charging ? 0.24 : 0.74), holdR, t * 2);
+  if (nextBig && charging) {
+    // 大きいのが来る合図。ためている間だけ光らせる
+    const g = Math.abs(Math.sin(t * 9));
+    strokeCircle(cx + w * 0.235, y + h * 0.24, holdR * (1.3 + g * 0.35),
+      rgba(SLIME_HI, 0.35 + g * 0.45), w * 0.02);
+  }
   bossPips(cx, y, w, h, hp, maxHp, '#FF6B8A');
 }
 
-function drawBoss(x, y, w, h, t, right, hp, variant, maxHp, charging) {
+function drawBoss(x, y, w, h, t, right, hp, variant, maxHp, charging, nextBig) {
   if (variant === 'PAPA') drawPapa(x, y, w, h, t, right, hp, maxHp || PAPA_HP);
-  else drawMama(x, y, w, h, t, right, hp, maxHp || BOSS_HP, !!charging);
+  else drawMama(x, y, w, h, t, right, hp, maxHp || BOSS_HP, !!charging, !!nextBig);
 }
 
 const SLIME_BODY = '#5FD1C9', SLIME_DARK = '#3AA79F', SLIME_HI = '#C8FBF6';
@@ -671,7 +678,7 @@ function drawShots(cam, s) {
   for (const sh of game.shots) {
     const x = (sh.x - cam) * s;
     if (x < -s || x > viewW + s) continue;
-    drawShot(x, sh.y * s, s * 0.26, sh.t);
+    drawShot(x, sh.y * s, s * (sh.big ? SHOT_BIG_R : SHOT_R), sh.t);
   }
 }
 
@@ -734,7 +741,7 @@ function drawEnemies(cam, s) {
       case 'DROPPER': drawDropper(x, y, w, h, e.t, !e.dropped); break;
       case 'SLIME': drawSlime(x, y, w, h, e.t, e.vy !== 0); break;
       case 'BOSS': drawBoss(x, y, w, h, e.t, e.vx > 0, e.hp, e.boss, e.maxHp,
-        (e.shotT || 0) > SHOT_INTERVAL - 0.6); break;
+        (e.shotT || 0) > SHOT_INTERVAL - 0.6, e.nextBig); break;
     }
   }
 }

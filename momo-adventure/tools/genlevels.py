@@ -13,10 +13,11 @@
 
 タイル:
   .  空    #  地面   =  足場   ?  ブロック   x  叩いた後   s  ダメージ床
-  ^  ジャンプ台
+  ^  ジャンプ台   F  もろい足場（乗ると崩れる）   T  とつぜんトゲ（近づくと出る）
 エンティティ:
   @  開始  G  ゴール  C  中間地点
   w  ぷにまる  k  とげのすけ  p  ぱたぽん  j  ぴょんた  c  おいかけ  B  ボス
+  D  どんぐり（真下を通ると落ちてくる）
   m  横移動床  v  縦移動床
   o  コイン  g  ジェム  h  ハート  *  スター
   d  ダッシュ  f  はね  b  バリア  M  マグネット
@@ -27,8 +28,8 @@ import os
 import sys
 
 H = 12
-SOLID = set('#=?x^')
-ENEMIES = 'wkpjcB'
+SOLID = set('#=?x^F')
+ENEMIES = 'wkpjcBD'
 GROUND_ENTITIES = 'wkjcB@GC'
 
 # 開始地点から敵までの最低距離。敵は毎秒 2.3 タイル歩くので、これだけ
@@ -47,6 +48,7 @@ class Grid:
         self.g = [['.'] * w for _ in range(H)]
         self.assist = set()      # 移動床やジャンプ台で補助される列
         self.virtual = {}        # 移動床が作る足場 col -> [row]
+        self.clobbered = []      # 仕掛けが敵やアイテムを消してしまった箇所
 
     # --- 地形 ---
     def ground(self, x0, x1, top):
@@ -64,6 +66,27 @@ class Grid:
     def hazard(self, x0, x1, y):
         for x in range(x0, x1 + 1):
             self.g[y][x] = 's'
+
+    def _claim(self, x, y, ch):
+        """仕掛けを置く。敵やアイテムを消してしまっていたら記録する。"""
+        old = self.g[y][x]
+        if old in 'wkpjcBD@GCmvghd*fbM':
+            self.clobbered.append((ch, x, y, old))
+        self.g[y][x] = ch
+
+    def crumble(self, x0, x1, y):
+        """もろい足場。乗ると崩れて落ちる。"""
+        for x in range(x0, x1 + 1):
+            self._claim(x, y, 'F')
+
+    def poptrap(self, x0, x1, y):
+        """とつぜんトゲ。近づくまで地面に隠れている。"""
+        for x in range(x0, x1 + 1):
+            self._claim(x, y, 'T')
+
+    def dropper(self, x, y):
+        """どんぐり。真下を通ると落ちてくる。"""
+        self._claim(x, y, 'D')
 
     def bounce(self, x, y):
         self.g[y][x] = '^'
@@ -126,6 +149,24 @@ def check(name, grid):
                 if below not in SOLID:
                     errs.append('%s (%d,%d) の足元が空中' % (c, x, y))
 
+    for ch, x, y, old in grid.clobbered:
+        errs.append('仕掛け %s (%d,%d) が %s を消している' % (ch, x, y, old))
+
+    # とつぜんトゲは地面の上に置く
+    for y in range(H):
+        for x in range(grid.w):
+            if grid.g[y][x] == 'T':
+                below = grid.g[y + 1][x] if y + 1 < H else '.'
+                if below not in SOLID:
+                    errs.append('とつぜんトゲ (%d,%d) の足元が空中' % (x, y))
+
+    # どんぐりは落ちた先に足場がないと、落下しただけで消えてしまう
+    for y in range(H):
+        for x in range(grid.w):
+            if grid.g[y][x] == 'D':
+                if not any(grid.g[yy][x] in SOLID for yy in range(y + 1, H)):
+                    errs.append('どんぐり (%d,%d) の落下先に足場がない' % (x, y))
+
     # 開始地点のまわりに敵がいないか。敵は歩き出すので、近すぎると
     # プレイヤーが操作を始める前にぶつかって即死する。
     start = [(x, y) for y in range(H) for x in range(grid.w) if grid.g[y][x] == '@']
@@ -166,9 +207,10 @@ def check(name, grid):
         prev = x
 
     counts = {c: flat.count(c) for c in ENEMIES}
-    print('[%-10s] 幅=%3d 敵=%2d コイン=%3d アイテム=%2d %s' % (
+    traps = flat.count('F') + flat.count('T') + flat.count('D')
+    print('[%-10s] 幅=%3d 敵=%2d コイン=%3d アイテム=%2d 仕掛け=%2d %s' % (
         name, grid.w, sum(counts.values()), flat.count('o'),
-        sum(flat.count(c) for c in 'ghd*fbM'),
+        sum(flat.count(c) for c in 'ghd*fbM'), traps,
         'OK' if not errs else 'NG'))
     for e in errs:
         print('    ! ' + e)
@@ -201,6 +243,9 @@ def s1_grass():
     g.put(45, 4, 'h')
     g.put(21, 5, 'g')
     g.put(58, 9, 'C')
+    # --- 初見殺し ---
+    g.poptrap(48, 49, 9)      # 何もない平地から急にトゲが出る
+    g.dropper(24, 6)          # 走り抜ける通路の真上
     g.put(2, 9, '@')
     g.put(96, 9, 'G')
     return g
@@ -233,6 +278,9 @@ def s2_meadow():
     g.put(46, 1, 'g')
     g.put(70, 2, 'h')
     g.put(56, 9, 'C')
+    # --- 初見殺し ---
+    g.crumble(46, 48, 3)      # ジャンプ台で上がった先の足場が崩れる
+    g.dropper(36, 6)
     g.put(2, 9, '@')
     g.put(101, 9, 'G')
     return g
@@ -273,6 +321,9 @@ def s3_cave():
     g.put(24, 9, 'b')
     g.put(66, 6, 'g')
     g.put(63, 9, 'C')
+    # --- 初見殺し ---
+    g.poptrap(35, 36, 7)      # 高台の上
+    g.dropper(50, 5)
     g.put(2, 9, '@')
     g.put(106, 9, 'G')
     return g
@@ -309,6 +360,9 @@ def s4_water():
     g.put(42, 5, 'g')
     g.put(80, 9, 'h')
     g.put(49, 9, 'C')
+    # --- 初見殺し ---
+    g.crumble(42, 44, 6)
+    g.poptrap(42, 43, 9)
     g.put(2, 9, '@')
     g.put(112, 9, 'G')
     return g
@@ -349,6 +403,9 @@ def s5_sky():
     g.put(23, 7, 'f')
     g.put(44, 7, 'g')
     g.put(50, 8, 'C')
+    # --- 初見殺し ---
+    g.crumble(43, 45, 8)      # 空中の足場が崩れる。手前の 42 は残してある
+    g.dropper(66, 3)
     g.put(2, 9, '@')
     g.put(120, 9, 'G')
     return g
@@ -389,6 +446,10 @@ def s6_snow():
     g.put(88, 0, 'h')
     g.put(26, 9, 'd')
     g.put(50, 9, 'C')
+    # --- 初見殺し ---
+    g.poptrap(54, 55, 9)
+    g.dropper(30, 6)
+    g.crumble(106, 108, 5)
     g.put(2, 9, '@')
     g.put(114, 9, 'G')
     return g
@@ -434,6 +495,9 @@ def s7_desert():
     g.put(66, 7, 'h')
     g.put(100, 5, 'M')
     g.put(55, 9, 'C')
+    # --- 初見殺し ---
+    g.poptrap(67, 68, 7)
+    g.crumble(114, 116, 7)    # ゴール手前
     g.put(2, 9, '@')
     g.put(119, 9, 'G')
     return g
@@ -481,6 +545,10 @@ def s8_lava():
     g.put(90, 6, 'h')
     g.put(84, 9, 'd')
     g.put(57, 9, 'C')
+    # --- 初見殺し ---
+    g.crumble(36, 38, 7)
+    g.dropper(62, 4)
+    g.poptrap(94, 95, 9)
     g.put(2, 9, '@')
     g.put(122, 9, 'G')
     return g
@@ -528,6 +596,10 @@ def s9_night():
     g.put(84, 5, 'g')
     g.put(100, 6, 'h')
     g.put(68, 9, 'C')
+    # --- 初見殺し ---
+    g.crumble(36, 38, 5)      # 手前の 35 は残してある
+    g.dropper(46, 3)
+    g.poptrap(61, 62, 9)
     g.put(2, 9, '@')
     g.put(126, 9, 'G')
     return g
@@ -562,6 +634,9 @@ def s10_castle():
     g.put(68, 5, 'g')
     g.put(38, 9, 'C')
     g.put(62, 9, 'B')       # ボス
+    # --- 初見殺し ---
+    g.poptrap(34, 35, 9)
+    g.crumble(52, 54, 7)      # ボス戦の足場が崩れる
     g.put(2, 9, '@')
     g.put(74, 9, 'G')
     return g

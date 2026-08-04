@@ -9,9 +9,9 @@ function creditLines() {
   const minutes = Math.floor(game.totalTime / 60);
   const seconds = Math.floor(game.totalTime % 60);
   return [
-    '■ モモの大冒険', '',
+    '■ りなの大冒険', '',
     '■ とうじょうキャラクター',
-    'モモ',
+    'りな',
     'ぷにまる    とげのすけ    ぱたぽん',
     'ぴょんた    おいかけ',
     'おうさま', '',
@@ -91,7 +91,7 @@ function drawEnding() {
     ctx.restore();
   }
 
-  // モモと仲間たちの行進
+  // りなと仲間たちの行進
   const span = viewW + s * 9;
   const speed = s * 1.7;
   const followers = ['WALKER', 'JUMPER', 'FLYER', 'CHASER', 'SPIKY', 'BOSS'];
@@ -109,9 +109,9 @@ function drawEnding() {
     else if (kind === 'BOSS') drawBoss(x, y, w, h, tt, true, BOSS_HP);
     else drawFlyer(x, groundY - h - s * 1.7 + Math.sin(t * 2.4) * s * 0.35, w, h, tt, true);
   });
-  const momoX = (((t * speed % span) + span) % span) - s * 4.5;
-  momoSprite(momoX, groundY - s * 0.92 + s * 0.1, s * 0.72, s * 0.92,
-    true, Math.sin(t * 13), 1, MOMO_BODY, MOMO_DARK);
+  const rinaX = (((t * speed % span) + span) % span) - s * 4.5;
+  rinaSprite(rinaX, groundY - s * 0.92 + s * 0.1, s * 0.72, s * 0.92,
+    true, Math.sin(t * 13), 1, RINA_BODY, RINA_DARK);
 
   // スタッフロール
   const lines = creditLines();
@@ -205,7 +205,7 @@ function drawControls() {
   ui.right = { x: pad + move * 1.5 + gap, y: viewH - pad - move / 2, r: move / 2 };
   ui.jump = { x: viewW - pad - jump / 2, y: viewH - pad - jump / 2, r: jump / 2 };
 
-  // モモと重なるボタンは薄くして、キャラが隠れないようにする
+  // りなと重なるボタンは薄くして、キャラが隠れないようにする
   const low = game.playerViewY > 0.62;
   const leftAlpha = low && game.playerViewX < 0.34 ? 0.2 : 1;
   const rightAlpha = low && game.playerViewX > 0.74 ? 0.2 : 1;
@@ -231,7 +231,7 @@ function drawControls() {
 function overlayText() {
   switch (game.phase) {
     case 'TITLE':
-      return ['モモの大冒険', [
+      return ['りなの大冒険', [
         '◀ ▶ で歩いて、▲ でジャンプ（長押しで高く跳ぶ）',
         '敵は上から踏むとやっつけられる。紫のトゲだけは踏めない！',
         `ぜんぶで ${LEVELS.length} ステージ。最後はボスが待っている`,
@@ -351,6 +351,7 @@ function drawScene() {
   const pal = PALETTES[game.level.theme];
   drawBackground(pal, cam, s);
   drawTiles(pal, cam, s);
+  drawCrumbleGhosts(cam, s);
   drawMovers(pal, cam, s);
   drawCheckpoints(cam, s);
   drawGoal(cam, s);

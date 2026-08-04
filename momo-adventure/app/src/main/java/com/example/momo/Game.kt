@@ -41,17 +41,25 @@ const val MOVER_AMP_X = 3f
 const val MOVER_AMP_Y = 2f
 const val MOVER_OMEGA = 0.9f
 
+// --- 初見殺しの仕掛け ---------------------------------------------------
+const val CRUMBLE_WARN = 0.45f   // 乗ってから崩れ落ちるまで
+const val CRUMBLE_BACK = 3f      // 崩れてから戻ってくるまで
+const val TRAP_WARN = 0.35f      // 近づいてからトゲが出るまで
+const val TRAP_UP = 2.2f         // トゲが出ている時間
+const val TRAP_SENSE = 3.2f      // トゲが反応する距離
+const val DROP_SENSE = 1.5f      // どんぐりが落ちてくる距離
+
 const val BOSS_HP = 3
 const val CLEAR_TIME_LIMIT = 90f   // これより早くクリアするとタイムボーナス
 
 const val VIEW_TILES_Y = 12f  // 画面の高さ = ステージの高さ
 
 fun isSolid(c: Char): Boolean =
-    c == '#' || c == '=' || c == '?' || c == 'x' || c == '^'
+    c == '#' || c == '=' || c == '?' || c == 'x' || c == '^' || c == 'F'
 
 enum class Phase { TITLE, PLAYING, DYING, LEVEL_CLEAR, GAME_OVER, ENDING, ALL_CLEAR }
 
-enum class EnemyKind { WALKER, SPIKY, FLYER, JUMPER, CHASER, BOSS }
+enum class EnemyKind { WALKER, SPIKY, FLYER, JUMPER, CHASER, DROPPER, BOSS }
 
 enum class PickupKind { COIN, GEM, HEART, STAR, DASH, FEATHER, SHIELD, MAGNET }
 
@@ -86,6 +94,7 @@ class Enemy(val kind: EnemyKind, val homeX: Float, val homeY: Float) {
         EnemyKind.SPIKY -> -1.6f
         EnemyKind.CHASER -> -2.0f
         EnemyKind.BOSS -> -2.2f
+        EnemyKind.DROPPER -> 0f     // 落ちてくるまで動かない
         else -> -2.3f
     }
     var vy = 0f
@@ -95,6 +104,7 @@ class Enemy(val kind: EnemyKind, val homeX: Float, val homeY: Float) {
     var hp = if (kind == EnemyKind.BOSS) BOSS_HP else 1
     var invulnT = 0f
     var actionT = 0f
+    var dropped = false
 
     // ボスが足場から落ちると倒せなくなり、ゴールが永久に開かない。
     // 出現時に足場の広さを調べて、その範囲から出られないようにする。
@@ -124,6 +134,18 @@ class Pickup(val kind: PickupKind, var x: Float, var y: Float) {
 
 class Checkpoint(val x: Float, val y: Float) {
     var active = false
+}
+
+/** 乗ると崩れて落ちる足場。しばらくすると元に戻る。 */
+class Crumble(val tx: Int, val ty: Int) {
+    var state = 0   // 0=無事 1=崩れかけ 2=落ちた
+    var t = 0f
+}
+
+/** 近づくと地面から出てくるトゲ。 */
+class Trap(val tx: Int, val ty: Int) {
+    var state = 0   // 0=隠れている 1=出かけ 2=出ている
+    var t = 0f
 }
 
 /** 往復する足場。乗ると一緒に運ばれる。 */
@@ -164,6 +186,8 @@ class Level(data: LevelData) {
     val pickupSpawns = mutableListOf<Triple<PickupKind, Float, Float>>()
     val checkpointSpawns = mutableListOf<Pair<Float, Float>>()
     val moverSpawns = mutableListOf<Triple<Float, Float, Boolean>>()
+    val crumbleSpawns = mutableListOf<Pair<Int, Int>>()
+    val trapSpawns = mutableListOf<Pair<Int, Int>>()
 
     init {
         for (row in 0 until height) {
@@ -186,6 +210,9 @@ class Level(data: LevelData) {
                     'p' -> enemySpawns += Triple(EnemyKind.FLYER, fx, enemyY)
                     'j' -> enemySpawns += Triple(EnemyKind.JUMPER, fx, enemyY)
                     'c' -> enemySpawns += Triple(EnemyKind.CHASER, fx, enemyY)
+                    'D' -> enemySpawns += Triple(EnemyKind.DROPPER, fx, enemyY)
+                    'F' -> crumbleSpawns += Pair(col, row)
+                    'T' -> trapSpawns += Pair(col, row)
                     'B' -> {
                         enemySpawns += Triple(EnemyKind.BOSS, fx, row + 1f - 1.5f)
                         hasBoss = true
@@ -201,7 +228,7 @@ class Level(data: LevelData) {
                     'b' -> pickupSpawns += Triple(PickupKind.SHIELD, fx, row.toFloat())
                     'M' -> pickupSpawns += Triple(PickupKind.MAGNET, fx, row.toFloat())
                 }
-                if (c !in "#=?xs^") tiles[row][col] = '.'
+                if (c !in "#=?xs^FT") tiles[row][col] = '.'
             }
         }
     }
@@ -226,6 +253,9 @@ class Game {
     val pickups = mutableListOf<Pickup>()
     val checkpoints = mutableListOf<Checkpoint>()
     val movers = mutableListOf<Mover>()
+    val crumbles = mutableListOf<Crumble>()
+    val traps = mutableListOf<Trap>()
+    private val trapAt = HashMap<Int, Trap>()
     val pops = mutableListOf<Pop>()
 
     var cameraX = 0f
@@ -236,7 +266,7 @@ class Game {
         private set
     var combo = 0
         private set
-    /** 画面内でのモモの位置（左上 0,0 〜 右下 1,1）。 */
+    /** 画面内でのりなの位置（左上 0,0 〜 右下 1,1）。 */
     var playerViewX = 0.5f
         private set
     var playerViewY = 0.5f
@@ -330,6 +360,15 @@ class Game {
         for ((kind, px, py) in level.pickupSpawns) pickups += Pickup(kind, px, py)
         movers.clear()
         for ((mx, my, vertical) in level.moverSpawns) movers += Mover(mx, my, vertical)
+        crumbles.clear()
+        for ((cx, cy) in level.crumbleSpawns) crumbles += Crumble(cx, cy)
+        traps.clear()
+        trapAt.clear()
+        for ((tx, ty) in level.trapSpawns) {
+            val trap = Trap(tx, ty)
+            traps += trap
+            trapAt[ty * level.width + tx] = trap
+        }
         player.hasShield = false
         player.dashT = 0f
         player.featherT = 0f
@@ -358,6 +397,15 @@ class Game {
             }
         }
         pops.clear()
+        for (c in crumbles) {
+            c.state = 0
+            c.t = 0f
+            level.tiles[c.ty][c.tx] = 'F'
+        }
+        for (trap in traps) {
+            trap.state = 0
+            trap.t = 0f
+        }
         cameraX = 0f
         phaseT = 0f
         clearInput()
@@ -373,6 +421,7 @@ class Game {
             Phase.PLAYING -> {
                 stageTime += dt
                 updateMovers(dt)
+                updateTraps(dt)
                 updatePlayer(dt)
                 updateEnemies(dt)
                 collide()
@@ -416,6 +465,70 @@ class Game {
                 m.y = m.homeY + offset * MOVER_AMP_Y
             } else {
                 m.x = m.homeX - (Mover.W - 1f) / 2f + offset * MOVER_AMP_X
+            }
+        }
+    }
+
+    /** トゲが出ているか。描画側からも参照する。 */
+    fun trapUp(tx: Int, ty: Int): Boolean =
+        trapAt[ty * level.width + tx]?.state == 2
+
+    fun trapAtTile(tx: Int, ty: Int): Trap? = trapAt[ty * level.width + tx]
+
+    fun crumbleAt(tx: Int, ty: Int): Crumble? =
+        crumbles.firstOrNull { it.tx == tx && it.ty == ty }
+
+    // --- 初見殺しの仕掛け ------------------------------------------------
+    private fun updateTraps(dt: Float) {
+        val p = player
+        for (c in crumbles) {
+            c.t += dt
+            when (c.state) {
+                0 -> {
+                    val standing = p.onGround &&
+                        p.y + Player.H > c.ty - 0.3f && p.y + Player.H < c.ty + 0.4f &&
+                        p.x + Player.W > c.tx && p.x < c.tx + 1f
+                    if (standing) {
+                        c.state = 1
+                        c.t = 0f
+                    }
+                }
+                1 -> if (c.t > CRUMBLE_WARN) {
+                    c.state = 2
+                    c.t = 0f
+                    level.tiles[c.ty][c.tx] = '.'
+                }
+                else -> if (c.t > CRUMBLE_BACK) {
+                    // プレイヤーが重なっている場所に戻すと埋まってしまう
+                    val overlap = p.x + Player.W > c.tx && p.x < c.tx + 1f &&
+                        p.y + Player.H > c.ty && p.y < c.ty + 1f
+                    if (!overlap) {
+                        c.state = 0
+                        c.t = 0f
+                        level.tiles[c.ty][c.tx] = 'F'
+                    }
+                }
+            }
+        }
+        for (trap in traps) {
+            trap.t += dt
+            when (trap.state) {
+                0 -> {
+                    val near = abs(p.x + Player.W / 2f - (trap.tx + 0.5f)) < TRAP_SENSE &&
+                        abs(p.y - trap.ty) < 3f
+                    if (near) {
+                        trap.state = 1
+                        trap.t = 0f
+                    }
+                }
+                1 -> if (trap.t > TRAP_WARN) {
+                    trap.state = 2
+                    trap.t = 0f
+                }
+                else -> if (trap.t > TRAP_UP) {
+                    trap.state = 0
+                    trap.t = 0f
+                }
             }
         }
     }
@@ -587,6 +700,18 @@ class Game {
                     e.x += e.vx * dt
                     walkCollide(e, dt, turnAtLedge = true)
                 }
+                EnemyKind.DROPPER -> {
+                    if (!e.dropped) {
+                        // 真下を通りかかると落ちてくる
+                        val dx = abs((player.x + Player.W / 2f) - (e.x + e.w / 2f))
+                        if (dx < DROP_SENSE && player.y + Player.H > e.y) e.dropped = true
+                    } else {
+                        e.x += e.vx * dt
+                        walkCollide(e, dt, turnAtLedge = true)
+                        // 着地したら歩き出す
+                        if (e.vy == 0f && e.vx == 0f) e.vx = -2.3f
+                    }
+                }
                 EnemyKind.BOSS -> updateBoss(e, dt)
                 else -> {
                     e.x += e.vx * dt
@@ -749,7 +874,10 @@ class Game {
         val tx0 = floor(p.x + 0.1f).toInt()
         val tx1 = floor(p.x + Player.W - 0.1f).toInt()
         val ty = floor(p.y + Player.H - 0.1f).toInt()
-        for (tx in tx0..tx1) if (tileAt(tx, ty) == 's') hurt()
+        for (tx in tx0..tx1) {
+            val c = tileAt(tx, ty)
+            if (c == 's' || (c == 'T' && trapUp(tx, ty))) hurt()
+        }
 
         // ゴール（ボスがいるステージはボスを倒すまで開かない）
         if (!goalLocked &&
@@ -821,7 +949,7 @@ class Game {
         val maxX = (level.width - viewTilesX).coerceAtLeast(0f)
         cameraX = target.coerceIn(0f, maxX)
 
-        // 画面内でのモモの位置（0〜1）。操作ボタンと重なったときに
+        // 画面内でのりなの位置（0〜1）。操作ボタンと重なったときに
         // ボタンを薄くするために UI 側が参照する。
         playerViewX = ((player.x + Player.W / 2f - cameraX) / viewTilesX).coerceIn(0f, 1f)
         playerViewY = ((player.y + Player.H / 2f) / level.height).coerceIn(0f, 1f)

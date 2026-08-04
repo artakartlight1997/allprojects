@@ -28,9 +28,11 @@
 </head>
 <body>
 <canvas id="screen"></canvas>
-<script src="levels.js"></script>
-<script src="game.js"></script>
-<script src="render.js"></script>
-<script src="ui.js"></script>
+<!-- ?v= はキャッシュ避け。中身を直したら数字を 1 つ増やすこと。
+     これがないと、前に遊んだ人のブラウザが古い js を使い続けてしまう。 -->
+<script src="levels.js?v=9"></script>
+<script src="game.js?v=9"></script>
+<script src="render.js?v=9"></script>
+<script src="ui.js?v=9"></script>
 </body>
 </html>

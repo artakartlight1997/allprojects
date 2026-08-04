@@ -218,3 +218,9 @@ python3 tools/genlevels.py app/src/main/java/com/example/momo/Levels.kt
 debug ビルド専用の鍵なので、公開しても問題ない。
 Google Play に出す段階になったら、release 用の鍵を別途作って
 GitHub Secrets に置くこと（この鍵は絶対にコミットしない）。
+
+## ブラウザのキャッシュ避け
+
+`site/play/index.html` の script タグには `?v=9` のような番号を付けている。
+js を直したらこの番号を増やす。増やさないと、前に遊んだ人のブラウザが
+古い js を読み込んだままになり、直したはずの不具合が直って見えない。

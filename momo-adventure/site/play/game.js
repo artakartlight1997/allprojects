@@ -45,6 +45,11 @@ const VIEW_TILES_Y = 12;
 const PLAYER_W = 0.72;
 const PLAYER_H = 0.92;
 
+// りなを見やすくするための「見た目だけ」の倍率。当たり判定は上の値のまま。
+// 判定まで大きくすると狭い通路を抜けられなくなり、全ステージの到達可能性を
+// 作り直すことになるため。
+const PLAYER_DRAW_SCALE = 1.3;
+
 const SOLID = '#=?x^F';
 const isSolid = (c) => SOLID.indexOf(c) >= 0;
 

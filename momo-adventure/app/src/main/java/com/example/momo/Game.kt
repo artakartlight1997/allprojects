@@ -54,6 +54,11 @@ const val CLEAR_TIME_LIMIT = 90f   // これより早くクリアするとタイ
 
 const val VIEW_TILES_Y = 12f  // 画面の高さ = ステージの高さ
 
+// りなを見やすくするための「見た目だけ」の倍率。当たり判定は Player.W / H の
+// ままにしてある。判定まで大きくすると狭い通路を抜けられなくなり、全ステージの
+// 到達可能性を作り直すことになるため。
+const val PLAYER_DRAW_SCALE = 1.3f
+
 fun isSolid(c: Char): Boolean =
     c == '#' || c == '=' || c == '?' || c == 'x' || c == '^' || c == 'F'
 

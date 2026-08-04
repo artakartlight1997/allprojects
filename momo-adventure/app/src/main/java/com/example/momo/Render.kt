@@ -304,9 +304,10 @@ private fun DrawScope.drawTiles(game: Game, pal: Palette, cam: Float, s: Float) 
                 'T' -> {
                     // とつぜんトゲ。近づくまでは地面に埋まっている。
                     val trap = game.trapAtTile(tx, ty)
+                    val grow = trap?.t ?: 0f
                     val out = when (trap?.state) {
                         2 -> 1f
-                        1 -> (trap.t / TRAP_WARN).coerceIn(0f, 1f) * 0.35f
+                        1 -> (grow / TRAP_WARN).coerceIn(0f, 1f) * 0.35f
                         else -> 0f
                     }
                     if (out > 0.02f) {
@@ -995,10 +996,13 @@ private fun DrawScope.rinaSprite(
 
 private fun DrawScope.drawPlayer(game: Game, cam: Float, s: Float) {
     val p = game.player
-    val x = (p.x - cam) * s
-    val y = p.y * s
-    val w = Player.W * s
-    val h = Player.H * s
+    // 当たり判定より少し大きく描く。足元と中心を合わせて、地面から浮かせない。
+    val hitW = Player.W * s
+    val hitH = Player.H * s
+    val w = hitW * PLAYER_DRAW_SCALE
+    val h = hitH * PLAYER_DRAW_SCALE
+    val x = (p.x - cam) * s - (w - hitW) / 2f
+    val y = p.y * s - (h - hitH)
     val cx = x + w / 2f
 
     val star = p.starT > 0f
@@ -1189,7 +1193,7 @@ fun DrawScope.drawEnding(game: Game) {
     val paradeSpeed = s * 1.7f
     val followers = listOf(
         EnemyKind.WALKER, EnemyKind.JUMPER, EnemyKind.FLYER,
-        EnemyKind.CHASER, EnemyKind.SPIKY, EnemyKind.BOSS,
+        EnemyKind.CHASER, EnemyKind.DROPPER, EnemyKind.SPIKY, EnemyKind.BOSS,
     )
     for ((i, kind) in followers.withIndex()) {
         val raw = t * paradeSpeed - (i + 1) * s * 2.7f
@@ -1202,6 +1206,7 @@ fun DrawScope.drawEnding(game: Game) {
             EnemyKind.JUMPER -> drawJumper(x, y, w, h, t * 1.4f, false)
             EnemyKind.CHASER -> drawChaser(x, y, w, h, t * 1.4f, true)
             EnemyKind.SPIKY -> drawSpiky(x, y, w, h, t * 1.4f)
+            EnemyKind.DROPPER -> drawDropper(x, y, w, h, t * 1.4f, false)
             EnemyKind.BOSS -> drawBoss(x, y, w, h, t * 1.4f, true, BOSS_HP)
             EnemyKind.FLYER -> drawFlyer(
                 x, groundY - h - s * 1.7f + sin(t * 2.4f) * s * 0.35f, w, h, t * 1.4f, true,
@@ -1210,8 +1215,10 @@ fun DrawScope.drawEnding(game: Game) {
     }
     val rinaRaw = t * paradeSpeed
     val rinaX = ((rinaRaw % span) + span) % span - s * 4.5f
+    val rw = s * 0.72f * PLAYER_DRAW_SCALE
+    val rh = s * 0.92f * PLAYER_DRAW_SCALE
     rinaSprite(
-        rinaX, groundY - s * 0.92f + s * 0.1f, s * 0.72f, s * 0.92f,
+        rinaX, groundY - rh + s * 0.1f, rw, rh,
         true, sin(t * 13f), 1f, RINA_BODY, RINA_DARK,
     )
 

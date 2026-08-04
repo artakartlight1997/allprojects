@@ -1,0 +1,3 @@
+# 形のもとになる地図データ。13MB あるのでリポジトリには入れない。
+# tools/genprefdata.py が無ければ自動で取りに行く。
+tools/japan.geojson

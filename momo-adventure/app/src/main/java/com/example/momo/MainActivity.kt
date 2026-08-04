@@ -183,9 +183,9 @@ private fun Badge(text: String, color: Color, fs: androidx.compose.ui.unit.TextU
 
 @Composable
 private fun Controls(game: Game, moveBtn: Dp, jumpBtn: Dp, pad: Dp) {
-    game.hudTick.let { }   // モモの位置に追従して薄くするための購読
+    game.hudTick.let { }   // りなの位置に追従して薄くするための購読
 
-    // 画面下のほうにモモがいると、そのままではボタンに隠れてしまう。
+    // 画面下のほうにりながいると、そのままではボタンに隠れてしまう。
     // ステージ開始直後はカメラが左端で止まるので特に重なりやすい。
     // 重なる位置にいるあいだだけボタンを薄くする（押せることは変わらない）。
     val low = game.playerViewY > 0.62f
@@ -298,7 +298,7 @@ private fun EndingOverlay(game: Game) {
 private fun Overlay(game: Game, uiScale: Float, onUiScale: (Float) -> Unit) {
     val (title, body, button) = when (game.phase) {
         Phase.TITLE -> Triple(
-            "モモの大冒険",
+            "りなの大冒険",
             "◀ ▶ で歩いて、▲ でジャンプ（長押しで高く跳ぶ）\n" +
                 "敵は上から踏むとやっつけられる。紫のトゲだけは踏めない！\n" +
                 "ぜんぶで ${LEVELS.size} ステージ。最後はボスが待っている",

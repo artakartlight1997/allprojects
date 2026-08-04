@@ -1,5 +1,5 @@
 'use strict';
-// モモの大冒険 — Web 版
+// りなの大冒険 — Web 版
 //
 // Android 版（Kotlin + Compose Canvas）からの移植。物理定数とステージ
 // データは Android 版と同じものを使っている（levels.js は Kotlin 版と
@@ -30,6 +30,14 @@ const MOVER_OMEGA = 0.9;
 const MOVER_W = 2.4;
 const MOVER_H = 0.45;
 
+// 初見殺しの仕掛け
+const CRUMBLE_WARN = 0.45;   // 乗ってから崩れ落ちるまで
+const CRUMBLE_BACK = 3;      // 崩れてから戻ってくるまで
+const TRAP_WARN = 0.35;      // 近づいてからトゲが出るまで
+const TRAP_UP = 2.2;         // トゲが出ている時間
+const TRAP_SENSE = 3.2;      // トゲが反応する距離
+const DROP_SENSE = 1.5;      // どんぐりが落ちてくる距離
+
 const BOSS_HP = 3;
 const CLEAR_TIME_LIMIT = 90;
 const VIEW_TILES_Y = 12;
@@ -37,14 +45,14 @@ const VIEW_TILES_Y = 12;
 const PLAYER_W = 0.72;
 const PLAYER_H = 0.92;
 
-const SOLID = '#=?x^';
+const SOLID = '#=?x^F';
 const isSolid = (c) => SOLID.indexOf(c) >= 0;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 
 // --- 配色 ---------------------------------------------------------------
-const MOMO_BODY = '#FF9EC4', MOMO_DARK = '#E979AC', MOMO_FOOT = '#FFE0EC';
+const RINA_BODY = '#FF9EC4', RINA_DARK = '#E979AC', RINA_FOOT = '#FFE0EC';
 const INK = '#41303A', CHEEK = '#FF6F9C';
 const PUNI_BODY = '#86DC64', PUNI_DARK = '#5FB841';
 const TOGE_BODY = '#B289E8', TOGE_DARK = '#8A5FC9';
@@ -112,6 +120,8 @@ class Level {
     this.pickupSpawns = [];
     this.checkpointSpawns = [];
     this.moverSpawns = [];
+    this.crumbleSpawns = [];
+    this.trapSpawns = [];
 
     for (let row = 0; row < this.height; row++) {
       for (let col = 0; col < this.width; col++) {
@@ -126,6 +136,9 @@ class Level {
           case 'p': this.enemySpawns.push(['FLYER', col, ey]); break;
           case 'j': this.enemySpawns.push(['JUMPER', col, ey]); break;
           case 'c': this.enemySpawns.push(['CHASER', col, ey]); break;
+          case 'D': this.enemySpawns.push(['DROPPER', col, ey]); break;
+          case 'F': this.crumbleSpawns.push([col, row]); break;
+          case 'T': this.trapSpawns.push([col, row]); break;
           case 'B': this.enemySpawns.push(['BOSS', col, row + 1 - 1.5]); this.hasBoss = true; break;
           case 'm': this.moverSpawns.push([col, row, false]); break;
           case 'v': this.moverSpawns.push([col, row, true]); break;
@@ -138,7 +151,7 @@ class Level {
           case 'b': this.pickupSpawns.push(['SHIELD', col, row]); break;
           case 'M': this.pickupSpawns.push(['MAGNET', col, row]); break;
         }
-        if ('#=?xs^'.indexOf(c) < 0) this.tiles[row][col] = '.';
+        if ('#=?xs^FT'.indexOf(c) < 0) this.tiles[row][col] = '.';
       }
     }
   }
@@ -157,7 +170,10 @@ class Enemy {
     this.homeY = homeY;
     this.x = homeX;
     this.y = homeY;
-    this.vx = kind === 'SPIKY' ? -1.6 : kind === 'CHASER' ? -2.0 : kind === 'BOSS' ? -2.2 : -2.3;
+    // どんぐりは落ちてくるまで動かない
+    this.vx = kind === 'SPIKY' ? -1.6 : kind === 'CHASER' ? -2.0
+      : kind === 'BOSS' ? -2.2 : kind === 'DROPPER' ? 0 : -2.3;
+    this.dropped = false;
     this.vy = 0;
     this.alive = true;
     this.squashT = 0;
@@ -203,6 +219,9 @@ class Game {
     this.pickups = [];
     this.checkpoints = [];
     this.movers = [];
+    this.crumbles = [];
+    this.traps = [];
+    this.trapAt = new Map();
     this.pops = [];
 
     this.inputLeft = false;
@@ -270,6 +289,10 @@ class Game {
       homeX: x, homeY: y, vertical,
       x: x - (MOVER_W - 1) / 2, y, prevX: x - (MOVER_W - 1) / 2, prevY: y, t: 0,
     }));
+    this.crumbles = this.level.crumbleSpawns.map(([tx, ty]) => ({ tx, ty, state: 0, t: 0 }));
+    this.traps = this.level.trapSpawns.map(([tx, ty]) => ({ tx, ty, state: 0, t: 0 }));
+    this.trapAt = new Map();
+    for (const tr of this.traps) this.trapAt.set(tr.ty * this.level.width + tr.tx, tr);
     const p = this.player;
     p.hasShield = false; p.dashT = 0; p.featherT = 0; p.magnetT = 0;
     this.respawn();
@@ -290,6 +313,11 @@ class Game {
       if (kind === 'BOSS') { this.bossRemaining += 1; this.computeArena(e); }
     }
     this.pops = [];
+    for (const c of this.crumbles) {
+      c.state = 0; c.t = 0;
+      this.level.tiles[c.ty][c.tx] = 'F';
+    }
+    for (const tr of this.traps) { tr.state = 0; tr.t = 0; }
     this.cameraX = 0;
     this.phaseT = 0;
     this.clearInput();
@@ -304,6 +332,7 @@ class Game {
     if (this.phase === 'PLAYING') {
       this.stageTime += dt;
       this.updateMovers(dt);
+      this.updateTraps(dt);
       this.updatePlayer(dt);
       this.updateEnemies(dt);
       this.collide();
@@ -334,6 +363,54 @@ class Game {
       const offset = Math.sin(m.t * MOVER_OMEGA);
       if (m.vertical) m.y = m.homeY + offset * MOVER_AMP_Y;
       else m.x = m.homeX - (MOVER_W - 1) / 2 + offset * MOVER_AMP_X;
+    }
+  }
+
+  trapUp(tx, ty) {
+    const tr = this.trapAt.get(ty * this.level.width + tx);
+    return !!tr && tr.state === 2;
+  }
+
+  crumbleAt(tx, ty) {
+    return this.crumbles.find((c) => c.tx === tx && c.ty === ty);
+  }
+
+  /** もろい足場ととつぜんトゲの状態を進める。 */
+  updateTraps(dt) {
+    const p = this.player;
+    for (const c of this.crumbles) {
+      c.t += dt;
+      if (c.state === 0) {
+        const standing = p.onGround &&
+          p.y + PLAYER_H > c.ty - 0.3 && p.y + PLAYER_H < c.ty + 0.4 &&
+          p.x + PLAYER_W > c.tx && p.x < c.tx + 1;
+        if (standing) { c.state = 1; c.t = 0; }
+      } else if (c.state === 1) {
+        if (c.t > CRUMBLE_WARN) {
+          c.state = 2; c.t = 0;
+          this.level.tiles[c.ty][c.tx] = '.';
+        }
+      } else if (c.t > CRUMBLE_BACK) {
+        // プレイヤーが重なっている場所に戻すと埋まってしまう
+        const overlap = p.x + PLAYER_W > c.tx && p.x < c.tx + 1 &&
+          p.y + PLAYER_H > c.ty && p.y < c.ty + 1;
+        if (!overlap) {
+          c.state = 0; c.t = 0;
+          this.level.tiles[c.ty][c.tx] = 'F';
+        }
+      }
+    }
+    for (const tr of this.traps) {
+      tr.t += dt;
+      if (tr.state === 0) {
+        const near = Math.abs(p.x + PLAYER_W / 2 - (tr.tx + 0.5)) < TRAP_SENSE &&
+          Math.abs(p.y - tr.ty) < 3;
+        if (near) { tr.state = 1; tr.t = 0; }
+      } else if (tr.state === 1) {
+        if (tr.t > TRAP_WARN) { tr.state = 2; tr.t = 0; }
+      } else if (tr.t > TRAP_UP) {
+        tr.state = 0; tr.t = 0;
+      }
     }
   }
 
@@ -476,6 +553,16 @@ class Game {
         else if (Math.abs(e.vx) > 2.1) e.vx = sign(e.vx) * 2.0;
         e.x += e.vx * dt;
         this.walkCollide(e, dt, true);
+      } else if (e.kind === 'DROPPER') {
+        if (!e.dropped) {
+          // 真下を通りかかると落ちてくる
+          const dx = Math.abs((this.player.x + PLAYER_W / 2) - (e.x + e.w / 2));
+          if (dx < DROP_SENSE && this.player.y + PLAYER_H > e.y) e.dropped = true;
+        } else {
+          e.x += e.vx * dt;
+          this.walkCollide(e, dt, true);
+          if (e.vy === 0 && e.vx === 0) e.vx = -2.3;   // 着地したら歩き出す
+        }
       } else if (e.kind === 'BOSS') {
         this.updateBoss(e, dt);
       } else {
@@ -595,7 +682,10 @@ class Game {
     const tx0 = Math.floor(p.x + 0.1);
     const tx1 = Math.floor(p.x + PLAYER_W - 0.1);
     const ty = Math.floor(p.y + PLAYER_H - 0.1);
-    for (let tx = tx0; tx <= tx1; tx++) if (this.tileAt(tx, ty) === 's') this.hurt();
+    for (let tx = tx0; tx <= tx1; tx++) {
+      const c = this.tileAt(tx, ty);
+      if (c === 's' || (c === 'T' && this.trapUp(tx, ty))) this.hurt();
+    }
 
     if (!this.goalLocked &&
         this.overlaps(p.x, p.y, PLAYER_W, PLAYER_H, this.level.goalX, this.level.goalY - 4, 1, 4)) {

@@ -182,6 +182,33 @@ function drawTiles(pal, cam, s) {
           }
           fillRect(x, y + s * 0.86, s, s * 0.14, pal.hazardBase);
         }
+      } else if (c === 'F') {
+        // もろい足場。乗るとひび割れて震え、やがて落ちる。
+        const cr = game.crumbleAt(tx, ty);
+        const shake = cr && cr.state === 1 ? Math.sin(game.elapsed * 60) * s * 0.05 : 0;
+        fillRoundRect(x + shake, y, s, s * 0.6, s * 0.14, '#B9A489');
+        fillRect(x + shake, y, s, s * 0.16, '#D6C6AC');
+        const lw = cr && cr.state === 1 ? s * 0.06 : s * 0.04;
+        line(x + shake + s * 0.3, y, x + shake + s * 0.42, y + s * 0.6, '#6E5F4B', lw);
+        line(x + shake + s * 0.72, y, x + shake + s * 0.6, y + s * 0.6, '#6E5F4B', lw);
+      } else if (c === 'T') {
+        // とつぜんトゲ。近づくまでは地面に埋まっている。
+        const tr = game.trapAt.get(ty * lv.width + tx);
+        let out = 0;
+        if (tr && tr.state === 2) out = 1;
+        else if (tr && tr.state === 1) out = clamp(tr.t / TRAP_WARN, 0, 1) * 0.35;
+        if (out > 0.02) {
+          for (let i = 0; i < 3; i++) {
+            const bx = x + (s * i) / 3;
+            const top = y + s * (1 - 0.82 * out);
+            poly([[bx, y + s], [bx + s / 6, top], [bx + s / 3, y + s]], pal.hazard);
+          }
+        }
+        // 出ていないときも「あやしい継ぎ目」は見えている
+        fillRect(x, y + s * 0.88, s, s * 0.12, rgba(pal.hazardBase, 0.9));
+        for (let i = 0; i < 3; i++) {
+          fillCircle(x + s * (0.17 + i * 0.33), y + s * 0.93, s * 0.035, rgba(pal.hazard, 0.55));
+        }
       } else if (c === '^') {
         const squish = Math.sin(game.elapsed * 4 + tx) * s * 0.03;
         fillRect(x + s * 0.2, y + s * 0.6, s * 0.6, s * 0.4, '#6E6E86');
@@ -192,6 +219,20 @@ function drawTiles(pal, cam, s) {
         fillRoundRect(x + s * 0.1, y + s * 0.32 + squish, s * 0.8, s * 0.12, s * 0.06, '#8CF0B6');
       }
     }
+  }
+}
+
+/** 崩れて消えた足場は、戻ってくることが分かるよう薄い枠だけ残す。 */
+function drawCrumbleGhosts(cam, s) {
+  for (const c of game.crumbles) {
+    if (c.state !== 2) continue;
+    const x = (c.tx - cam) * s;
+    if (x < -s || x > viewW + s) continue;
+    const back = clamp(c.t / CRUMBLE_BACK, 0, 1);
+    ctx.strokeStyle = `rgba(214,198,172,${0.15 + back * 0.25})`;
+    ctx.lineWidth = s * 0.05;
+    rectPath(x, c.ty * s, s, s * 0.6, s * 0.14);
+    ctx.stroke();
   }
 }
 
@@ -518,9 +559,37 @@ function drawBoss(x, y, w, h, t, right, hp) {
   }
 }
 
+const DON_BODY = '#D9A566', DON_CAP = '#7A5334';
+
+/** どんぐり。落ちてくるまでは宙にぶら下がっている。 */
+function drawDropper(x, y, w, h, t, hanging) {
+  const cx = x + w / 2;
+  if (hanging) {
+    // ぶら下がっている糸。見上げないと気づかない。
+    line(cx, y - h * 1.4, cx, y + h * 0.1, 'rgba(255,255,255,0.6)', w * 0.04);
+  }
+  const sway = hanging ? Math.sin(t * 2.2) * w * 0.05 : 0;
+  const cxs = cx + sway;
+  fillOval(cxs - w * 0.36, y + h * 0.22, w * 0.72, h * 0.74, DON_BODY);
+  fillArc(cxs - w * 0.42, y + h * 0.02, w * 0.84, h * 0.5, 180, 180, DON_CAP);
+  fillRoundRect(cxs - w * 0.05, y - h * 0.1, w * 0.1, h * 0.16, w * 0.05, DON_CAP);
+  const eyeY = y + h * 0.52;
+  if (hanging) {
+    eyes(cxs, eyeY, w, 0.14, 0.12, 0);
+    strokeArc(cxs - w * 0.08, y + h * 0.62, w * 0.16, h * 0.1, 20, 140, INK, w * 0.04);
+  } else {
+    // 落下中はあわてた顔
+    fillCircle(cxs - w * 0.15, eyeY, w * 0.14, '#FFFFFF');
+    fillCircle(cxs + w * 0.15, eyeY, w * 0.14, '#FFFFFF');
+    fillCircle(cxs - w * 0.15, eyeY, w * 0.05, INK);
+    fillCircle(cxs + w * 0.15, eyeY, w * 0.05, INK);
+    fillOval(cxs - w * 0.07, y + h * 0.66, w * 0.14, h * 0.14, INK);
+  }
+}
+
 const ENEMY_BODY = {
   WALKER: PUNI_BODY, SPIKY: TOGE_BODY, FLYER: PATA_BODY,
-  JUMPER: PYON_BODY, CHASER: OIKA_BODY, BOSS: BOSS_BODY,
+  JUMPER: PYON_BODY, CHASER: OIKA_BODY, DROPPER: DON_BODY, BOSS: BOSS_BODY,
 };
 
 function drawEnemies(cam, s) {
@@ -540,16 +609,17 @@ function drawEnemies(cam, s) {
       case 'FLYER': drawFlyer(x, y, w, h, e.t, e.vx > 0); break;
       case 'JUMPER': drawJumper(x, y, w, h, e.t, e.vy !== 0); break;
       case 'CHASER': drawChaser(x, y, w, h, e.t, e.vx > 0); break;
+      case 'DROPPER': drawDropper(x, y, w, h, e.t, !e.dropped); break;
       case 'BOSS': drawBoss(x, y, w, h, e.t, e.vx > 0, e.hp); break;
     }
   }
 }
 
 // --- 主人公 -------------------------------------------------------------
-function momoSprite(x, y, w, h, faceRight, stepPhase, stretch, body, dark) {
+function rinaSprite(x, y, w, h, faceRight, stepPhase, stretch, body, dark) {
   const cx = x + w / 2;
-  fillOval(cx - w * 0.4 + stepPhase * w * 0.14, y + h * 0.8, w * 0.34, h * 0.2, MOMO_FOOT);
-  fillOval(cx + w * 0.06 - stepPhase * w * 0.14, y + h * 0.8, w * 0.34, h * 0.2, MOMO_FOOT);
+  fillOval(cx - w * 0.4 + stepPhase * w * 0.14, y + h * 0.8, w * 0.34, h * 0.2, RINA_FOOT);
+  fillOval(cx + w * 0.06 - stepPhase * w * 0.14, y + h * 0.8, w * 0.34, h * 0.2, RINA_FOOT);
   ctx.save();
   ctx.translate(cx, y + h); ctx.scale(1 / stretch, stretch); ctx.translate(-cx, -(y + h));
   fillCircle(cx - w * 0.32, y + h * 0.15, w * 0.19, body);
@@ -580,7 +650,7 @@ function drawPlayer(cam, s) {
   const cx = x + w / 2;
 
   const star = p.starT > 0;
-  let body = MOMO_BODY, dark = MOMO_DARK;
+  let body = RINA_BODY, dark = RINA_DARK;
   if (star) {
     const k = Math.sin(p.animT * 18) * 0.5 + 0.5;
     const g = Math.round((0.55 + 0.35 * k) * 255);
@@ -616,7 +686,7 @@ function drawPlayer(cam, s) {
     }
   }
 
-  momoSprite(x, y, w, h, p.faceRight, stepPhase, stretch, body, dark);
+  rinaSprite(x, y, w, h, p.faceRight, stepPhase, stretch, body, dark);
 
   if (star) {
     const a = (Math.sin(p.animT * 12) * 0.5 + 0.5) * 0.5;

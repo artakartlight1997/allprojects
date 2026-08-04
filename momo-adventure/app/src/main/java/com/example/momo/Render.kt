@@ -18,9 +18,9 @@ import kotlin.math.floor
 import kotlin.math.sin
 
 // --- 配色 ---------------------------------------------------------------
-private val MOMO_BODY = Color(0xFFFF9EC4)
-private val MOMO_DARK = Color(0xFFE979AC)
-private val MOMO_FOOT = Color(0xFFFFE0EC)
+private val RINA_BODY = Color(0xFFFF9EC4)
+private val RINA_DARK = Color(0xFFE979AC)
+private val RINA_FOOT = Color(0xFFFFE0EC)
 private val INK = Color(0xFF41303A)
 private val WHITE = Color(0xFFFFFFFF)
 private val CHEEK = Color(0xFFFF6F9C)
@@ -135,6 +135,7 @@ fun DrawScope.drawGame(game: Game) {
 
     drawBackground(pal, cam, s, game.level.theme)
     drawTiles(game, pal, cam, s)
+    drawCrumbleGhosts(game, cam, s)
     drawMovers(game, pal, cam, s)
     drawCheckpoints(game, cam, s)
     drawGoal(game, cam, s)
@@ -280,6 +281,59 @@ private fun DrawScope.drawTiles(game: Game, pal: Palette, cam: Float, s: Float) 
                         drawRect(pal.hazardBase, Offset(x, y + s * 0.86f), Size(s, s * 0.14f))
                     }
                 }
+                'F' -> {
+                    // もろい足場。乗るとひび割れて震え、やがて落ちる。
+                    val cr = game.crumbleAt(tx, ty)
+                    val shake = if (cr?.state == 1) sin(game.elapsed * 60f) * s * 0.05f else 0f
+                    drawRoundRect(
+                        Color(0xFFB9A489), Offset(x + shake, y), Size(s, s * 0.6f),
+                        CornerRadius(s * 0.14f, s * 0.14f),
+                    )
+                    drawRect(Color(0xFFD6C6AC), Offset(x + shake, y), Size(s, s * 0.16f))
+                    val crack = Color(0xFF6E5F4B)
+                    val lw = if (cr?.state == 1) s * 0.06f else s * 0.04f
+                    drawLine(
+                        crack, Offset(x + shake + s * 0.3f, y),
+                        Offset(x + shake + s * 0.42f, y + s * 0.6f), strokeWidth = lw,
+                    )
+                    drawLine(
+                        crack, Offset(x + shake + s * 0.72f, y),
+                        Offset(x + shake + s * 0.6f, y + s * 0.6f), strokeWidth = lw,
+                    )
+                }
+                'T' -> {
+                    // とつぜんトゲ。近づくまでは地面に埋まっている。
+                    val trap = game.trapAtTile(tx, ty)
+                    val out = when (trap?.state) {
+                        2 -> 1f
+                        1 -> (trap.t / TRAP_WARN).coerceIn(0f, 1f) * 0.35f
+                        else -> 0f
+                    }
+                    if (out > 0.02f) {
+                        for (i in 0 until 3) {
+                            val bx = x + s * i / 3f
+                            val top = y + s * (1f - 0.82f * out)
+                            val spike = Path().apply {
+                                moveTo(bx, y + s)
+                                lineTo(bx + s / 6f, top)
+                                lineTo(bx + s / 3f, y + s)
+                                close()
+                            }
+                            drawPath(spike, pal.hazard)
+                        }
+                    }
+                    // 出ていないときも「あやしい継ぎ目」は見えている
+                    drawRect(
+                        pal.hazardBase.copy(alpha = 0.9f),
+                        Offset(x, y + s * 0.88f), Size(s, s * 0.12f),
+                    )
+                    for (i in 0 until 3) {
+                        drawCircle(
+                            pal.hazard.copy(alpha = 0.55f), s * 0.035f,
+                            Offset(x + s * (0.17f + i * 0.33f), y + s * 0.93f),
+                        )
+                    }
+                }
                 '^' -> {
                     // ジャンプ台
                     val squish = sin(game.elapsed * 4f + tx) * s * 0.03f
@@ -302,6 +356,22 @@ private fun DrawScope.drawTiles(game: Game, pal: Palette, cam: Float, s: Float) 
                 }
             }
         }
+    }
+}
+
+/** 崩れて消えた足場は、戻ってくることが分かるよう薄い枠だけ残す。 */
+private fun DrawScope.drawCrumbleGhosts(game: Game, cam: Float, s: Float) {
+    for (c in game.crumbles) {
+        if (c.state != 2) continue
+        val x = (c.tx - cam) * s
+        if (x < -s || x > size.width + s) continue
+        val back = (c.t / CRUMBLE_BACK).coerceIn(0f, 1f)
+        drawRoundRect(
+            Color(0xFFD6C6AC).copy(alpha = 0.15f + back * 0.25f),
+            Offset(x, c.ty * s), Size(s, s * 0.6f),
+            CornerRadius(s * 0.14f, s * 0.14f),
+            style = Stroke(width = s * 0.05f),
+        )
     }
 }
 
@@ -601,8 +671,53 @@ private fun DrawScope.drawEnemies(game: Game, cam: Float, s: Float) {
             EnemyKind.FLYER -> drawFlyer(x, y, w, h, e.t, e.vx > 0f)
             EnemyKind.JUMPER -> drawJumper(x, y, w, h, e.t, e.vy != 0f)
             EnemyKind.CHASER -> drawChaser(x, y, w, h, e.t, e.vx > 0f)
+            EnemyKind.DROPPER -> drawDropper(x, y, w, h, e.t, !e.dropped)
             EnemyKind.BOSS -> drawBoss(x, y, w, h, e.t, e.vx > 0f, e.hp)
         }
+    }
+}
+
+private val DON_BODY = Color(0xFFD9A566)
+private val DON_CAP = Color(0xFF7A5334)
+
+/** どんぐり。落ちてくるまでは宙にぶら下がっている。 */
+private fun DrawScope.drawDropper(
+    x: Float, y: Float, w: Float, h: Float, t: Float, hanging: Boolean,
+) {
+    val cx = x + w / 2f
+    if (hanging) {
+        // ぶら下がっている糸。見上げないと気づかない。
+        drawLine(
+            Color(0x99FFFFFF), Offset(cx, y - h * 1.4f), Offset(cx, y + h * 0.1f),
+            strokeWidth = w * 0.04f,
+        )
+    }
+    val sway = if (hanging) sin(t * 2.2f) * w * 0.05f else 0f
+    val cxs = cx + sway
+    drawOval(DON_BODY, Offset(cxs - w * 0.36f, y + h * 0.22f), Size(w * 0.72f, h * 0.74f))
+    drawArc(
+        DON_CAP, 180f, 180f, true,
+        Offset(cxs - w * 0.42f, y + h * 0.02f), Size(w * 0.84f, h * 0.5f),
+    )
+    drawRoundRect(
+        DON_CAP, Offset(cxs - w * 0.05f, y - h * 0.1f), Size(w * 0.1f, h * 0.16f),
+        CornerRadius(w * 0.05f, w * 0.05f),
+    )
+    val eyeY = y + h * 0.52f
+    if (hanging) {
+        eyes(cxs, eyeY, w, 0.14f, 0.12f, 0f)
+        drawArc(
+            INK, 20f, 140f, false,
+            Offset(cxs - w * 0.08f, y + h * 0.62f), Size(w * 0.16f, h * 0.1f),
+            style = Stroke(width = w * 0.04f),
+        )
+    } else {
+        // 落下中はあわてた顔
+        drawCircle(WHITE, w * 0.14f, Offset(cxs - w * 0.15f, eyeY))
+        drawCircle(WHITE, w * 0.14f, Offset(cxs + w * 0.15f, eyeY))
+        drawCircle(INK, w * 0.05f, Offset(cxs - w * 0.15f, eyeY))
+        drawCircle(INK, w * 0.05f, Offset(cxs + w * 0.15f, eyeY))
+        drawOval(INK, Offset(cxs - w * 0.07f, y + h * 0.66f), Size(w * 0.14f, h * 0.14f))
     }
 }
 
@@ -612,6 +727,7 @@ private fun bodyColor(kind: EnemyKind): Color = when (kind) {
     EnemyKind.FLYER -> PATA_BODY
     EnemyKind.JUMPER -> PYON_BODY
     EnemyKind.CHASER -> OIKA_BODY
+    EnemyKind.DROPPER -> DON_BODY
     EnemyKind.BOSS -> BOSS_BODY
 }
 
@@ -830,21 +946,21 @@ private fun DrawScope.drawBoss(
     }
 }
 
-// --- 主人公 モモ ---------------------------------------------------------
+// --- 主人公 りな ---------------------------------------------------------
 
-/** モモの見た目そのもの。ゲーム中とエンディングの両方から使う。 */
-private fun DrawScope.momoSprite(
+/** りなの見た目そのもの。ゲーム中とエンディングの両方から使う。 */
+private fun DrawScope.rinaSprite(
     x: Float, y: Float, w: Float, h: Float,
     faceRight: Boolean, stepPhase: Float, stretch: Float,
     body: Color, dark: Color,
 ) {
     val cx = x + w / 2f
     drawOval(
-        MOMO_FOOT,
+        RINA_FOOT,
         Offset(cx - w * 0.4f + stepPhase * w * 0.14f, y + h * 0.8f), Size(w * 0.34f, h * 0.2f),
     )
     drawOval(
-        MOMO_FOOT,
+        RINA_FOOT,
         Offset(cx + w * 0.06f - stepPhase * w * 0.14f, y + h * 0.8f), Size(w * 0.34f, h * 0.2f),
     )
     scale(1f / stretch, stretch, Offset(cx, y + h)) {
@@ -889,8 +1005,8 @@ private fun DrawScope.drawPlayer(game: Game, cam: Float, s: Float) {
     val body = if (star) {
         val k = (sin(p.animT * 18f) * 0.5f + 0.5f)
         Color(1f, 0.55f + 0.35f * k, 0.35f + 0.55f * (1f - k), 1f)
-    } else MOMO_BODY
-    val dark = if (star) body.copy(alpha = 0.65f) else MOMO_DARK
+    } else RINA_BODY
+    val dark = if (star) body.copy(alpha = 0.65f) else RINA_DARK
 
     // ダッシュ中は残像
     if (p.dashT > 0f && abs(p.vx) > 0.1f) {
@@ -924,7 +1040,7 @@ private fun DrawScope.drawPlayer(game: Game, cam: Float, s: Float) {
         }
     }
 
-    momoSprite(x, y, w, h, p.faceRight, stepPhase, stretch, body, dark)
+    rinaSprite(x, y, w, h, p.faceRight, stepPhase, stretch, body, dark)
 
     if (star) {
         val a = (sin(p.animT * 12f) * 0.5f + 0.5f) * 0.5f
@@ -965,10 +1081,10 @@ private fun creditLines(game: Game): List<String> {
     val minutes = (game.totalTime / 60f).toInt()
     val seconds = (game.totalTime % 60f).toInt()
     return listOf(
-        "■ モモの大冒険",
+        "■ りなの大冒険",
         "",
         "■ とうじょうキャラクター",
-        "モモ",
+        "りな",
         "ぷにまる    とげのすけ    ぱたぽん",
         "ぴょんた    おいかけ",
         "おうさま",
@@ -1068,7 +1184,7 @@ fun DrawScope.drawEnding(game: Game) {
         }
     }
 
-    // モモと仲間たちの行進
+    // りなと仲間たちの行進
     val span = size.width + s * 9f
     val paradeSpeed = s * 1.7f
     val followers = listOf(
@@ -1092,11 +1208,11 @@ fun DrawScope.drawEnding(game: Game) {
             )
         }
     }
-    val momoRaw = t * paradeSpeed
-    val momoX = ((momoRaw % span) + span) % span - s * 4.5f
-    momoSprite(
-        momoX, groundY - s * 0.92f + s * 0.1f, s * 0.72f, s * 0.92f,
-        true, sin(t * 13f), 1f, MOMO_BODY, MOMO_DARK,
+    val rinaRaw = t * paradeSpeed
+    val rinaX = ((rinaRaw % span) + span) % span - s * 4.5f
+    rinaSprite(
+        rinaX, groundY - s * 0.92f + s * 0.1f, s * 0.72f, s * 0.92f,
+        true, sin(t * 13f), 1f, RINA_BODY, RINA_DARK,
     )
 
     // スタッフロール

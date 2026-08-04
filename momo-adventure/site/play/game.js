@@ -40,6 +40,16 @@ const DROP_SENSE = 1.5;      // どんぐりが落ちてくる距離
 
 const BOSS_HP = 3;      // ママ
 const PAPA_HP = 2;      // パパ。子供でも倒せるように少なめ
+
+// りなの体力。敵やトゲに 3 回当たるまでは残機が減らない。
+const PLAYER_MAX_HP = 3;
+// ボス登場の演出時間
+const BOSS_INTRO_TIME = 2.4;
+const BOSS_INTRO_RANGE = 11;
+// ママが投げるスライム
+const SHOT_INTERVAL = 2.6;
+const SHOT_SPEED_X = 7;
+const SHOT_SPEED_Y = -9;
 const CLEAR_TIME_LIMIT = 90;
 const VIEW_TILES_Y = 12;
 
@@ -143,6 +153,7 @@ class Level {
           case 'j': this.enemySpawns.push(['JUMPER', col, ey]); break;
           case 'c': this.enemySpawns.push(['CHASER', col, ey]); break;
           case 'D': this.enemySpawns.push(['DROPPER', col, ey]); break;
+          case 'S': this.enemySpawns.push(['SLIME', col, row + 0.3]); break;
           case 'F': this.crumbleSpawns.push([col, row]); break;
           case 'T': this.trapSpawns.push([col, row]); break;
           case 'B': this.enemySpawns.push(['BOSS', col, row + 1 - 1.5, 'MAMA']); this.hasBoss = true; break;
@@ -167,6 +178,7 @@ class Level {
 const ENEMY_SIZE = {
   BOSS: { w: 1.7, h: 1.5 },
   FLYER: { w: 0.86, h: 0.8 },
+  SLIME: { w: 0.82, h: 0.7 },
   DEFAULT: { w: 0.8, h: 0.8 },
 };
 
@@ -182,7 +194,7 @@ class Enemy {
     // どんぐりは落ちてくるまで動かない
     this.vx = kind === 'SPIKY' ? -1.6 : kind === 'CHASER' ? -2.0
       : kind === 'BOSS' ? (this.boss === 'PAPA' ? -1.4 : -2.2)
-      : kind === 'DROPPER' ? 0 : -2.3;
+      : kind === 'DROPPER' ? 0 : kind === 'SLIME' ? 0 : -2.3;
     this.dropped = false;
     this.vy = 0;
     this.alive = true;
@@ -224,7 +236,7 @@ class Game {
     this.player = {
       x: 0, y: 0, vx: 0, vy: 0, onGround: false, faceRight: true,
       starT: 0, dashT: 0, featherT: 0, magnetT: 0, hasShield: false,
-      hurtT: 0, animT: 0, airJumps: 0,
+      hurtT: 0, animT: 0, airJumps: 0, hp: PLAYER_MAX_HP,
     };
     this.enemies = [];
     this.pickups = [];
@@ -234,6 +246,10 @@ class Game {
     this.traps = [];
     this.trapAt = new Map();
     this.pops = [];
+    this.shots = [];
+    this.introT = 0;
+    this.introBoss = null;
+    this.introDone = false;
 
     this.inputLeft = false;
     this.inputRight = false;
@@ -300,6 +316,7 @@ class Game {
       homeX: x, homeY: y, vertical,
       x: x - (MOVER_W - 1) / 2, y, prevX: x - (MOVER_W - 1) / 2, prevY: y, t: 0,
     }));
+    this.introDone = false;
     this.crumbles = this.level.crumbleSpawns.map(([tx, ty]) => ({ tx, ty, state: 0, t: 0 }));
     this.traps = this.level.trapSpawns.map(([tx, ty]) => ({ tx, ty, state: 0, t: 0 }));
     this.trapAt = new Map();
@@ -314,7 +331,11 @@ class Game {
     p.x = this.spawnX; p.y = this.spawnY;
     p.vx = 0; p.vy = 0; p.starT = 0;
     p.hurtT = SPAWN_GRACE;
+    p.hp = PLAYER_MAX_HP;
     p.faceRight = true; p.airJumps = 0;
+    this.shots = [];
+    this.introT = 0;
+    this.introBoss = null;
     this.combo = 0;
     this.enemies = [];
     this.bossRemaining = 0;
@@ -342,10 +363,21 @@ class Game {
 
     if (this.phase === 'PLAYING') {
       this.stageTime += dt;
+      // ボス登場の演出中は動きを止めて見せ場にする
+      if (this.introT > 0) {
+        this.introT -= dt;
+        this.player.animT += dt;
+        for (const e of this.enemies) e.t += dt;
+        this.updateCamera(viewTilesX);
+        this.jumpQueued = false;
+        return;
+      }
       this.updateMovers(dt);
       this.updateTraps(dt);
       this.updatePlayer(dt);
       this.updateEnemies(dt);
+      this.updateShots(dt);
+      this.checkBossIntro();
       this.collide();
       this.updateCamera(viewTilesX);
     } else if (this.phase === 'DYING') {
@@ -425,6 +457,36 @@ class Game {
     }
   }
 
+  /** ボスに近づいたら一度だけ登場演出を出す。 */
+  checkBossIntro() {
+    if (this.introDone) return;
+    const boss = this.enemies.find((e) => e.kind === 'BOSS' && e.alive);
+    if (!boss) return;
+    if (Math.abs(this.player.x - boss.x) > BOSS_INTRO_RANGE) return;
+    this.introDone = true;
+    this.introT = BOSS_INTRO_TIME;
+    this.introBoss = boss;
+    this.clearInput();
+  }
+
+  /** ママが投げたスライム。 */
+  updateShots(dt) {
+    for (const sh of this.shots) {
+      sh.t += dt;
+      sh.vy = Math.min(sh.vy + GRAVITY * 0.55 * dt, MAX_FALL);
+      sh.x += sh.vx * dt;
+      sh.y += sh.vy * dt;
+      const tx = Math.floor(sh.x);
+      const ty = Math.floor(sh.y);
+      if (isSolid(this.tileAt(tx, ty)) || sh.y > this.level.height + 1 ||
+          sh.x < -1 || sh.x > this.level.width + 1) {
+        sh.dead = true;
+        this.pops.push({ x: sh.x, y: sh.y - 0.5, kind: null, text: 'ぺちゃ', t: 0 });
+      }
+    }
+    this.shots = this.shots.filter((sh) => !sh.dead);
+  }
+
   tileAt(tx, ty) {
     if (tx < 0 || tx >= this.level.width) return '#';   // 左右端は見えない壁
     if (ty < 0 || ty >= this.level.height) return '.';
@@ -463,7 +525,10 @@ class Game {
     this.rideMovers();
 
     if (p.onGround) { p.airJumps = 0; this.combo = 0; }
-    if (p.y > this.level.height + 2) this.die();
+    if (p.y > this.level.height + 2) {
+      p.hp = 0;      // 落ちたら体力に関係なく 1 ミス
+      this.die();
+    }
   }
 
   moveX(dt) {
@@ -574,6 +639,18 @@ class Game {
           this.walkCollide(e, dt, true);
           if (e.vy === 0 && e.vx === 0) e.vx = -2.3;   // 着地したら歩き出す
         }
+      } else if (e.kind === 'SLIME') {
+        // ぴょんぴょん跳ねて近づいてくる
+        e.actionT += dt;
+        if (e.vy === 0 && e.actionT > 1.3) {
+          const dx = this.player.x - e.x;
+          e.vx = Math.abs(dx) < 9 ? sign(dx) * 2.6 : (e.vx >= 0 ? -2.2 : 2.2);
+          e.vy = -12;
+          e.actionT = 0;
+        }
+        e.x += e.vx * dt;
+        this.walkCollide(e, dt, false);
+        if (e.vy === 0) e.vx = 0;   // 着地したら next の跳躍まで止まる
       } else if (e.kind === 'BOSS') {
         this.updateBoss(e, dt);
       } else {
@@ -637,6 +714,16 @@ class Game {
     e.x += e.vx * dt;
     this.walkCollide(e, dt, false);
     e.x = clamp(e.x, e.minX, e.maxX);
+
+    // スライムを投げる
+    e.shotT = (e.shotT || 0) + dt;
+    if (e.shotT > SHOT_INTERVAL && Math.abs(dx) < 16) {
+      e.shotT = 0;
+      this.shots.push({
+        x: e.x + e.w / 2, y: e.y + e.h * 0.3,
+        vx: sign(dx) * SHOT_SPEED_X, vy: SHOT_SPEED_Y, t: 0, dead: false,
+      });
+    }
   }
 
   /** 生きているボスの種類。HUD の表示に使う。 */
@@ -676,7 +763,11 @@ class Game {
       switch (pk.kind) {
         case 'COIN': this.coinCount += 1; this.score += 100; break;
         case 'GEM': this.score += 500; break;
-        case 'HEART': this.lives += 1; this.score += 200; break;
+        case 'HEART':
+          // 体力が減っていれば回復、満タンなら残機が増える
+          if (p.hp < PLAYER_MAX_HP) { p.hp += 1; this.score += 200; }
+          else { this.lives += 1; this.score += 200; }
+          break;
         case 'STAR': p.starT = STAR_TIME; this.score += 300; break;
         case 'DASH': p.dashT = DASH_TIME; this.score += 300; break;
         case 'FEATHER': p.featherT = FEATHER_TIME; this.score += 300; break;
@@ -704,6 +795,14 @@ class Game {
       if (p.starT > 0) this.hitEnemy(e, false);
       else if (e.stompable && stomping) this.hitEnemy(e, true);
       else this.hurt();
+    }
+
+    for (const sh of this.shots) {
+      if (sh.dead) continue;
+      if (this.overlaps(p.x, p.y, PLAYER_W, PLAYER_H, sh.x - 0.28, sh.y - 0.28, 0.56, 0.56)) {
+        sh.dead = true;
+        this.hurt();
+      }
     }
 
     const tx0 = Math.floor(p.x + 0.1);
@@ -756,6 +855,18 @@ class Game {
       p.hurtT = HURT_TIME;
       p.vy = -8;
       this.pops.push({ x: p.x + PLAYER_W / 2, y: p.y, kind: 'SHIELD', text: 'セーフ!', t: 0 });
+      return;
+    }
+    // 3 回当たるまでは残機が減らない
+    p.hp -= 1;
+    if (p.hp > 0) {
+      p.hurtT = HURT_TIME;
+      p.vy = -8;
+      p.vx = 0;
+      this.pops.push({
+        x: p.x + PLAYER_W / 2, y: p.y, kind: null,
+        text: `いたい! のこり ${p.hp}`, t: 0,
+      });
       return;
     }
     this.die();

@@ -22,6 +22,7 @@
   w  ぷにまる  k  とげのすけ  p  ぱたぽん  j  ぴょんた  c  おいかけ  B  ボス
   D  どんぐり（真下を通ると落ちてくる）
   P  パパ（ステージ2 のやさしいボス）  B  ママ（ステージ10 のボス）
+  S  スライム（跳ねて近づいてくる）
 
 P は Web 版だけの要素。Android 版の Level は未知の文字を空白として
 読み飛ばすので、Android 版のステージ2 にはボスが出ない（遊べなくは
@@ -37,8 +38,8 @@ import sys
 
 H = 12
 SOLID = set('#=?x^F')
-ENEMIES = 'wkpjcBDP'
-GROUND_ENTITIES = 'wkjcBP@GC'
+ENEMIES = 'wkpjcBDPS'
+GROUND_ENTITIES = 'wkjcBPS@GC'
 
 # 開始地点から敵までの最低距離。敵は毎秒 2.3 タイル歩くので、これだけ
 # 空けておけば開始直後の無敵時間（Game.kt の SPAWN_GRACE）が切れる前に
@@ -78,7 +79,7 @@ class Grid:
     def _claim(self, x, y, ch):
         """仕掛けを置く。敵やアイテムを消してしまっていたら記録する。"""
         old = self.g[y][x]
-        if old in 'wkpjcBDP@GCmvghd*fbM':
+        if old in 'wkpjcBDPS@GCmvghd*fbM':
             self.clobbered.append((ch, x, y, old))
         self.g[y][x] = ch
 
@@ -103,6 +104,10 @@ class Grid:
 
     # --- エンティティ ---
     def put(self, x, y, ch):
+        # 地形の上に置くと、そこだけ穴が空いて見た目も当たり判定も壊れる
+        old = self.g[y][x]
+        if old in '#=?x^FTs':
+            self.clobbered.append((ch, x, y, old))
         self.g[y][x] = ch
 
     def mover(self, x, y, vertical=False):
@@ -214,6 +219,31 @@ def check(name, grid):
                                 % (prev, x, rise))
         prev = x
 
+    # コインが跳んで届く位置にあるかを見る。足場から 3.4 タイル上、
+    # 水平 5 タイル以内なら届く。移動床やジャンプ台がある列は緩める。
+    unreachable = []
+    for cy in range(H):
+        for cx in range(grid.w):
+            if grid.g[cy][cx] not in 'og':
+                continue
+            ok_coin = False
+            for x in range(max(0, cx - 6), min(grid.w, cx + 7)):
+                for sy in surf.get(x, []):
+                    if sy < cy:
+                        continue           # 足場がコインより上にある
+                    assisted = x in grid.assist
+                    reach = 7.5 if assisted else 3.4
+                    span = 7 if assisted else 5
+                    if sy - cy <= reach + 0.9 and abs(x - cx) <= span:
+                        ok_coin = True
+                        break
+                if ok_coin:
+                    break
+            if not ok_coin:
+                unreachable.append((cx, cy))
+    for cx, cy in unreachable:
+        errs.append('コイン (%d,%d) に届かない' % (cx, cy))
+
     counts = {c: flat.count(c) for c in ENEMIES}
     traps = flat.count('F') + flat.count('T') + flat.count('D')
     print('[%-10s] 幅=%3d 敵=%2d コイン=%3d アイテム=%2d 仕掛け=%2d %s' % (
@@ -321,6 +351,9 @@ def s3_cave():
     g.put(72, 7, 'k')
     g.put(44, 5, 'p')
     g.put(60, 4, 'p')
+    g.put(36, 7, 'S')      # 高台の上
+    g.put(66, 9, 'S')
+    g.put(92, 9, 'S')
     g.put(31, 6, '*')
     g.put(96, 5, 'h')
     g.put(24, 9, 'b')

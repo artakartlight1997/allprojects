@@ -578,49 +578,101 @@ function drawPapa(x, y, w, h, t, right, hp, maxHp) {
   bossPips(cx, y, w, h, hp, maxHp, '#7FD6B0');
 }
 
-/** ママ。ステージ10 のボス。 */
-function drawMama(x, y, w, h, t, right, hp, maxHp) {
+/** ママ。セミロングで中肉中背。スライムを投げてくる。 */
+function drawMama(x, y, w, h, t, right, hp, maxHp, charging) {
   const cx = x + w / 2;
-  const breathe = 1 + Math.sin(t * 3) * 0.04;
-  const step = Math.sin(t * 7) * w * 0.07;
-  fillRoundRect(cx - w * 0.3 + step, y + h * 0.8, w * 0.22, h * 0.2, w * 0.06, '#5A3F55');
-  fillRoundRect(cx + w * 0.08 - step, y + h * 0.8, w * 0.22, h * 0.2, w * 0.06, '#5A3F55');
+  const breathe = 1 + Math.sin(t * 3) * 0.035;
+  const step = Math.sin(t * 7) * w * 0.06;
+  fillRoundRect(cx - w * 0.19 + step, y + h * 0.82, w * 0.16, h * 0.18, w * 0.05, '#5A3F55');
+  fillRoundRect(cx + w * 0.03 - step, y + h * 0.82, w * 0.16, h * 0.18, w * 0.05, '#5A3F55');
   ctx.save();
   ctx.translate(cx, y + h);
   ctx.scale(breathe, breathe);
   ctx.translate(-cx, -(y + h));
-  // ワンピース
+  // ワンピース。中肉中背なので裾は広げすぎない。
   poly([
-    [cx - w * 0.24, y + h * 0.44], [cx + w * 0.24, y + h * 0.44],
-    [cx + w * 0.38, y + h * 0.84], [cx - w * 0.38, y + h * 0.84],
+    [cx - w * 0.17, y + h * 0.45], [cx + w * 0.17, y + h * 0.45],
+    [cx + w * 0.25, y + h * 0.85], [cx - w * 0.25, y + h * 0.85],
   ], MAMA_DRESS);
   // エプロン
   poly([
-    [cx - w * 0.13, y + h * 0.48], [cx + w * 0.13, y + h * 0.48],
-    [cx + w * 0.2, y + h * 0.82], [cx - w * 0.2, y + h * 0.82],
+    [cx - w * 0.1, y + h * 0.49], [cx + w * 0.1, y + h * 0.49],
+    [cx + w * 0.15, y + h * 0.83], [cx - w * 0.15, y + h * 0.83],
   ], 'rgba(255,255,255,0.85)');
-  fillRoundRect(cx - w * 0.44, y + h * 0.48, w * 0.14, h * 0.28, w * 0.07, MAMA_DRESS_D);
-  fillRoundRect(cx + w * 0.3, y + h * 0.48, w * 0.14, h * 0.28, w * 0.07, MAMA_DRESS_D);
-  // 長い髪（顔の後ろ）
-  const hy = y + h * 0.3;
-  fillOval(cx - w * 0.34, hy - w * 0.24, w * 0.68, h * 0.56, HAIR);
-  fillCircle(cx, hy, w * 0.26, SKIN);
-  fillArc(cx - w * 0.29, hy - w * 0.32, w * 0.58, w * 0.5, 180, 180, HAIR);
+  // 腕。投げる直前は片腕を上げる。
+  fillRoundRect(cx - w * 0.29, y + h * 0.49, w * 0.11, h * 0.26, w * 0.055, MAMA_DRESS_D);
+  if (charging) {
+    fillRoundRect(cx + w * 0.18, y + h * 0.28, w * 0.11, h * 0.24, w * 0.055, MAMA_DRESS_D);
+  } else {
+    fillRoundRect(cx + w * 0.18, y + h * 0.49, w * 0.11, h * 0.26, w * 0.055, MAMA_DRESS_D);
+  }
+  // 顔とセミロングの髪
+  const hy = y + h * 0.29;
+  const hr = w * 0.2;
+  fillRoundRect(cx - hr * 1.25, hy - hr * 0.9, hr * 2.5, hr * 2.6, hr * 0.8, HAIR);
+  fillCircle(cx, hy, hr, SKIN);
+  fillArc(cx - hr * 1.12, hy - hr * 1.3, hr * 2.24, hr * 1.9, 180, 180, HAIR);
   ctx.restore();
-  const ex = right ? w * 0.02 : -w * 0.02;
-  eyes(cx + ex, y + h * 0.31, w, 0.12, 0.1, 0);
-  // まつげ
-  line(cx - w * 0.2 + ex, y + h * 0.26, cx - w * 0.1 + ex, y + h * 0.28, INK, w * 0.025);
-  line(cx + w * 0.2 + ex, y + h * 0.26, cx + w * 0.1 + ex, y + h * 0.28, INK, w * 0.025);
-  strokeArc(cx - w * 0.07 + ex, y + h * 0.36, w * 0.14, h * 0.09, 20, 140, INK, w * 0.028);
-  fillCircle(cx - w * 0.23, y + h * 0.36, w * 0.05, 'rgba(255,140,160,0.45)');
-  fillCircle(cx + w * 0.23, y + h * 0.36, w * 0.05, 'rgba(255,140,160,0.45)');
+  const ex = right ? w * 0.015 : -w * 0.015;
+  eyes(cx + ex, y + h * 0.3, w, 0.09, 0.075, 0);
+  line(cx - w * 0.15 + ex, y + h * 0.255, cx - w * 0.07 + ex, y + h * 0.27, INK, w * 0.02);
+  line(cx + w * 0.15 + ex, y + h * 0.255, cx + w * 0.07 + ex, y + h * 0.27, INK, w * 0.02);
+  strokeArc(cx - w * 0.055 + ex, y + h * 0.34, w * 0.11, h * 0.08, 20, 140, INK, w * 0.024);
+  fillCircle(cx - w * 0.17, y + h * 0.335, w * 0.04, 'rgba(255,140,160,0.45)');
+  fillCircle(cx + w * 0.17, y + h * 0.335, w * 0.04, 'rgba(255,140,160,0.45)');
+  // 手に持ったスライム
+  drawShot(cx + w * (charging ? 0.235 : 0.235), y + h * (charging ? 0.24 : 0.74), w * 0.11, t * 2);
   bossPips(cx, y, w, h, hp, maxHp, '#FF6B8A');
 }
 
-function drawBoss(x, y, w, h, t, right, hp, variant, maxHp) {
+function drawBoss(x, y, w, h, t, right, hp, variant, maxHp, charging) {
   if (variant === 'PAPA') drawPapa(x, y, w, h, t, right, hp, maxHp || PAPA_HP);
-  else drawMama(x, y, w, h, t, right, hp, maxHp || BOSS_HP);
+  else drawMama(x, y, w, h, t, right, hp, maxHp || BOSS_HP, !!charging);
+}
+
+const SLIME_BODY = '#5FD1C9', SLIME_DARK = '#3AA79F', SLIME_HI = '#C8FBF6';
+
+/** スライム。跳ねて近づいてくる。 */
+function drawSlime(x, y, w, h, t, air) {
+  const cx = x + w / 2;
+  // 跳ぶときは縦に伸び、着地すると潰れる
+  const squash = air ? 1.18 : 1 + Math.sin(t * 5) * 0.07;
+  ctx.save();
+  ctx.translate(cx, y + h);
+  ctx.scale(1 / squash, squash);
+  ctx.translate(-cx, -(y + h));
+  ctx.fillStyle = SLIME_BODY;
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.48, y + h);
+  ctx.bezierCurveTo(cx - w * 0.5, y + h * 0.1, cx + w * 0.5, y + h * 0.1, cx + w * 0.48, y + h);
+  ctx.closePath();
+  ctx.fill();
+  fillOval(cx - w * 0.3, y + h * 0.55, w * 0.6, h * 0.4, rgba(SLIME_DARK, 0.35));
+  fillOval(cx - w * 0.26, y + h * 0.2, w * 0.3, h * 0.24, rgba(SLIME_HI, 0.8));
+  ctx.restore();
+  eyes(cx, y + h * 0.52, w, 0.16, 0.14, 0);
+  strokeArc(cx - w * 0.1, y + h * 0.64, w * 0.2, h * 0.14, 20, 140, INK, w * 0.04);
+}
+
+/** ママが投げてくるスライム。 */
+function drawShot(cx, cy, r, t) {
+  const wob = 1 + Math.sin(t * 12) * 0.12;
+  fillCircle(cx, cy, r * 1.35, rgba(SLIME_BODY, 0.25));
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(wob, 1 / wob);
+  ctx.translate(-cx, -cy);
+  fillCircle(cx, cy, r, SLIME_BODY);
+  fillCircle(cx - r * 0.3, cy - r * 0.32, r * 0.34, rgba(SLIME_HI, 0.9));
+  ctx.restore();
+}
+
+function drawShots(cam, s) {
+  for (const sh of game.shots) {
+    const x = (sh.x - cam) * s;
+    if (x < -s || x > viewW + s) continue;
+    drawShot(x, sh.y * s, s * 0.26, sh.t);
+  }
 }
 
 const DON_BODY = '#D9A566', DON_CAP = '#7A5334';
@@ -653,14 +705,20 @@ function drawDropper(x, y, w, h, t, hanging) {
 
 const ENEMY_BODY = {
   WALKER: PUNI_BODY, SPIKY: TOGE_BODY, FLYER: PATA_BODY,
-  JUMPER: PYON_BODY, CHASER: OIKA_BODY, DROPPER: DON_BODY, BOSS: MAMA_DRESS,
+  JUMPER: PYON_BODY, CHASER: OIKA_BODY, DROPPER: DON_BODY,
+  SLIME: SLIME_BODY, BOSS: MAMA_DRESS,
 };
 
 function drawEnemies(cam, s) {
   for (const e of game.enemies) {
     const x = (e.x - cam) * s;
     if (x < -3 * s || x > viewW + 3 * s) continue;
-    const y = e.y * s, w = e.w * s, h = e.h * s;
+    let y = e.y * s;
+    const w = e.w * s, h = e.h * s;
+    if (game.introT > 0 && e === game.introBoss) {
+      const k = 1 - game.introT / BOSS_INTRO_TIME;
+      y -= Math.abs(Math.sin(k * Math.PI * 3)) * h * 0.5 * (1 - k * 0.6);
+    }
     if (!e.alive) {
       const k = clamp(1 - e.squashT / 0.7, 0, 1);
       fillOval(x - w * 0.1, y + h * 0.66, w * 1.2, h * 0.34 * k, rgba(ENEMY_BODY[e.kind], k));
@@ -674,7 +732,9 @@ function drawEnemies(cam, s) {
       case 'JUMPER': drawJumper(x, y, w, h, e.t, e.vy !== 0); break;
       case 'CHASER': drawChaser(x, y, w, h, e.t, e.vx > 0); break;
       case 'DROPPER': drawDropper(x, y, w, h, e.t, !e.dropped); break;
-      case 'BOSS': drawBoss(x, y, w, h, e.t, e.vx > 0, e.hp, e.boss, e.maxHp); break;
+      case 'SLIME': drawSlime(x, y, w, h, e.t, e.vy !== 0); break;
+      case 'BOSS': drawBoss(x, y, w, h, e.t, e.vx > 0, e.hp, e.boss, e.maxHp,
+        (e.shotT || 0) > SHOT_INTERVAL - 0.6); break;
     }
   }
 }

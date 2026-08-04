@@ -182,6 +182,62 @@ function drawEnding() {
   }
 }
 
+// --- ボス登場 -----------------------------------------------------------
+function drawBossIntro(cam, s) {
+  const boss = game.introBoss;
+  if (!boss) return;
+  const k = clamp(1 - game.introT / BOSS_INTRO_TIME, 0, 1);   // 0 -> 1
+  const cx = (boss.x + boss.w / 2 - cam) * s;
+  const cy = (boss.y + boss.h / 2) * s;
+
+  // 出はじめの白いフラッシュ
+  if (k < 0.12) fillRect(0, 0, viewW, viewH, `rgba(255,255,255,${(0.12 - k) * 5})`);
+  // 少し暗くして主役を立たせる
+  const dim = Math.min(k * 5, 1) * Math.min((1 - k) * 5, 1) * 0.4;
+  fillRect(0, 0, viewW, viewH, `rgba(20,10,30,${dim})`);
+
+  // 集中線
+  ctx.save();
+  ctx.globalAlpha = Math.min((1 - k) * 3, 1) * 0.5;
+  for (let i = 0; i < 18; i++) {
+    const a = (i * (360 / 18) + k * 40) * Math.PI / 180;
+    const r0 = s * (1.4 + k * 3.5);
+    const r1 = r0 + s * (1.6 + Math.sin(i * 2.3) * 0.8);
+    line(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0,
+      cx + Math.cos(a) * r1, cy + Math.sin(a) * r1,
+      i % 2 ? '#FFE9A8' : '#FFFFFF', s * 0.06);
+  }
+  ctx.restore();
+
+  // 広がる輪
+  for (let i = 0; i < 3; i++) {
+    const p = k * 1.7 - i * 0.2;
+    if (p < 0 || p > 1) continue;
+    strokeCircle(cx, cy, s * (0.5 + p * 5.5), `rgba(255,255,255,${(1 - p) * 0.5})`, s * 0.1);
+  }
+
+  // きらきら
+  for (let i = 0; i < 12; i++) {
+    const a = (i * 30 + k * 90) * Math.PI / 180;
+    const d = s * (1.2 + k * 3.2);
+    const r = s * 0.13 * (1 - k);
+    fillCircle(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.7, Math.max(r, 0),
+      i % 3 === 0 ? '#FFD84D' : '#FFFFFF');
+  }
+
+  // 名前
+  const name = boss.boss === 'PAPA' ? 'パパ とうじょう!' : 'ママ とうじょう!';
+  const grow = clamp((k - 0.1) / 0.25, 0, 1);
+  const fade = clamp((1 - k) / 0.2, 0, 1);
+  const size = s * 1.15 * (0.4 + grow * 0.6) * (1 + Math.sin(k * 18) * 0.03 * (1 - grow));
+  ctx.save();
+  ctx.globalAlpha = fade;
+  shadowText(name, viewW / 2, viewH * 0.3, size, '#FFF3C4', s * 0.3);
+  const sub = boss.boss === 'PAPA' ? '2かい ふんで やっつけよう' : 'スライムに きをつけて!';
+  shadowText(sub, viewW / 2, viewH * 0.4, s * 0.42, '#FFFFFF', s * 0.16);
+  ctx.restore();
+}
+
 // --- HUD ----------------------------------------------------------------
 function badge(x, y, text, color, fs) {
   setFont(fs);
@@ -202,7 +258,10 @@ function drawHud() {
   const pad = compact ? 10 : 16;
   let x = pad;
   const y = compact ? 6 : 9;
-  x += badge(x, y, `♥ ${game.lives}`, 'rgba(255,107,138,0.8)', fs) + 6;
+  const hp = game.player.hp;
+  const hearts = '♥'.repeat(Math.max(hp, 0)) + '♡'.repeat(Math.max(PLAYER_MAX_HP - hp, 0));
+  x += badge(x, y, hearts, 'rgba(255,107,138,0.8)', fs) + 6;
+  x += badge(x, y, `のこり ${game.lives}`, 'rgba(43,43,58,0.67)', fs) + 6;
   x += badge(x, y, `● ${game.coinCount}`, 'rgba(255,201,61,0.8)', fs) + 6;
   x += badge(x, y, `${game.score}`, 'rgba(43,43,58,0.67)', fs) + 6;
 
@@ -418,8 +477,10 @@ function drawScene() {
   drawGoal(cam, s);
   drawPickups(cam, s);
   drawEnemies(cam, s);
+  drawShots(cam, s);
   drawPlayer(cam, s);
   drawPops(cam, s);
+  if (game.introT > 0) drawBossIntro(cam, s);
 
   drawHud();
   if (game.phase === 'PLAYING' || game.phase === 'DYING') drawControls();

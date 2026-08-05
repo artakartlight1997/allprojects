@@ -182,7 +182,7 @@ function drawHowto() {
     '④ のり＋水が「かさ」、ホウ砂水が「かたさ」。少ないと ベタベタ 多いと カチカチ',
     '⑤ まぜ足りないと しま模様が のこる。できたら のばす・ぷにぷに・バウンド',
     '⑥ のばすときは つまんだ ところが のびる。ゆびを 何本 つかっても いい',
-    '⑦「ぐにゃぐにゃ」は 760この つぶで できた ほんものの 流体。ちぎれる・くっつく',
+    '⑦「ぐにゃぐにゃ」は 620この つぶで できた ほんものの 流体。ちぎれる・くっつく',
   ];
   ctx.fillStyle = '#6A5A7A';
   lines.forEach((s, i) => {
@@ -526,12 +526,14 @@ function drawStretch(dt) {
   pl.score = Math.max(pl.score, longest / base * 5);
 
   // ひもに 流れこんだぶん たまが やせる
-  b.r = base * Math.max(0.6, 1 - extraVol / (base * base * 7));
+  // ひもに 流れこんだ ぶん、たまは 目に見えて しぼむ。
+  // 本体が 変わらないと「糸だけ 出ている」ように 見えて うそくさい
+  b.r = base * Math.max(0.42, 1 - extraVol / (base * base * 3.2));
   // つまんでいる ところ だけ とんがる
   for (const id of Object.keys(ui.pulls)) {
     const pu = ui.pulls[id];
     if (pu.held && pu.strand && pu.strand.broken < 0) {
-      blobPull(b, pu.ang, b.r * 0.45);
+      blobPull(b, pu.ang, b.r * 0.85);
     }
   }
   blobUpdate(b, dt, p);
@@ -579,6 +581,7 @@ function gooMat(p) {
     kspr: 2600,                        // バネの つよさ ＝ 形を たもつ力
     plast: 0.7 + p.stretch * 4.5,      // 形を おぼえなおす はやさ ＝ のび
     yieldR: 0.20 - p.stretch * 0.12,   // どこまで のばしたら おぼえなおすか
+    adhere: 480,                       // つくえへの ねばりつき
   };
 }
 
@@ -615,7 +618,7 @@ function drawGoo(dt) {
   }
   if (holding) {
     if (!pl.grabbed) {
-      const got = fluidGrab(f, holding.x, holding.y, base * 0.50);
+      const got = fluidGrab(f, holding.x, holding.y, base * 0.28);
       if (got > 0) { pl.grabbed = true; pl.broke = false; }
     }
     if (pl.grabbed) fluidHold(f, holding.x, holding.y);
@@ -630,16 +633,17 @@ function drawGoo(dt) {
   fluidStep(f, sub, mat);
   fluidStep(f, sub, mat);
 
-  // つながりを 見て、ちぎれたかを 決める。判定は 書いていない
+  // つながりを 見て、ちぎれたかを 決める。判定は 書いていない。
+  // 1フレームに 1回だけ 数える（かおの 位置にも 使いまわす）
+  const root = fluidComponents(f, 0.88);
+  const size = {};
+  let big = -1, bigN = 0;
+  for (let i = 0; i < f.n; i++) {
+    const r = root[i];
+    size[r] = (size[r] || 0) + 1;
+    if (size[r] > bigN) { bigN = size[r]; big = r; }
+  }
   if (pl.grabbed) {
-    const root = fluidComponents(f, 0.88);
-    const size = {};
-    let big = -1, bigN = 0;
-    for (let i = 0; i < f.n; i++) {
-      const r = root[i];
-      size[r] = (size[r] || 0) + 1;
-      if (size[r] > bigN) { bigN = size[r]; big = r; }
-    }
     let heldRoot = -1, apart = 0, heldN = 0;
     for (let i = 0; i < f.n; i++) {
       if (!f.held[i]) continue;
@@ -672,17 +676,9 @@ function drawGoo(dt) {
 
   // かお。いちばん 大きい かたまりの まんなかに 出す。
   // ぜんぶの 平均だと、ちぎれた とき 何もない ところに 顔が うかぶ
-  const froot = fluidComponents(f, 0.88);
-  const fsize = {};
-  let fbig = -1, fbigN = 0;
-  for (let i = 0; i < f.n; i++) {
-    const r = froot[i];
-    fsize[r] = (fsize[r] || 0) + 1;
-    if (fsize[r] > fbigN) { fbigN = fsize[r]; fbig = r; }
-  }
   let sx = 0, sy = 0, cnt = 0;
   for (let i = 0; i < f.n; i++) {
-    if (froot[i] !== fbig) continue;
+    if (root[i] !== big) continue;
     sx += f.x[i]; sy += f.y[i]; cnt++;
   }
   const fx = f.ox + sx / cnt * f.scale, fy = f.oy + sy / cnt * f.scale;

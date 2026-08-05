@@ -1,6 +1,6 @@
 // 本物の 粒子流体。PBF（Position Based Fluids, Macklin & Müller 2013）。
 //
-// スライムを 380この つぶで あらわす。つぶには「ここは こう動く」という
+// スライムを 620この つぶで あらわす。つぶには「ここは こう動く」という
 // 決めごとを 書いていない。書いてあるのは 1つだけ:
 //
 //   「まわりの こみぐあいを いつも 同じに たもつ」（＝ 縮まない液体）
@@ -15,9 +15,10 @@
 
 'use strict';
 
-const FL_N = 760;          // つぶの数
+const FL_N = 620;          // つぶの数
 const FL_MAXNB = 48;       // 1つぶが 見る ご近所の 数の 上限
-const FL_MAXSPR = 26;      // 1つぶから 出る バネの 数の 上限
+const FL_MAXSPR = 20;      // 1つぶから 出る バネの 数の 上限
+const FL_SPR_MAX = 3.4;    // バネが ちぎれる 長さ（ふだんの 間かくの 8倍ほど）
 const FL_ITER = 3;         // こみぐあいを 直す 回数
 const FL_D0 = 0.42;        // つぶ同士の ふだんの 間かく（h＝1 として）
 
@@ -133,13 +134,17 @@ function applySprings(f, X, Y, dt, mat) {
       let L = f.sl[base + t];
       const ddx = X[j] - X[i], ddy = Y[j] - Y[i];
       const r = Math.sqrt(ddx * ddx + ddy * ddy);
-      if (r > 1 || r < 1e-9) continue;      // はなれすぎた → 消える（ちぎれる）
+      // ちぎれるのは ここまで のばした とき。
+      // スライムが よく のびるのは、中に 長い ひものような 分子（ポリマー）が
+      // からまっているから。その ひもは 遠くまで とどく。
+      // だから バネも ご近所（h）を こえて ずっと 先まで つながっている
+      if (r > FL_SPR_MAX || r < 1e-9) continue;
       // ふだんの長さを いまの長さへ にじり寄せる（形を おぼえなおす）
       const d = gam * L;
       if (r > L + d) L += dt * alpha * (r - L - d);
       else if (r < L - d) L -= dt * alpha * (L - d - r);
-      if (L > 1) continue;                  // のびきった → 消える
-      const D = dt2 * k * (1 - L) * (L - r) / r;
+      if (L > FL_SPR_MAX) continue;         // のびきった → 消える
+      const D = dt2 * k * (L - r) / r;
       const hx = ddx * D * 0.5, hy = ddy * D * 0.5;
       X[i] -= hx; Y[i] -= hy;
       X[j] += hx; Y[j] += hy;
@@ -161,8 +166,10 @@ function buildGrid(f, X, Y) {
   const gw = Math.max(1, Math.min(512, Math.ceil(x1 - x0) + 3));
   const gh = Math.max(1, Math.min(512, Math.ceil(y1 - y0) + 3));
   const cells = gw * gh;
+  // 毎フレーム 作りなおすと ごみが たまって がくがくになる。使いまわす
   if (!f.cellStart || f.cellStart.length < cells + 1) {
     f.cellStart = new Int32Array(cells + 1);
+    f.fillBuf = new Int32Array(cells + 1);
     f.order = new Int32Array(n);
     f.cell = new Int32Array(n);
   }
@@ -178,7 +185,8 @@ function buildGrid(f, X, Y) {
     cs[c + 1]++;
   }
   for (let c = 0; c < cells; c++) cs[c + 1] += cs[c];
-  const fill = new Int32Array(cells);
+  const fill = f.fillBuf;
+  fill.fill(0, 0, cells);
   for (let i = 0; i < n; i++) {
     const c = f.cell[i];
     f.order[cs[c] + fill[c]] = i;
@@ -235,10 +243,19 @@ function computeDensity(f, X, Y) {
 // mat: { visc, coh, scorr } ＝ 材料から 決まる ねばり・くっつき・はじけ
 function fluidStep(f, dt, mat, grav) {
   const n = f.n, X = f.px, Y = f.py;
-  const g = grav === undefined ? 60 : grav;
+  const g = grav === undefined ? 110 : grav;
 
+  const adh = mat.adhere === undefined ? 0 : mat.adhere;
   for (let i = 0; i < n; i++) {
     f.vy[i] += g * dt;
+    // つくえに くっつく。本物の スライムも つくえに ねばりつくので、
+    // 下の ほうは 残って、ゆびの ほうだけ のびていく。
+    // これが ないと ぜんぶ 持ち上がって しまう
+    if (adh > 0 && f.y[i] > f.floor - 0.7) {
+      const near = Math.min(1, (f.y[i] - (f.floor - 0.7)) / 0.7);
+      f.vy[i] += adh * near * dt;
+      f.vx[i] -= f.vx[i] * Math.min(0.6, 2.2 * near * dt);
+    }
     X[i] = f.x[i] + f.vx[i] * dt;
     Y[i] = f.y[i] + f.vy[i] * dt;
   }
@@ -407,6 +424,15 @@ function fluidComponents(f, link) {
       const ra = findRoot(root, i), rb = findRoot(root, j);
       if (ra !== rb) root[ra] = rb;
     }
+    // のびた バネで つながっている ものも「ひとつづき」。
+    // 見た目が はなれていても、まだ 糸で つながっている あいだは
+    // ちぎれていない
+    const sbase = i * FL_MAXSPR, scnt = f.sn[i];
+    for (let t = 0; t < scnt; t++) {
+      const j = f.sj[sbase + t];
+      const ra = findRoot(root, i), rb = findRoot(root, j);
+      if (ra !== rb) root[ra] = rb;
+    }
   }
   for (let i = 0; i < n; i++) root[i] = findRoot(root, i);
   return root;
@@ -436,6 +462,38 @@ function drawFluid(c, f, p, vw, vh) {
     g.addColorStop(1, 'rgba(255,255,255,0)');
     flCx.fillStyle = g;
     flCx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+  }
+  // のびた バネは「糸」として 描く。
+  // つぶだけ 描くと、のびた ところが つぶつぶに 切れて 見えてしまう。
+  // 糸も 中身なので、のばすほど 細く なるように 描く
+  // 長さで 4つに 分けて、まとめて 1回ずつ 描く。
+  // 1本ずつ stroke すると 4000回 になって 重い
+  flCx.lineCap = 'round';
+  // ちぢんでいる バネは つぶの 丸が 隠すので 描かない。
+  // ぜんぶ 描くと 2万本に なって、まとめても 重い
+  const BANDS = [[0.95, 1.5], [1.5, 2.2], [2.2, FL_SPR_MAX + 0.1]];
+  for (let b = 0; b < BANDS.length; b++) {
+    const lo = BANDS[b][0], hi = BANDS[b][1];
+    const mid = (lo + hi) / 2;
+    const fade = Math.min(1, 1.5 / mid);
+    flCx.beginPath();
+    let any = false;
+    for (let i = 0; i < f.n; i++) {
+      const sbase = i * FL_MAXSPR, scnt = f.sn[i];
+      for (let t = 0; t < scnt; t++) {
+        const j = f.sj[sbase + t];
+        const dx = f.x[j] - f.x[i], dy = f.y[j] - f.y[i];
+        const r2 = dx * dx + dy * dy;
+        if (r2 < lo * lo || r2 >= hi * hi) continue;
+        flCx.moveTo((f.ox + f.x[i] * f.scale) * S, (f.oy + f.y[i] * f.scale) * S);
+        flCx.lineTo((f.ox + f.x[j] * f.scale) * S, (f.oy + f.y[j] * f.scale) * S);
+        any = true;
+      }
+    }
+    if (!any) continue;
+    flCx.strokeStyle = 'rgba(255,255,255,' + (0.30 * fade).toFixed(3) + ')';
+    flCx.lineWidth = Math.max(0.5, rr * 0.8 * fade);
+    flCx.stroke();
   }
   flCx.globalCompositeOperation = 'source-over';
 

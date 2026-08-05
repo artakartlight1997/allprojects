@@ -57,7 +57,9 @@ function blobPull(b, ang, amount) {
   for (let i = 0; i < n; i++) {
     const a = i / n * Math.PI * 2;
     const d = Math.abs(((a - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-    const w = Math.max(0, 1 - d / 0.9);   // せまめ。つまんだ ところだけ 出る
+    // つまんだ ところを 中心に、たま ぜんたいが そちらへ のびる。
+    // せますぎると「玉から 糸が 出ているだけ」に 見えてしまう
+    const w = Math.max(0, 1 - d / 1.5);
     const q = b.pts[i];
     q.off += (amount * w * w - q.off) * 0.3;
   }

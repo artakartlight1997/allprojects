@@ -177,12 +177,13 @@ function blob(c, x, y, r, rn) {
 }
 
 // level が上がるほど汚れが増える
-function makeDirt(seed, level) {
+function makeDirt(seed, level, mul) {
+  const k = mul === undefined ? 1 : mul;
   const layers = {};
   const counts = {
-    dust: 26 + level * 5,
-    grease: 9 + level * 3,
-    stuck: 4 + level * 2,
+    dust: Math.round((26 + level * 5) * k),
+    grease: Math.round((9 + level * 3) * k),
+    stuck: Math.round((4 + level * 2) * k),
   };
   for (const kind of ['dust', 'grease', 'stuck']) {
     const cv = document.createElement('canvas');
@@ -238,16 +239,18 @@ function makeFinds(seed, level) {
 // ほうっておくと 広がる よごれ。ここが 時間との たたかいに なる。
 // こすると 小さくなり、消しきると コインに なる。
 
-function makeMolds(seed, level) {
+function makeMolds(seed, level, mul, growMul) {
   const rn = rnd32(seed * 17 + 91);
-  const n = 2 + Math.min(4, (level / 2) | 0);
+  const gm = growMul === undefined ? 1 : growMul;
+  const n = Math.max(1, Math.round((2 + Math.min(4, (level / 2) | 0))
+                                   * (mul === undefined ? 1 : mul)));
   const out = [];
   for (let i = 0; i < n; i++) {
     out.push({
       x: 0.10 + rn() * 0.80, y: 0.16 + rn() * 0.68,
       r: 0.030 + rn() * 0.016,          // いまの 大きさ（画面の 横はば ぶんの 1）
       max: 0.085 + rn() * 0.035,        // ここまで 広がる
-      grow: 0.0042 + rn() * 0.0030 + level * 0.0006,   // 1びょうで 広がる ぶん
+      grow: (0.0042 + rn() * 0.0030 + level * 0.0006) * gm,
       seed: rn() * 100,
       dead: false,
     });
@@ -267,9 +270,10 @@ const BREAKABLES = [
   { name: 'おきもの', col: '#F0A8C0', tall: false },
 ];
 
-function makeBreakables(seed, level) {
+function makeBreakables(seed, level, mul) {
   const rn = rnd32(seed * 53 + 7);
-  const n = 1 + Math.min(3, (level / 2) | 0);
+  const n = Math.max(0, Math.round((1 + Math.min(3, (level / 2) | 0))
+                                   * (mul === undefined ? 1 : mul)));
   const out = [];
   for (let i = 0; i < n; i++) {
     const b = BREAKABLES[(rn() * BREAKABLES.length) | 0];

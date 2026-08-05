@@ -164,8 +164,8 @@ function drawTitle() {
 
   ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  fitFont('のばす・ぷにぷに・バウンド・ぐにゃぐにゃ の 4つで あそべる', W * 0.55, H * 0.032);
-  ctx.fillText('のばす・ぷにぷに・バウンド・ぐにゃぐにゃ の 4つで あそべる', H * 0.06, H * 0.79);
+  fitFont('のばす と ぷにぷに は 620つぶの 本物の スライム。ちぎれて くっつく', W * 0.55, H * 0.032);
+  ctx.fillText('のばす と ぷにぷに は 620つぶの 本物の スライム。ちぎれて くっつく', H * 0.06, H * 0.79);
 }
 
 function drawHowto() {
@@ -182,7 +182,7 @@ function drawHowto() {
     '④ のり＋水が「かさ」、ホウ砂水が「かたさ」。少ないと ベタベタ 多いと カチカチ',
     '⑤ まぜ足りないと しま模様が のこる。できたら のばす・ぷにぷに・バウンド',
     '⑥ のばすときは つまんだ ところが のびる。ゆびを 何本 つかっても いい',
-    '⑦「ぐにゃぐにゃ」は 620この つぶで できた ほんものの 流体。ちぎれる・くっつく',
+    '⑦ のばす・ぷにぷに の スライムは 620この つぶ。ちぎれる・くっつく・広がる',
   ];
   ctx.fillStyle = '#6A5A7A';
   lines.forEach((s, i) => {
@@ -423,11 +423,10 @@ function drawPlayMenu() {
     ['のばす', 'つまんだ ところが のびる', 'stretch', '#9FE8C0'],
     ['ぷにぷに', '15びょうで 何回 つつける？', 'poke', '#F2D08A'],
     ['バウンド', 'どこまで はずむ？', 'bounce', '#9FC8E8'],
-    ['ぐにゃぐにゃ', 'ほんものの 流体。ちぎって くっつけて', 'goo', '#E8B0D8'],
   ];
-  const bw = W * 0.5, bh = H * 0.115;
+  const bw = W * 0.5, bh = H * 0.14;
   items.forEach(([n, sub, key, col], i) => {
-    const y = H * 0.24 + i * (bh + H * 0.022);
+    const y = H * 0.26 + i * (bh + H * 0.03);
     const bb = button(W * 0.42, y, bw, bh, () => startPlay(key));
     ctx.fillStyle = col;
     rr(ctx, bb.x, bb.y, bb.w, bb.h, H * 0.025); ctx.fill();
@@ -439,7 +438,7 @@ function drawPlayMenu() {
     ctx.fillStyle = 'rgba(42,58,74,0.7)';
     fitFont(sub, bw * 0.6, bh * 0.24);
     ctx.fillText(sub, bb.x + bw * 0.05, bb.y + bh * 0.58);
-    if (key !== 'goo') {
+    {
       const best = key === 'stretch' ? save.bestStretch
                  : key === 'poke' ? save.bestPoke : save.bestBounce;
       ctx.textAlign = 'right';
@@ -457,7 +456,7 @@ function drawPlayMenu() {
 function startPlay(kind) {
   game.play = { kind, t: 0, score: 0, best: 0, over: false,
                 fluid: null, grabbed: false, broke: false,
-                y: 0, vy: 0, bounces: 0, peak: 0 };
+                dropped: false, y: 0, vy: 0, bounces: 0, peak: 0 };
   ui.pulls = {};
   const b = game.blob;
   b.x = W / 2; b.y = H * 0.55; b.r = Math.min(W * 0.11, H * 0.22);
@@ -466,7 +465,6 @@ function startPlay(kind) {
   game.screen = kind;
   game.msg = kind === 'stretch' ? 'スライムを ひっぱって！'
            : kind === 'poke' ? 'つついて つついて！'
-           : kind === 'goo' ? 'つまんで ちぎって あそぼう！'
            : '画面を タップで おとす';
   game.msgT = 2;
 }
@@ -487,154 +485,52 @@ function playHud(title, value, unit) {
                     () => { game.screen = 'playmenu'; }), 'やめる', '#E6EEF4');
 }
 
-function drawStretch(dt) {
-  bg('#DCF0F6', '#F6F1DC');
-  const p = game.p, b = game.blob, pl = game.play;
-  const base = Math.min(W * 0.10, H * 0.20);
-  b.x = W * 0.24; b.y = H * 0.40;
+// --- あそぶ ---------------------------------------------------------------
+//
+// のばす・ぷにぷに・バウンド、ぜんぶ 同じ スライムで あそぶ。
+// スライムは 620この つぶ（fluid.js）。描いた 丸ではない。
+// だから どの あそびでも 本体が ちゃんと 形を 変える。
+//
+// 配合から 材料の 性質を 決めているので、同じ あそびでも
+// スライムが ちがえば ちがう 動きになる。
 
-  // つくえ
-  const floor = H * 0.90;
-  ctx.fillStyle = '#E2CFA8';
-  ctx.fillRect(0, floor, W, H - floor);
-  ctx.fillStyle = 'rgba(0,0,0,0.10)';
-  ctx.fillRect(0, floor, W, 3);
-
-  // ゆび 1本に つき ひも 1本。何本でも 同時に ひっぱれる
-  const ids = Object.keys(ui.pulls);
-  let extraVol = 0, longest = 0;
-  for (const id of ids) {
-    const pu = ui.pulls[id];
-    if (!pu.strand) {
-      pu.strand = makeStrand(b, pu.ang, pu.x, pu.y, p);
-      pu.strand.floor = floor;
-    }
-    const s = pu.strand;
-    strandStep(s, b, pu.x, pu.y, p, dt, pu.held);
-    extraVol += Math.max(0, s.vol - s.vol0);
-    if (pu.held && s.broken < 0) longest = Math.max(longest, s.len);
-    if (s.broken >= 0 && !pu.broke) {
-      pu.broke = true;
-      game.msg = 'ちぎれた！ ゆっくり ひっぱると のびるよ';
-      game.msgT = 1.8;
-    }
-    if (s.dead) {
-      delete ui.pulls[id];
-      if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
-    }
-  }
-  pl.score = Math.max(pl.score, longest / base * 5);
-
-  // ひもに 流れこんだぶん たまが やせる
-  // ひもに 流れこんだ ぶん、たまは 目に見えて しぼむ。
-  // 本体が 変わらないと「糸だけ 出ている」ように 見えて うそくさい
-  b.r = base * Math.max(0.42, 1 - extraVol / (base * base * 3.2));
-  // つまんでいる ところ だけ とんがる
-  for (const id of Object.keys(ui.pulls)) {
-    const pu = ui.pulls[id];
-    if (pu.held && pu.strand && pu.strand.broken < 0) {
-      blobPull(b, pu.ang, b.r * 0.85);
-    }
-  }
-  blobUpdate(b, dt, p);
-
-  for (const id of Object.keys(ui.pulls)) {
-    if (ui.pulls[id].strand) drawStrand(ctx, ui.pulls[id].strand, p, b);
-  }
-  drawSlime(ctx, b, p, { face: true });
-  for (const id of Object.keys(ui.pulls)) {
-    const pu = ui.pulls[id];
-    if (!pu.held || !pu.strand || pu.strand.broken >= 0) continue;
-    ctx.fillStyle = rgbCss(shade(p.rgb, -0.1));      // つまんでいる ゆびさき
-    ctx.beginPath();
-    ctx.ellipse(pu.x, pu.y, base * 0.15, base * 0.19, 0, 0, 7);
-    ctx.fill();
-  }
-
-  ui.buttons.push({ x: b.x - b.r * 1.4, y: b.y - b.r * 1.4,
-                    w: b.r * 2.8, h: b.r * 2.8, tag: 'pull' });
-  if (!ids.length) {
-    ctx.fillStyle = 'rgba(60,80,96,0.75)';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    fitFont('つまんだ ところが のびる', W * 0.42, H * 0.05, 'bold ');
-    ctx.fillText('つまんだ ところが のびる', W * 0.66, H * 0.36);
-    ctx.fillStyle = 'rgba(60,80,96,0.55)';
-    const tips = ['ゆっくり ひっぱると 長くのびる。いっきに ひくと ちぎれる',
-                  'ゆびを 2本 3本 つかうと、いっぺんに ひっぱれる'];
-    tips.forEach((t, i) => {
-      fitFont(t, W * 0.46, H * 0.038);
-      ctx.fillText(t, W * 0.66, H * 0.46 + i * H * 0.07);
-    });
-  }
-  playHud('のばす　さいこう ' + Math.round(save.bestStretch) + 'cm',
-          Math.round(pl.score), 'cm');
-}
-
-// 「ぐにゃぐにゃ」は 本物の 粒子流体（fluid.js）。
-// たれる・のびる・くびれる・ちぎれる・つくえに 広がる は
-// ぜんぶ つぶの 動きから ひとりでに 出てくる。
-function gooMat(p) {
-  return {
-    visc: 0.15 + p.stretch * 0.82,     // ねばり。大きいほど 長い糸になる
-    coh: 80 + p.stretch * 520,         // くっつく力（表面張力のかわり）
-    scorr: 0.0016 + (1 - p.stretch) * 0.0075,   // はじけやすさ
-    kspr: 2600,                        // バネの つよさ ＝ 形を たもつ力
-    plast: 0.7 + p.stretch * 4.5,      // 形を おぼえなおす はやさ ＝ のび
-    yieldR: 0.20 - p.stretch * 0.12,   // どこまで のばしたら おぼえなおすか
-    adhere: 480,                       // つくえへの ねばりつき
+function slimeMat(p, over) {
+  const m = {
+    visc: 0.15 + p.stretch * 0.82,      // ねばり
+    coh: 80 + p.stretch * 520,          // くっつく力
+    scorr: 0.0016 + (1 - p.stretch) * 0.0075,
+    // バネ。かたいスライムほど 強くて、形を おぼえなおさない ＝ はずむ。
+    // やわらかいスライムほど よく のびて もどらない
+    kspr: 2200 + p.bounce * 1600,
+    plast: 0.4 + p.stretch * 6.0,
+    yieldR: 0.08 + p.bounce * 0.30,
+    adhere: 480,                        // つくえへの ねばりつき
+    rest: 0.05 + p.bounce * 0.55,       // 床で はねかえる 割合
   };
+  if (over) for (const k in over) m[k] = over[k];
+  return m;
 }
 
-function drawGoo(dt) {
-  bg('#DCF0F6', '#F6F1DC');
-  const p = game.p, pl = game.play;
-  const base = Math.min(W * 0.095, H * 0.19);
-  const floor = H * 0.90;
+function ensureFluid(pl, cx, cy, base, floorY) {
+  if (pl.fluid) return pl.fluid;
+  const f = makeFluid(cx, cy, base);
+  f.floor = (floorY - f.oy) / f.scale;
+  f.top = (H * 0.105 - f.oy) / f.scale;
+  f.left = (W * 0.012 - f.ox) / f.scale;
+  f.right = (W * 0.988 - f.ox) / f.scale;
+  pl.fluid = f;
+  return f;
+}
 
-  // つくえ
-  ctx.fillStyle = '#E2CFA8';
-  ctx.fillRect(0, floor, W, H - floor);
-  ctx.fillStyle = 'rgba(0,0,0,0.10)';
-  ctx.fillRect(0, floor, W, 3);
-
-  if (!pl.fluid) {
-    // つくえの 上に のっている ところから 始める（落ちてくると さがせない）
-    pl.fluid = makeFluid(W * 0.26, floor - base * 0.98, base);
-    const f = pl.fluid;
-    f.floor = (floor - f.oy) / f.scale;
-    f.top = (H * 0.11 - f.oy) / f.scale;
-    f.left = (W * 0.012 - f.ox) / f.scale;
-    f.right = (W * 0.988 - f.ox) / f.scale;
-  }
-  const f = pl.fluid;
-  const mat = gooMat(p);
-
-  // つまむ・はなす
-  const ids = Object.keys(ui.pulls);
-  let holding = null;
-  for (const id of ids) {
-    const pu = ui.pulls[id];
-    if (pu.held) { holding = pu; break; }
-  }
-  if (holding) {
-    if (!pl.grabbed) {
-      const got = fluidGrab(f, holding.x, holding.y, base * 0.28);
-      if (got > 0) { pl.grabbed = true; pl.broke = false; }
-    }
-    if (pl.grabbed) fluidHold(f, holding.x, holding.y);
-  } else if (pl.grabbed) {
-    fluidRelease(f); pl.grabbed = false;
-    if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
-  }
-  for (const id of ids) if (!ui.pulls[id].held) delete ui.pulls[id];
-
-  // 進める。1 フレームを 2回に 分けて 解くと 落ちつく
+// 1フレームを 2回に 分けて 解くと 落ちつく
+function stepFluid(f, mat, dt) {
   const sub = Math.min(0.018, Math.max(0.004, dt / 2));
   fluidStep(f, sub, mat);
   fluidStep(f, sub, mat);
+}
 
-  // つながりを 見て、ちぎれたかを 決める。判定は 書いていない。
-  // 1フレームに 1回だけ 数える（かおの 位置にも 使いまわす）
+// いちばん 大きい かたまり。かおの 位置と「ちぎれた?」に つかう
+function fluidBig(f) {
   const root = fluidComponents(f, 0.88);
   const size = {};
   let big = -1, bigN = 0;
@@ -643,45 +539,22 @@ function drawGoo(dt) {
     size[r] = (size[r] || 0) + 1;
     if (size[r] > bigN) { bigN = size[r]; big = r; }
   }
-  if (pl.grabbed) {
-    let heldRoot = -1, apart = 0, heldN = 0;
-    for (let i = 0; i < f.n; i++) {
-      if (!f.held[i]) continue;
-      heldN++;
-      if (heldRoot < 0) heldRoot = root[i];
-      if (root[i] !== big) apart++;
-    }
-    const cut = heldN > 0 && apart > heldN * 0.6;
-    if (!cut) {
-      // まだ つながっている。かたまりの まんなかから ゆびまでの 長さ
-      let sx = 0, sy = 0, cnt = 0;
-      for (let i = 0; i < f.n; i++) {
-        if (root[i] !== big || f.held[i]) continue;
-        sx += f.x[i]; sy += f.y[i]; cnt++;
-      }
-      if (cnt > 8) {
-        const cxm = f.ox + sx / cnt * f.scale, cym = f.oy + sy / cnt * f.scale;
-        const d = Math.hypot(holding.x - cxm, holding.y - cym);
-        pl.score = Math.max(pl.score, d / base * 5);
-      }
-    } else if (!pl.broke) {
-      pl.broke = true;
-      game.msg = 'ちぎれた！ ゆっくり ひっぱると のびるよ';
-      game.msgT = 1.8;
-      if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
-    }
-  }
-
-  const hi = drawFluid(ctx, f, p, W, H);
-
-  // かお。いちばん 大きい かたまりの まんなかに 出す。
-  // ぜんぶの 平均だと、ちぎれた とき 何もない ところに 顔が うかぶ
-  let sx = 0, sy = 0, cnt = 0;
+  let sx = 0, sy = 0, cnt = 0, top = 1e9, bot = -1e9;
   for (let i = 0; i < f.n; i++) {
     if (root[i] !== big) continue;
     sx += f.x[i]; sy += f.y[i]; cnt++;
+    if (f.y[i] < top) top = f.y[i];
+    if (f.y[i] > bot) bot = f.y[i];
   }
-  const fx = f.ox + sx / cnt * f.scale, fy = f.oy + sy / cnt * f.scale;
+  if (!cnt) cnt = 1;
+  return { root, big, bigN,
+           cx: f.ox + sx / cnt * f.scale, cy: f.oy + sy / cnt * f.scale,
+           top: f.oy + top * f.scale, bot: f.oy + bot * f.scale };
+}
+
+function drawFluidSlime(f, p, base, info) {
+  const hi = drawFluid(ctx, f, p, W, H);
+  const fx = info.cx, fy = info.cy;
   const er = base * 0.11;
   ctx.fillStyle = '#2B2630';
   for (const s of [-1, 1]) {
@@ -695,7 +568,6 @@ function drawGoo(dt) {
   ctx.beginPath();
   ctx.arc(fx, fy + base * 0.06, base * 0.13, 0.3, Math.PI - 0.3);
   ctx.stroke();
-  // つや
   ctx.save();
   ctx.globalAlpha = 0.3 + p.gloss * 0.35;
   ctx.fillStyle = rgbCss(hi);
@@ -704,29 +576,105 @@ function drawGoo(dt) {
               -0.5, 0, 7);
   ctx.fill();
   ctx.restore();
+}
 
-  // つまめる はんい ＝ 画面ぜんぶ（どこを つまんでも いい）
+function drawTable(y, col) {
+  ctx.fillStyle = col;
+  ctx.fillRect(0, y, W, H - y);
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  ctx.fillRect(0, y, W, 3);
+}
+
+// --- のばす ---------------------------------------------------------------
+
+function drawStretch(dt) {
+  bg('#DCF0F6', '#F6F1DC');
+  const p = game.p, pl = game.play;
+  const base = Math.min(W * 0.095, H * 0.19);
+  const floor = H * 0.90;
+  drawTable(floor, '#E2CFA8');
+
+  const f = ensureFluid(pl, W * 0.26, floor - base * 0.98, base, floor);
+  const mat = slimeMat(p);
+
+  const ids = Object.keys(ui.pulls);
+  let holding = null;
+  for (const id of ids) if (ui.pulls[id].held) { holding = ui.pulls[id]; break; }
+  if (holding) {
+    if (!pl.grabbed) {
+      if (fluidGrab(f, holding.x, holding.y, base * 0.28) > 0) {
+        pl.grabbed = true; pl.broke = false;
+      }
+    }
+    if (pl.grabbed) fluidHold(f, holding.x, holding.y);
+  } else if (pl.grabbed) {
+    fluidRelease(f); pl.grabbed = false;
+    if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
+  }
+  for (const id of ids) if (!ui.pulls[id].held) delete ui.pulls[id];
+
+  stepFluid(f, mat, dt);
+  const info = fluidBig(f);
+
+  if (pl.grabbed && holding) {
+    let apart = 0, heldN = 0;
+    for (let i = 0; i < f.n; i++) {
+      if (!f.held[i]) continue;
+      heldN++;
+      if (info.root[i] !== info.big) apart++;
+    }
+    const cut = heldN > 0 && apart > heldN * 0.6;
+    if (!cut) {
+      // のび ＝ ゆびから いちばん 遠い「まだ つながっている つぶ」まで。
+      // ＝ いま 手に持っている スライムの 長さ
+      let far = 0;
+      for (let i = 0; i < f.n; i++) {
+        if (info.root[i] !== info.big) continue;
+        const dx = f.ox + f.x[i] * f.scale - holding.x;
+        const dy = f.oy + f.y[i] * f.scale - holding.y;
+        const d = dx * dx + dy * dy;
+        if (d > far) far = d;
+      }
+      pl.score = Math.max(pl.score, Math.sqrt(far) / base * 5);
+    } else if (!pl.broke) {
+      pl.broke = true;
+      game.msg = 'ちぎれた！ よせると くっつくよ';
+      game.msgT = 1.8;
+      if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
+    }
+  }
+
+  drawFluidSlime(f, p, base, info);
   ui.buttons.push({ x: 0, y: H * 0.1, w: W, h: H * 0.78, tag: 'pull' });
   if (!ids.length) {
     ctx.fillStyle = 'rgba(60,80,96,0.75)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    fitFont('つまんで ちぎって、くっつけて あそぼう', W * 0.44, H * 0.05, 'bold ');
-    ctx.fillText('つまんで ちぎって、くっつけて あそぼう', W * 0.68, H * 0.34);
+    fitFont('つまんで びよーんと のばそう', W * 0.44, H * 0.05, 'bold ');
+    ctx.fillText('つまんで びよーんと のばそう', W * 0.68, H * 0.32);
     ctx.fillStyle = 'rgba(60,80,96,0.55)';
-    const tips = ['ほうっておくと つくえに びちゃっと 広がる',
-                  'ちぎれた かけらも つまめる。よせると くっついて もどる'];
+    const tips = ['ゆっくり ひっぱると 長くのびる。いっきに ひくと ちぎれる',
+                  'ちぎれた かけらも つまめる。よせると くっついて もどる',
+                  'ほうっておくと つくえに びちゃっと 広がる'];
     tips.forEach((t, i) => {
-      fitFont(t, W * 0.48, H * 0.038);
-      ctx.fillText(t, W * 0.68, H * 0.44 + i * H * 0.07);
+      fitFont(t, W * 0.48, H * 0.036);
+      ctx.fillText(t, W * 0.68, H * 0.43 + i * H * 0.065);
     });
   }
-  playHud('ぐにゃぐにゃ　つぶ ' + f.n + 'こ', Math.round(pl.score), 'cm');
+  playHud('のばす　さいこう ' + Math.round(save.bestStretch) + 'cm',
+          Math.round(pl.score), 'cm');
 }
+
+// --- ぷにぷに -------------------------------------------------------------
 
 function drawPoke(dt) {
   bg('#F6E8F6', '#FDF6E4');
-  const p = game.p, b = game.blob, pl = game.play;
-  b.x = W / 2; b.y = H * 0.55;
+  const p = game.p, pl = game.play;
+  const base = Math.min(W * 0.095, H * 0.19);
+  const floor = H * 0.88;
+  drawTable(floor, '#E4D2C0');
+
+  const f = ensureFluid(pl, W * 0.5, floor - base * 0.98, base, floor);
+  const mat = slimeMat(p);
   if (!pl.over) {
     pl.t += dt;
     if (pl.t > 15) {
@@ -734,10 +682,11 @@ function drawPoke(dt) {
       if (pl.score > save.bestPoke) { save.bestPoke = pl.score; storeSave(); }
     }
   }
-  blobUpdate(b, dt, p);
-  drawSlime(ctx, b, p, { face: true, blink: Math.sin(game.t * 1.6) > 0.96 });
-  ui.buttons.push({ x: b.x - b.r * 1.2, y: b.y - b.r * 1.2,
-                    w: b.r * 2.4, h: b.r * 2.4, tag: 'poke' });
+  stepFluid(f, mat, dt);
+  const info = fluidBig(f);
+  drawFluidSlime(f, p, base, info);
+
+  ui.buttons.push({ x: 0, y: H * 0.1, w: W, h: H * 0.76, tag: 'poke' });
   playHud('ぷにぷに　のこり ' + Math.max(0, Math.ceil(15 - pl.t)) + 'びょう',
           pl.score, 'かい');
   if (pl.over) {
@@ -750,6 +699,12 @@ function drawPoke(dt) {
   }
 }
 
+// --- バウンド -------------------------------------------------------------
+//
+// ここだけ つぶではなく、バネ 1つの かんたんな 玉。
+// つぶで やると スライムは ぺしゃっと つぶれるだけで ほとんど はずまず、
+// どの 配合でも 同じ 結果に なってしまう（本物も そうなのだが、
+// あそびとして 差が 出ない）。ここは はずみ具合を 直に つかう。
 function drawBounce(dt) {
   bg('#E4F0FA', '#F6ECDC');
   const p = game.p, b = game.blob, pl = game.play;
@@ -903,8 +858,9 @@ canvas.addEventListener('pointerdown', (ev) => {
     };
   }
   else if (b.tag === 'poke') {
-    blobPoke(game.blob, x, y, 1, game.p);
-    if (game.screen === 'poke' && !game.play.over) game.play.score++;
+    const f = game.play && game.play.fluid;
+    if (f && fluidPoke(f, x, y, f.scale * 1.5, 26) > 0
+        && !game.play.over) game.play.score++;
   } else if (b.tag === 'drop') {
     if (!game.play.dropped) { game.play.dropped = true; game.play.vy = 0; }
     else blobPoke(game.blob, x, y, 0.7, game.p);
@@ -977,7 +933,6 @@ function frame(now) {
   else if (game.screen === 'stretch') drawStretch(dt);
   else if (game.screen === 'poke') drawPoke(dt);
   else if (game.screen === 'bounce') drawBounce(dt);
-  else if (game.screen === 'goo') drawGoo(dt);
   else if (game.screen === 'shelf') drawShelf();
   else if (game.screen === 'howto') drawHowto();
   else drawTitle();

@@ -27,11 +27,11 @@ function storeSave() {
 const game = {
   screen: 'title',   // title / howto / lab / done / playmenu / stretch / poke / bounce / shelf
   m: emptyMix(),
+  bath: null,        // ボウルの中の 絵の具（bath.js）
   p: null,
   name: '', title: null,
   blob: null,
   t: 0,
-  hold: null,        // 押しっぱなしの材料
   shelfSel: -1,
   // あそび用
   play: null,
@@ -174,12 +174,12 @@ function drawHowto() {
   ctx.font = 'bold ' + Math.round(H * 0.07) + 'px system-ui, sans-serif';
   ctx.fillText('あそびかた', H * 0.05, H * 0.05);
   const lines = [
-    '① 材料のボタンを 長おしすると、おしただけ 入る',
-    '② のり＋水が「かさ」、ホウ砂水が「かたさ」を決める',
-    '　 少なすぎると ベタベタ、多すぎると カチカチ',
-    '③ 絵の具は あか・きいろ・あお。まぜかたで 色がかわる（あお＋きいろ＝みどり）',
-    '④ ボウルの上を ゆびでこすって かきまぜる。まぜるほど なめらか',
-    '⑤ できたら のばす・ぷにぷに・バウンド で あそべる。だなに しまえる',
+    '① 材料の びんを ゆびで つかんで、ボウルの上まで もっていくと 出てくる',
+    '② 入れた 絵の具は そこに たまる。かってには まざらない',
+    '③ ボウルの中を ゆびで ぐるぐる すると、なぞったところ だけ まざる',
+    '　 あおの となりに きいろを たらして まぜると みどりになる',
+    '④ のり＋水が「かさ」、ホウ砂水が「かたさ」。少ないと ベタベタ 多いと カチカチ',
+    '⑤ まぜ足りないと しま模様が のこる。できたら のばす・ぷにぷに・バウンド',
   ];
   ctx.fillStyle = '#6A5A7A';
   lines.forEach((s, i) => {
@@ -195,94 +195,145 @@ function drawHowto() {
 
 function newMix() {
   game.m = emptyMix();
+  game.bath = makeBath();
   game.p = analyze(game.m);
   game.screen = 'lab';
 }
 
 function drawLab(dt) {
   ctx.fillStyle = '#F7F2FB'; ctx.fillRect(0, 0, W, H);
-  const m = game.m;
-  if (game.hold) {
-    const g = INGREDIENTS.find((x) => x.key === game.hold);
-    m[g.key] += g.rate * dt;
+  const m = game.m, bath = game.bath;
+  const pad = H * 0.03;
+  const bw = W * 0.38, bh = H * 0.52;
+  const bx = pad, by = pad + H * 0.115;
+  const G = bowlGeom(bx, by, bw, bh);
+  const k = bathScale(game.p ? game.p.volume : 0);
+  const RX = G.rx * k, RY = G.ry * k;
+  ui.bowl = { cx: G.cx, cy: G.cy, RX, RY };
+
+  // びんを ボウルの上まで もっていくと そそげる。
+  // 出る場所は ゆびの ところ。だから 好きな場所に たらせる
+  let pourKey = null;
+  if (ui.drag && ui.drag.tag === 'bottle') {
+    const ex = (ui.drag.x - G.cx) / G.rx, ey = (ui.drag.y - G.cy) / G.ry;
+    if (ex * ex + ey * ey < 1) pourKey = ui.drag.key;
   }
+  if (pourKey) {
+    const g = INGREDIENTS.find((q) => q.key === pourKey);
+    const amt = g.rate * dt;
+    m[g.key] += amt;
+    let u = (ui.drag.x - G.cx) / RX, v = (ui.drag.y - G.cy) / RY;
+    const d = Math.hypot(u, v);
+    if (d > 1) { u /= d; v /= d; }
+    bathPour(bath, g.key, amt, u, v);
+    ui.drag.poured = true;
+    ui.drag.pourT = (ui.drag.pourT || 0) + dt;
+    if (ui.drag.pourT > 0.05) {
+      ui.drag.pourT = 0;
+      bathDrop(bath, ui.drag.x + (Math.random() - 0.5) * bw * 0.04,
+               ui.drag.y - bh * 0.12, g.col, 0.15);
+    }
+  }
+
+  bathUpdate(bath, dt);
+  // 「まぜ」は 手ごたえではなく、ほんとうに 色がそろったかで はかる
+  m.stir = bath.mixed * 100;
   game.p = analyze(m);
   const p = game.p;
-  const pad = H * 0.03;
 
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#5B3B7A';
-  ctx.font = 'bold ' + Math.round(H * 0.055) + 'px system-ui, sans-serif';
-  ctx.fillText('スライムを つくる', pad, pad);
+  ctx.font = 'bold ' + Math.round(H * 0.05) + 'px system-ui, sans-serif';
+  ctx.fillText('スライムを つくる', pad, pad * 0.6);
   ctx.fillStyle = '#8A7A9A';
-  ctx.font = Math.round(H * 0.03) + 'px system-ui, sans-serif';
-  ctx.fillText('ボタンは 長おしすると たくさん入る', pad, pad + H * 0.065);
+  const tip = 'びんを つかんで ボウルの上へ もっていくと 出てくる。'
+            + 'ゆびで ぐるぐる すると まざる';
+  fitFont(tip, W - pad * 2, H * 0.032);
+  ctx.fillText(tip, pad, pad * 0.6 + H * 0.058);
 
-  // 左：ボウル
-  const bw = W * 0.36, bh = H * 0.42;
-  const bx = pad, by = pad + H * 0.12;
-  drawBowl(ctx, bx, by, bw, bh, m, p);
-  ui.bowl = { x: bx, y: by, w: bw, h: bh };
-  ui.buttons.push({ x: bx, y: by, w: bw, h: bh * 1.2, tag: 'stir' });
-
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#6A5A7A';
-  ctx.font = Math.round(H * 0.032) + 'px system-ui, sans-serif';
-  ctx.fillText('↑ ここを ゆびで こすって かきまぜる', bx + bw / 2, by + bh * 1.18);
+  drawBowl(ctx, bx, by, bw, bh, m, p, bath, game.t);
+  ui.buttons.push({ x: G.cx - G.rx, y: G.cy - G.ry,
+                    w: G.rx * 2, h: G.ry * 2, tag: 'stir' });
 
   // メーター
-  const mx = bx, my = by + bh * 1.3, mw = bw * 0.62, mh = H * 0.032;
+  const my = G.cy + G.ry + H * 0.06, mw = bw * 0.55, mh = H * 0.032;
   const stateCol = p.state === 'good' ? '#7FC98F'
                  : p.state === 'tiny' ? '#B8C2CE' : '#E8895F';
-  meter(mx, my, mw, mh, p.volume / 80, '#9FC8E8', 'かさ');
-  meter(mx, my + mh * 1.7, mw, mh, p.ratio / 0.8, stateCol,
+  meter(bx, my, mw, mh, p.volume / 80, '#9FC8E8', 'かさ');
+  meter(bx, my + mh * 1.7, mw, mh, p.ratio / 0.8, stateCol,
         p.state === 'sticky' ? 'ベタベタ' : p.state === 'hard' ? 'カチカチ'
         : p.state === 'tiny' ? 'ちいさい' : 'ちょうどいい');
-  meter(mx, my + mh * 3.4, mw, mh, p.stir, '#D9A0E8', 'まぜ');
+  meter(bx, my + mh * 3.4, mw, mh, p.stir, '#D9A0E8',
+        p.stir > 0.85 ? 'よく まざった' : 'まぜ');
 
-  // 右：材料ボタン
-  const px0 = bx + bw + H * 0.05;
+  // 右：材料のたな
+  const px0 = bx + bw + H * 0.04;
   const pw = W - px0 - pad;
   const cols = 4, rows = Math.ceil(INGREDIENTS.length / cols);
   const gap = H * 0.016;
-  const availH = H - (pad + H * 0.12) - pad - H * 0.14;
+  const rackTop = pad + H * 0.115;
+  const gbH = H * 0.11;
+  const availH = (H - gbH - pad * 2) - rackTop;
   const cw = (pw - gap * (cols - 1)) / cols;
-  const chh = Math.min((availH - gap * (rows - 1)) / rows, H * 0.16);
+  const chh = Math.min((availH - gap * (rows - 1)) / rows, H * 0.21);
   INGREDIENTS.forEach((g, i) => {
     const x = px0 + (i % cols) * (cw + gap);
-    const y = pad + H * 0.12 + ((i / cols) | 0) * (chh + gap);
-    const on = game.hold === g.key;
-    ctx.fillStyle = on ? '#FFD166' : '#FFFFFF';
+    const y = rackTop + ((i / cols) | 0) * (chh + gap);
+    const held = ui.drag && ui.drag.tag === 'bottle' && ui.drag.key === g.key;
+    ctx.fillStyle = held ? '#EFE8F6' : '#FFFFFF';
     rr(ctx, x, y, cw, chh, H * 0.02); ctx.fill();
-    ctx.strokeStyle = on ? '#E0A63A' : 'rgba(0,0,0,0.14)';
-    ctx.lineWidth = on ? 3 : 1.5; ctx.stroke();
-    // 色見本
-    ctx.fillStyle = g.col;
-    ctx.beginPath();
-    ctx.arc(x + cw * 0.5, y + chh * 0.3, chh * 0.16, 0, 7); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = held ? '#C6B6D6' : 'rgba(0,0,0,0.14)';
+    ctx.lineWidth = 1.5; ctx.stroke();
+    if (held) {
+      ctx.fillStyle = '#D8CCE6';                 // びんを 持ち出しているあいだ
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = Math.round(chh * 0.3) + 'px system-ui, sans-serif';
+      ctx.fillText('…', x + cw / 2, y + chh * 0.36);
+    } else {
+      drawBottle(ctx, x + cw / 2, y + chh * 0.42, cw * 0.36, chh * 0.5, g, 0);
+    }
     ctx.fillStyle = '#4A3A5A';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    fitFont(g.name, cw * 0.9, chh * 0.2, 'bold ');
-    ctx.fillText(g.name, x + cw / 2, y + chh * 0.52);
+    fitFont(g.name, cw * 0.9, chh * 0.17, 'bold ');
+    ctx.fillText(g.name, x + cw / 2, y + chh * 0.63);
     ctx.fillStyle = '#8A7A9A';
-    fitFont(Math.round(m[g.key]) + g.unit, cw * 0.9, chh * 0.18);
-    ctx.fillText(Math.round(m[g.key]) + g.unit, x + cw / 2, y + chh * 0.76);
+    fitFont(Math.round(m[g.key]) + g.unit, cw * 0.9, chh * 0.14);
+    ctx.fillText(Math.round(m[g.key]) + g.unit, x + cw / 2, y + chh * 0.81);
     ui.buttons.push({ x, y, w: cw, h: chh, tag: 'ing', key: g.key });
   });
 
   // 下のボタン
-  const gbH = H * 0.11;
   drawButton(button(px0, H - gbH - pad, pw * 0.34, gbH, newMix), 'さいしょから', '#E6D8F2');
   drawButton(button(px0 + pw * 0.38, H - gbH - pad, pw * 0.62, gbH, finishMix),
              'できた！ →', p.state === 'tiny' ? '#DDD6E4' : '#7FD0A0');
-  drawButton(button(pad, H - gbH - pad, bw * 0.4, gbH,
+  drawButton(button(pad, H - gbH - pad, bw * 0.36, gbH,
                     () => { game.screen = 'title'; }), 'やめる', '#EDE6F4');
+
+  // つかんでいる びん は いちばん上に
+  if (ui.drag && ui.drag.tag === 'bottle') {
+    const g = INGREDIENTS.find((q) => q.key === ui.drag.key);
+    const hh = Math.min(H * 0.30, bh * 0.55);
+    if (pourKey) {
+      // 口が ゆびの ところに くるように かたむける
+      drawBottle(ctx, ui.drag.x + hh * 0.45, ui.drag.y - hh * 0.6,
+                 hh * 0.5, hh, g, -2.5);
+    } else {
+      drawBottle(ctx, ui.drag.x, ui.drag.y - hh * 0.45, hh * 0.5, hh, g, -0.2);
+      ctx.fillStyle = 'rgba(91,59,122,0.9)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      fitFont('ボウルの上へ！', bw * 0.7, H * 0.04, 'bold ');
+      ctx.fillText('ボウルの上へ！', G.cx, G.cy);
+    }
+  }
 }
 
 function finishMix() {
+  if (analyze(game.m).state === 'tiny') {
+    game.msg = 'のりを もっと 入れてね'; game.msgT = 1.6; return;
+  }
+  // まぜ足りないぶんの しま模様を のこす
+  game.m.marble = bathMarble(game.bath);
   const p = analyze(game.m);
-  if (p.state === 'tiny') { game.msg = 'のりを もっと 入れてね'; game.msgT = 1.6; return; }
   game.p = p;
   game.title = rareTitle(game.m, p);
   game.name = slimeName(game.m, p);
@@ -627,7 +678,7 @@ canvas.addEventListener('pointerdown', (ev) => {
   const { x, y } = pos(ev);
   const b = hit(x, y);
   if (!b) return;
-  if (b.tag === 'ing') { game.hold = b.key; }
+  if (b.tag === 'ing') { ui.drag = { tag: 'bottle', key: b.key, x, y, pourT: 0 }; }
   else if (b.tag === 'stir') { ui.drag = { tag: 'stir', x, y }; }
   else if (b.tag === 'pull') { ui.drag = { tag: 'pull', x, y }; game.play.broken = false; }
   else if (b.tag === 'poke') {
@@ -644,14 +695,25 @@ canvas.addEventListener('pointerdown', (ev) => {
 canvas.addEventListener('pointermove', (ev) => {
   if (!ui.drag) return;
   const { x, y } = pos(ev);
-  if (ui.drag.tag === 'stir') {
-    const d = Math.hypot(x - ui.drag.x, y - ui.drag.y);
-    game.m.stir = Math.min(140, game.m.stir + d / (W * 0.01));
+  if (ui.drag.tag === 'stir' && ui.bowl) {
+    // ボウルを 半径1の円と見たときの 動きに なおして わたす
+    const bo = ui.bowl;
+    const u = (x - bo.cx) / bo.RX, v = (y - bo.cy) / bo.RY;
+    const pu = (ui.drag.x - bo.cx) / bo.RX, pv = (ui.drag.y - bo.cy) / bo.RY;
+    bathStir(game.bath, u, v, u - pu, v - pv);
   }
   ui.drag.x = x; ui.drag.y = y;
 });
 
-function endDrag() { ui.drag = null; game.hold = null; }
+function endDrag() {
+  // びんを 持ちあげただけで はなした ＝ たぶん やりかたが 分からない
+  if (ui.drag && ui.drag.tag === 'bottle' && !ui.drag.poured
+      && game.screen === 'lab') {
+    game.msg = 'びんを ボウルの上まで もっていってね';
+    game.msgT = 1.8;
+  }
+  ui.drag = null;
+}
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());

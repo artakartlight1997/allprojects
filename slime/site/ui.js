@@ -38,7 +38,8 @@ const game = {
   msg: '', msgT: 0,
 };
 
-const ui = { buttons: [], drag: null, bowl: null, stage: null };
+// pulls は「のばす」であそぶとき用。ゆび 1本ごとに 1つ入る（同時に何本でも）
+const ui = { buttons: [], drag: null, bowl: null, stage: null, pulls: {} };
 
 function layout() {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -180,6 +181,7 @@ function drawHowto() {
     '　 あおの となりに きいろを たらして まぜると みどりになる',
     '④ のり＋水が「かさ」、ホウ砂水が「かたさ」。少ないと ベタベタ 多いと カチカチ',
     '⑤ まぜ足りないと しま模様が のこる。できたら のばす・ぷにぷに・バウンド',
+    '⑥ のばすときは つまんだ ところが のびる。ゆびを 何本 つかっても いい',
   ];
   ctx.fillStyle = '#6A5A7A';
   lines.forEach((s, i) => {
@@ -417,7 +419,7 @@ function drawPlayMenu() {
   ctx.fillText(game.name + ' で あそぶ', W * 0.42, H * 0.12);
 
   const items = [
-    ['のばす', 'ゆっくり ひっぱると のびる', 'stretch', '#9FE8C0'],
+    ['のばす', 'つまんだ ところが のびる', 'stretch', '#9FE8C0'],
     ['ぷにぷに', '15びょうで 何回 つつける？', 'poke', '#F2D08A'],
     ['バウンド', 'どこまで はずむ？', 'bounce', '#9FC8E8'],
   ];
@@ -449,8 +451,9 @@ function drawPlayMenu() {
 }
 
 function startPlay(kind) {
-  game.play = { kind, t: 0, score: 0, best: 0, over: false, broke: false,
-                strand: null, y: 0, vy: 0, bounces: 0, peak: 0 };
+  game.play = { kind, t: 0, score: 0, best: 0, over: false,
+                y: 0, vy: 0, bounces: 0, peak: 0 };
+  ui.pulls = {};
   const b = game.blob;
   b.x = W / 2; b.y = H * 0.55; b.r = Math.min(W * 0.11, H * 0.22);
   for (const q of b.pts) { q.off = 0; q.vel = 0; }
@@ -490,57 +493,69 @@ function drawStretch(dt) {
   ctx.fillStyle = 'rgba(0,0,0,0.10)';
   ctx.fillRect(0, floor, W, 3);
 
-  const held = !!(ui.drag && ui.drag.tag === 'pull');
-  if (held && !pl.strand) {
-    pl.strand = makeStrand(b, ui.drag.x, ui.drag.y, p);
-    pl.strand.floor = floor;
-    pl.broke = false;
-  }
-  if (pl.strand) {
-    const s = pl.strand;
-    strandStep(s, b, held ? ui.drag.x : 0, held ? ui.drag.y : 0, p, dt, held);
-    if (s.broken < 0 && held) pl.score = Math.max(pl.score, s.len / base * 5);
-    if (s.broken >= 0 && !pl.broke) {
-      pl.broke = true;
+  // ゆび 1本に つき ひも 1本。何本でも 同時に ひっぱれる
+  const ids = Object.keys(ui.pulls);
+  let extraVol = 0, longest = 0;
+  for (const id of ids) {
+    const pu = ui.pulls[id];
+    if (!pu.strand) {
+      pu.strand = makeStrand(b, pu.ang, pu.x, pu.y, p);
+      pu.strand.floor = floor;
+    }
+    const s = pu.strand;
+    strandStep(s, b, pu.x, pu.y, p, dt, pu.held);
+    extraVol += Math.max(0, s.vol - s.vol0);
+    if (pu.held && s.broken < 0) longest = Math.max(longest, s.len);
+    if (s.broken >= 0 && !pu.broke) {
+      pu.broke = true;
       game.msg = 'ちぎれた！ ゆっくり ひっぱると のびるよ';
       game.msgT = 1.8;
     }
-    // ひもに 流れこんだぶん たまが やせる
-    b.r = base * Math.max(0.62, 1 - (s.vol - s.vol0) / (base * base * 7));
-    if (held && s.broken < 0) {
-      blobPull(b, Math.atan2(ui.drag.y - b.y, ui.drag.x - b.x), b.r * 0.34);
-    }
     if (s.dead) {
-      pl.strand = null; b.r = base;
+      delete ui.pulls[id];
       if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
     }
-  } else {
-    b.r = base;
+  }
+  pl.score = Math.max(pl.score, longest / base * 5);
+
+  // ひもに 流れこんだぶん たまが やせる
+  b.r = base * Math.max(0.6, 1 - extraVol / (base * base * 7));
+  // つまんでいる ところ だけ とんがる
+  for (const id of Object.keys(ui.pulls)) {
+    const pu = ui.pulls[id];
+    if (pu.held && pu.strand && pu.strand.broken < 0) {
+      blobPull(b, pu.ang, b.r * 0.45);
+    }
   }
   blobUpdate(b, dt, p);
 
-  if (pl.strand) drawStrand(ctx, pl.strand, p, b);
+  for (const id of Object.keys(ui.pulls)) {
+    if (ui.pulls[id].strand) drawStrand(ctx, ui.pulls[id].strand, p, b);
+  }
   drawSlime(ctx, b, p, { face: true });
-  if (held && pl.strand && pl.strand.broken < 0) {
-    // ゆびで つまんでいる ところ
-    ctx.fillStyle = rgbCss(shade(p.rgb, -0.1));
+  for (const id of Object.keys(ui.pulls)) {
+    const pu = ui.pulls[id];
+    if (!pu.held || !pu.strand || pu.strand.broken >= 0) continue;
+    ctx.fillStyle = rgbCss(shade(p.rgb, -0.1));      // つまんでいる ゆびさき
     ctx.beginPath();
-    ctx.ellipse(ui.drag.x, ui.drag.y, base * 0.15, base * 0.19, 0, 0, 7);
+    ctx.ellipse(pu.x, pu.y, base * 0.15, base * 0.19, 0, 0, 7);
     ctx.fill();
   }
 
   ui.buttons.push({ x: b.x - b.r * 1.4, y: b.y - b.r * 1.4,
                     w: b.r * 2.8, h: b.r * 2.8, tag: 'pull' });
-  if (!pl.strand) {
+  if (!ids.length) {
     ctx.fillStyle = 'rgba(60,80,96,0.75)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    fitFont('スライムを ゆびで ひっぱってね', W * 0.42, H * 0.05, 'bold ');
-    ctx.fillText('スライムを ゆびで ひっぱってね', W * 0.66, H * 0.42);
+    fitFont('つまんだ ところが のびる', W * 0.42, H * 0.05, 'bold ');
+    ctx.fillText('つまんだ ところが のびる', W * 0.66, H * 0.36);
     ctx.fillStyle = 'rgba(60,80,96,0.55)';
-    fitFont('ゆっくり ひっぱると 長くのびる。いっきに ひくと ちぎれる',
-            W * 0.46, H * 0.038);
-    ctx.fillText('ゆっくり ひっぱると 長くのびる。いっきに ひくと ちぎれる',
-                 W * 0.66, H * 0.5);
+    const tips = ['ゆっくり ひっぱると 長くのびる。いっきに ひくと ちぎれる',
+                  'ゆびを 2本 3本 つかうと、いっぺんに ひっぱれる'];
+    tips.forEach((t, i) => {
+      fitFont(t, W * 0.46, H * 0.038);
+      ctx.fillText(t, W * 0.66, H * 0.46 + i * H * 0.07);
+    });
   }
   playHud('のばす　さいこう ' + Math.round(save.bestStretch) + 'cm',
           Math.round(pl.score), 'cm');
@@ -717,7 +732,13 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (!b) return;
   if (b.tag === 'ing') { ui.drag = { tag: 'bottle', key: b.key, x, y, pourT: 0 }; }
   else if (b.tag === 'stir') { ui.drag = { tag: 'stir', x, y }; }
-  else if (b.tag === 'pull') { ui.drag = { tag: 'pull', x, y }; }
+  else if (b.tag === 'pull') {
+    // つまんだ 向きを おぼえる。ひもは そこから 生える
+    ui.pulls[ev.pointerId] = {
+      ang: Math.atan2(y - game.blob.y, x - game.blob.x),
+      x, y, held: true, strand: null, broke: false,
+    };
+  }
   else if (b.tag === 'poke') {
     blobPoke(game.blob, x, y, 1, game.p);
     if (game.screen === 'poke' && !game.play.over) game.play.score++;
@@ -726,10 +747,14 @@ canvas.addEventListener('pointerdown', (ev) => {
     else blobPoke(game.blob, x, y, 0.7, game.p);
   } else if (b.tag === 'shelf') { game.shelfSel = b.idx; }
   else if (b.on) b.on();
-  canvas.setPointerCapture && canvas.setPointerCapture(ev.pointerId);
+  // ゆびを 画面の外に 出しても ついてくるように。
+  // 使えない ときも あるので 失敗しても 止めない
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
 });
 
 canvas.addEventListener('pointermove', (ev) => {
+  const pu = ui.pulls[ev.pointerId];
+  if (pu) { const q = pos(ev); pu.x = q.x; pu.y = q.y; return; }
   if (!ui.drag) return;
   const { x, y } = pos(ev);
   if (ui.drag.tag === 'stir' && ui.bowl) {
@@ -742,7 +767,10 @@ canvas.addEventListener('pointermove', (ev) => {
   ui.drag.x = x; ui.drag.y = y;
 });
 
-function endDrag() {
+function endDrag(ev) {
+  // ゆびを はなしても ひもは のこす。ちぢんで もどるまで 動かすため
+  const pu = ui.pulls[ev && ev.pointerId];
+  if (pu) { pu.held = false; return; }
   // びんを 持ちあげただけで はなした ＝ たぶん やりかたが 分からない
   if (ui.drag && ui.drag.tag === 'bottle' && !ui.drag.poured
       && game.screen === 'lab') {

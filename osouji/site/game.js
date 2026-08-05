@@ -9,8 +9,33 @@ const SAVE_KEY = 'osouji.v1';
 
 const ROUND_ROOMS = 5;         // 1 回のそうじで まわる部屋の数
 const BASE_TIME = 34;          // 1 部屋の持ち時間（秒）
-const CLEAN_DONE = 0.985;      // ここまで落とせば その部屋は終わり
-const CLEAN_PERFECT = 0.97;    // ここから上は「ピカピカ」ボーナス
+
+// --- むずかしさ ------------------------------------------------------------
+//
+// はじめる まえに えらぶ。むずかしいほど もらえる コインが 多い。
+const DIFFS = [
+  { key: 'easy', name: 'やさしい', col: '#8FE0A8',
+    sub: 'ゆっくり できる。カビも すくない',
+    time: 1.30, dirt: 0.72, mold: 0.5, grow: 0.55, brk: 0.5,
+    done: 0.975, star: 0.95, pay: 0.85 },
+  { key: 'norm', name: 'ふつう', col: '#FFD166',
+    sub: 'ちょうど いい かんじ',
+    time: 1.00, dirt: 1.00, mold: 1.0, grow: 1.00, brk: 1.0,
+    done: 0.985, star: 0.97, pay: 1.00 },
+  { key: 'hard', name: 'むずかしい', col: '#FF9C7A',
+    sub: '時間みじかめ。カビも こわれものも 多い。コイン 1.6ばい',
+    time: 0.78, dirt: 1.35, mold: 1.6, grow: 1.55, brk: 1.7,
+    done: 0.990, star: 0.98, pay: 1.60 },
+];
+function dif() { return DIFFS[save.diff] || DIFFS[1]; }
+function cleanDone() { return dif().done; }
+function cleanPerfect() { return dif().star; }
+
+// --- いっそう（大そうじ）---------------------------------------------------
+//
+// よごれを 落とすほど ゲージが たまる。いっぱいに なったら
+// 画面を 光の波が わたって、通り道の よごれが いっぺんに 消える。
+const SWEEP_TIME = 0.85;       // 波が わたりきる 時間
 
 // --- 道具（買うと ずっと強いまま）----------------------------------------
 //
@@ -45,6 +70,7 @@ const save = {
   rounds: 0,         // 何回そうじしたか
   perfect: 0,        // ピカピカ(100%)にした部屋の数
   finds: {},         // 見つけた おとしもの の名前 -> 個数
+  diff: 1,           // むずかしさ（0..2）
 };
 
 function loadSave() {
@@ -74,8 +100,8 @@ function upgOf(key) { return UPGRADES.find((u) => u.key === key); }
 function brushR() { return 28 + lvOf('brush') * 9; }          // 汚れ下じきの中の半径
 function soapPower() { return 1 + lvOf('soap') * 0.35; }
 function tawashiPower() { return 1 + lvOf('tawashi') * 0.7; }
-function roundTime() { return BASE_TIME + lvOf('time') * 8; }
-function rewardMul() { return 1 + lvOf('reward') * 0.25; }
+function roundTime() { return (BASE_TIME + lvOf('time') * 8) * dif().time; }
+function rewardMul() { return (1 + lvOf('reward') * 0.25) * dif().pay; }
 function robotCount() { return lvOf('robot'); }
 
 // 層ごとの落ちやすさ。こびりつきは たわしがないと ほとんど落ちない
@@ -103,7 +129,7 @@ const TOOLS = [
 function curTool() { return TOOLS[game.tool] || TOOLS[0]; }
 
 function eraseRate(kind) {
-  const m = curTool().mul[kind];
+  const m = curTool().mul[kind] * (game.fever > 0 ? 1.35 : 1);
   if (kind === 'dust') return 0.22 * soapPower() * m;
   if (kind === 'grease') return 0.10 * soapPower() * m;
   return 0.032 * soapPower() * tawashiPower() * m;
@@ -141,6 +167,12 @@ const game = {
   shake: 0,
   sprayT: 0,
   tipT: 0,
+  power: 0,          // いっそう ゲージ 0..1
+  sweep: -1,         // 波の いち 0..1（-1 は 出ていない）
+  sweeps: 0,         // この部屋で 何回 いっそうしたか
+  fever: 0,          // ノリノリ ちゅう の のこり時間
+  sparks: [],        // きらきら
+  flash: 0,          // ぱっと 光る
 };
 
 // きれい度をはかる用の小さな下じき
@@ -195,10 +227,11 @@ function loadRoom() {
   game.roomIndex = game.round % ROOMS.length;
   game.room = ROOMS[game.roomIndex];
   const seed = ((Math.random() * 1e9) | 0);
-  game.dirt = makeDirt(seed, game.level);
+  const d = dif();
+  game.dirt = makeDirt(seed, game.level, d.dirt);
   game.finds = makeFinds(seed, game.level);
-  game.molds = makeMolds(seed, game.level);
-  game.breaks = makeBreakables(seed, game.level);
+  game.molds = makeMolds(seed, game.level, d.mold, d.grow);
+  game.breaks = makeBreakables(seed, game.level, d.brk);
   game.moldTotal = game.molds.length;
   game.moldKilled = 0;
   game.broke = 0;
@@ -206,6 +239,8 @@ function loadRoom() {
   game.shake = 0;
   game.sprayT = 0;
   game.tipT = 0;
+  game.power = 0; game.sweep = -1; game.sweeps = 0;
+  game.fever = 0; game.sparks = [];
   game.pixDirt0 = measureDirt() || 1;
   game.startDirt = game.pixDirt0 + moldDirt();
   game.clean = 0;
@@ -273,6 +308,7 @@ function rubMold(u, v, strength) {
       game.moldKilled++;
       const c = Math.round(70 * rewardMul());
       game.foundCoins += c; save.coins += c; storeSave();
+      game.power = Math.min(1, game.power + 0.12);   // カビ たいじでも たまる
       game.pops.push({ x: m.x, y: m.y, text: 'カビ たいじ！ +' + c, t: 0,
                        col: '#A8F0C4', lift: game.pops.length * 0.05 });
     } else if (t.spray) {
@@ -303,6 +339,64 @@ function rubBreakable(u, v, rNorm) {
       game.pops.push({ x: b.x, y: b.y, text: 'あぶない！', t: 0,
                        col: '#FFD166', lift: game.pops.length * 0.05 });
     }
+  }
+}
+
+// --- いっそう（大そうじ）---------------------------------------------------
+//
+// ゲージが いっぱいなら 使える。光の波が 画面を わたって、
+// 通り道の よごれを いっぺんに 消し、カビも 消す。
+// こわれものは 割れない（水を かけて 流すだけ なので）。
+
+function canSweep() { return game.power >= 1 && game.sweep < 0; }
+
+function startSweep() {
+  if (!canSweep()) return false;
+  game.power = 0;
+  game.sweep = 0;
+  game.sweeps++;
+  game.fever = Math.max(game.fever, 3.5);
+  game.flash = 0.35;
+  game.pops.push({ x: 0.5, y: 0.42, text: 'いっそう！！', t: 0, col: '#FFF3B0' });
+  return true;
+}
+
+// 波が 通った ぶんを 消す
+function sweepBand(fromU, toU) {
+  const x0 = fromU * DIRT_W, x1 = toU * DIRT_W;
+  if (x1 <= x0) return;
+  for (const kind of ['dust', 'grease', 'stuck']) {
+    const c = game.dirt[kind].ctx;
+    c.save();
+    c.globalCompositeOperation = 'destination-out';
+    c.globalAlpha = kind === 'stuck' ? 0.55 : 1;
+    c.fillStyle = '#000';
+    c.fillRect(x0 - 2, 0, (x1 - x0) + 4, DIRT_H);
+    c.restore();
+  }
+  // 通り道の カビも 消える。いっぺんに 何こも 消えるので、
+  // 文字は 1つに まとめる（重なって 読めなくなる）
+  let killed = 0, coin = 0, kx = 0, ky = 0;
+  for (const m of game.molds) {
+    if (m.dead) continue;
+    if (m.x < fromU - 0.02 || m.x > toU + 0.02) continue;
+    m.dead = true;
+    game.moldKilled++;
+    killed++;
+    const c = Math.round(70 * rewardMul());
+    coin += c; game.foundCoins += c; save.coins += c;
+    kx = m.x; ky = m.y;
+  }
+  if (killed) {
+    game.pops.push({ x: kx, y: ky,
+                     text: 'カビ ' + killed + 'こ たいじ！ +' + coin,
+                     t: 0, col: '#A8F0C4' });
+  }
+  // きらきら
+  for (let i = 0; i < 5; i++) {
+    game.sparks.push({ x: toU, y: Math.random(), t: 0,
+                       vx: (Math.random() - 0.3) * 0.25,
+                       vy: (Math.random() - 0.5) * 0.4 });
   }
 }
 
@@ -351,6 +445,25 @@ function updateClean(dt) {
   for (const b of game.breaks) if (b.guard > 0) b.guard -= dt;
   if (game.shake > 0) game.shake -= dt;
   if (game.sprayT > 0) game.sprayT -= dt;
+  if (game.fever > 0) game.fever -= dt;
+  if (game.flash > 0) game.flash -= dt;
+
+  // いっそうの 波
+  if (game.sweep >= 0) {
+    const from = game.sweep;
+    game.sweep += dt / SWEEP_TIME;
+    sweepBand(from, Math.min(1, game.sweep));
+    if (game.sweep >= 1) {
+      game.sweep = -1;
+      game.measT = 1;               // すぐ きれい度を はかりなおす
+    }
+  }
+  // きらきら
+  for (const s of game.sparks) {
+    s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 0.35 * dt;
+  }
+  game.sparks = game.sparks.filter((s) => s.t < 0.9);
+  if (game.sparks.length > 90) game.sparks.splice(0, game.sparks.length - 90);
   if (game.comboT > 0) { game.comboT -= dt; if (game.comboT <= 0) game.combo = 0; }
 
   // カビに 手を つけないまま しばらく たったら 教える
@@ -376,22 +489,29 @@ function updateClean(dt) {
     game.clean = Math.max(0, Math.min(1, 1 - totalDirt() / game.startDirt));
     // ちゃんと よごれが 落ちている あいだは コンボが つづく。
     // きれいな ところを こすっても のびない
-    if (game.clean - before > 0.004) {
+    const gain = game.clean - before;
+    if (gain > 0.004) {
       game.combo++; game.comboT = 0.9;
       if (game.combo > game.bestCombo) game.bestCombo = game.combo;
+      // よごれを 落とすほど いっそう ゲージが たまる。
+      // いっそう自身で 落ちた ぶんは 数えない（すぐ また たまって しまう）
+      if (game.sweep < 0) {
+        game.power = Math.min(1, game.power + Math.min(0.12, gain * 4.5));
+      }
+      if (game.combo >= 8) game.fever = Math.max(game.fever, 2.2);
     }
     checkFinds();
   }
 
   // すみっこの ほんの少しまで 100% にするのは 子どもには つらいので、
   // 98.5% まで落とせば「終わり」、97% 以上なら「ピカピカ」あつかいにする。
-  if (game.clean >= CLEAN_DONE || game.timeLeft <= 0) finishRoom();
+  if (game.clean >= cleanDone() || game.timeLeft <= 0) finishRoom();
 }
 
 function finishRoom() {
   game.clean = Math.max(0, Math.min(1, 1 - totalDirt() / game.startDirt));
   checkFinds();
-  game.perfect = game.clean >= CLEAN_PERFECT;
+  game.perfect = game.clean >= cleanPerfect();
   const base = Math.round(game.clean * 500 * (1 + game.level * 0.15));
   const timeBonus = game.perfect ? Math.round(Math.max(0, game.timeLeft) * 12) : 0;
   const perfectBonus = game.perfect ? 500 : 0;
@@ -400,8 +520,10 @@ function finishRoom() {
   game.bonusMold = (game.moldTotal > 0 && game.moldKilled >= game.moldTotal)
                  ? 250 + game.moldTotal * 50 : 0;
   game.bonusCombo = game.bestCombo >= 4 ? game.bestCombo * 25 : 0;
+  game.bonusSweep = game.sweeps * 150;
   game.earned = Math.round((base + timeBonus + perfectBonus
-                + game.bonusSafe + game.bonusMold + game.bonusCombo) * rewardMul());
+                + game.bonusSafe + game.bonusMold + game.bonusCombo
+                + game.bonusSweep) * rewardMul());
   game.roundScore = game.earned + game.foundCoins;
   game.totalScore += game.roundScore;
   save.coins += game.earned;

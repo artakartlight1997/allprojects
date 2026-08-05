@@ -120,19 +120,38 @@ function drawTitle() {
                save.best.toLocaleString() + '点　ピカピカ ' + save.perfect + 'へや',
                H * 0.07, H * 0.28);
 
-  const bw = H * 0.62, bh = H * 0.14;
-  drawButton(button(H * 0.06, H * 0.38, bw, bh, () => {
+  // むずかしさ を えらぶ
+  const bw = H * 0.62;
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.font = 'bold ' + Math.round(H * 0.036) + 'px system-ui, sans-serif';
+  ctx.fillText('むずかしさ', H * 0.06, H * 0.355);
+  const cw2 = bw / 3 - H * 0.012, ch2 = H * 0.105;
+  DIFFS.forEach((d, i) => {
+    const x = H * 0.06 + i * (cw2 + H * 0.018), y = H * 0.40;
+    const on = save.diff === i;
+    ctx.fillStyle = on ? d.col : 'rgba(255,255,255,0.18)';
+    rr(ctx, x, y, cw2, ch2, ch2 * 0.28); ctx.fill();
+    ctx.strokeStyle = on ? '#FFFFFF' : 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = on ? 3 : 1.5; ctx.stroke();
+    ctx.fillStyle = on ? '#243642' : '#EAF4FA';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    fitFont(d.name, cw2 * 0.9, ch2 * 0.46, 'bold ');
+    ctx.fillText(d.name, x + cw2 / 2, y + ch2 / 2);
+    ui.buttons.push({ x, y, w: cw2, h: ch2, tag: 'diff', idx: i });
+  });
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  fitFont(dif().sub, bw * 1.15, H * 0.037);
+  ctx.fillText(dif().sub, H * 0.06, H * 0.518);
+
+  const bh = H * 0.13;
+  drawButton(button(H * 0.06, H * 0.57, bw, bh, () => {
     enterFullscreen(); startRound();
   }), 'そうじを はじめる', '#FFD166');
-  drawButton(button(H * 0.06, H * 0.56, bw * 0.48, bh * 0.8,
+  drawButton(button(H * 0.06, H * 0.73, bw * 0.48, bh * 0.72,
                     () => { game.screen = 'shopFree'; }), 'どうぐ', '#CFEAF4');
-  drawButton(button(H * 0.06 + bw * 0.52, H * 0.56, bw * 0.48, bh * 0.8,
+  drawButton(button(H * 0.06 + bw * 0.52, H * 0.73, bw * 0.48, bh * 0.72,
                     () => { game.screen = 'howto'; }), 'あそびかた', '#D8E4F2');
-
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  fitFont(ROUND_ROOMS + 'へや つづけて そうじ。道具は ずっと のこる', W * 0.55, H * 0.032);
-  ctx.fillText(ROUND_ROOMS + 'へや つづけて そうじ。道具は ずっと のこる', H * 0.06, H * 0.78);
 }
 
 function drawHowto() {
@@ -149,7 +168,9 @@ function drawHowto() {
     '　 カビとりは こわれものを 割らないので、かびんの となりでも 安心',
     '④ かびん や コップは こすると こわれる。3回で パリン。よけて そうじ',
     '⑤ よごれが おち続けている あいだ コンボが のびる。とまると 切れる',
-    '⑥ よごれの下の おとしものは コインになる。おみせで 道具を 強くできる',
+    '⑥ よごれを 落とすと ★いっそう★ ゲージが たまる。いっぱいで つかうと',
+    '　 光の波が 画面を わたって、通り道が いっぺんに ピカピカになる！',
+    '⑦ よごれの下の おとしものは コインになる。おみせで 道具を 強くできる',
   ];
   ctx.fillStyle = '#3A5A6E';
   lines.forEach((s, i) => {
@@ -165,13 +186,10 @@ function drawHowto() {
 
 const TOOLBAR_H = 0.135;      // 画面の したに 道具の ボタンを おく
 
+// 部屋は 画面いっぱい。HUD と 道具バーは そのうえに かさねる。
+// 前は 上下を あけていて 部屋が 小さかった
 function roomBox() {
-  const top = H * 0.11;
-  const availH = H - top - H * (TOOLBAR_H + 0.02);
-  const availW = W - H * 0.06;
-  let w = availW, h = w * (DIRT_H / DIRT_W);
-  if (h > availH) { h = availH; w = h * (DIRT_W / DIRT_H); }
-  return { x: (W - w) / 2, y: top + (availH - h) / 2, w, h };
+  return { x: 0, y: 0, w: W, h: H };
 }
 
 function drawClean() {
@@ -180,7 +198,6 @@ function drawClean() {
   ui.area = b;
 
   ctx.save();
-  rr(ctx, b.x, b.y, b.w, b.h, H * 0.02); ctx.clip();
   ctx.drawImage(roomCanvas(b.w, b.h, game.room), b.x, b.y);
   for (const f of game.finds) {
     if (!f.found) continue;
@@ -289,9 +306,32 @@ function drawClean() {
       ctx.stroke();
     }
   }
+  // いっそうの 波
+  if (game.sweep >= 0) {
+    const wx = b.x + game.sweep * b.w;
+    const gw2 = b.w * 0.10;
+    const g2 = ctx.createLinearGradient(wx - gw2, 0, wx + gw2 * 0.35, 0);
+    g2.addColorStop(0, 'rgba(255,255,255,0)');
+    g2.addColorStop(0.65, 'rgba(220,250,255,0.75)');
+    g2.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(wx - gw2, b.y, gw2 * 1.35, b.h);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = Math.max(3, H * 0.012);
+    ctx.beginPath(); ctx.moveTo(wx, b.y); ctx.lineTo(wx, b.y + b.h); ctx.stroke();
+  }
+  // きらきら
+  for (const s of game.sparks) {
+    const a = Math.max(0, 1 - s.t / 0.9);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = s.t < 0.4 ? '#FFFFFF' : '#FFF3B0';
+    const sz = H * 0.012 * (1 - s.t * 0.5);
+    ctx.beginPath();
+    ctx.arc(b.x + s.x * b.w, b.y + s.y * b.h, Math.max(1, sz), 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
   ctx.restore();
-  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2;
-  rr(ctx, b.x, b.y, b.w, b.h, H * 0.02); ctx.stroke();
 
   // 同時に 出ると 重なって 読めないので、出ている 順に 上へ ずらす
   game.pops.forEach((p, i) => {
@@ -307,7 +347,7 @@ function drawClean() {
   });
 
   // HUD
-  ctx.fillStyle = 'rgba(10,18,26,0.75)';
+  ctx.fillStyle = 'rgba(10,18,26,0.62)';
   ctx.fillRect(0, 0, W, H * 0.1);
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FFFFFF';
@@ -348,7 +388,53 @@ function drawClean() {
     ctx.textAlign = 'left';
   }
 
+  // いっそうの しゅんかん 画面が ぱっと 光る
+  if (game.flash > 0) {
+    ctx.fillStyle = 'rgba(255,255,255,' + Math.min(0.5, game.flash) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+  // ノリノリ ちゅう は ふちが 光る
+  if (game.fever > 0) {
+    ctx.strokeStyle = 'rgba(255,220,120,' + Math.min(0.9, game.fever) + ')';
+    ctx.lineWidth = H * 0.02;
+    ctx.strokeRect(H * 0.01, H * 0.01, W - H * 0.02, H - H * 0.02);
+    ctx.fillStyle = 'rgba(255,225,140,0.9)';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold ' + Math.round(H * 0.04) + 'px system-ui, sans-serif';
+    ctx.fillText('ノリノリ！', W / 2, H * 0.225);
+    ctx.textAlign = 'left';
+  }
+
+  drawSweepButton();
   drawToolBar();
+}
+
+// いっそう ゲージ と ボタン
+function drawSweepButton() {
+  const bw = Math.min(W * 0.30, H * 0.62), bh = H * 0.115;
+  const x = W - bw - H * 0.03, y = H - H * TOOLBAR_H - bh - H * 0.012;
+  const full = canSweep();
+  ctx.fillStyle = full ? '#FFF3B0' : 'rgba(10,20,30,0.6)';
+  rr(ctx, x, y, bw, bh, bh * 0.3); ctx.fill();
+  if (!full) {
+    // たまり ぐあい
+    ctx.save();
+    rr(ctx, x, y, bw, bh, bh * 0.3); ctx.clip();
+    ctx.fillStyle = 'rgba(140,220,255,0.55)';
+    ctx.fillRect(x, y, bw * game.power, bh);
+    ctx.restore();
+  }
+  ctx.strokeStyle = full ? '#FFFFFF' : 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = full ? 3 : 1.5;
+  rr(ctx, x, y, bw, bh, bh * 0.3); ctx.stroke();
+  ctx.fillStyle = full ? '#3A2A10' : '#DCE6EE';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const label = full ? '★ いっそう！ ★'
+                     : 'いっそう ' + Math.round(game.power * 100) + '%';
+  fitFont(label, bw * 0.9, bh * (full ? 0.52 : 0.44), 'bold ');
+  ctx.fillText(label, x + bw / 2, y + bh / 2);
+  ctx.textAlign = 'left';
+  if (full) ui.buttons.push({ x, y, w: bw, h: bh, tag: 'sweep' });
 }
 
 // 道具の ボタン。合った 道具を えらぶと ずっと 速く 落ちる
@@ -386,7 +472,7 @@ function drawToolBar() {
 
 function drawResult() {
   drawClean();
-  ctx.fillStyle = 'rgba(8,16,26,0.72)';
+  ctx.fillStyle = 'rgba(8,16,26,0.80)';
   ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.fillStyle = game.perfect ? '#A8F0C4' : '#FFE9A8';
@@ -409,6 +495,8 @@ function drawResult() {
   }
   if (game.bonusCombo) lines.push(['さいこうコンボ ' + game.bestCombo
                                    + ' +' + game.bonusCombo, '#FFD166']);
+  if (game.bonusSweep) lines.push(['いっそう ' + game.sweeps + 'かい +'
+                                   + game.bonusSweep, '#BFEFFF']);
   lines.push(['この へや ' + game.roundScore.toLocaleString() + ' 点', '#FFFFFF']);
 
   const step = Math.min(H * 0.066, (H * 0.40) / lines.length);
@@ -561,6 +649,8 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (b) {
     if (b.tag === 'buy') { buy(b.key); return; }
     if (b.tag === 'tool') { game.tool = b.idx; return; }
+    if (b.tag === 'sweep') { startSweep(); return; }
+    if (b.tag === 'diff') { save.diff = b.idx; storeSave(); return; }
     if (b.on) { b.on(); return; }
   }
   if (game.screen === 'clean') {

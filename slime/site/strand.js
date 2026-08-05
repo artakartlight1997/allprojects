@@ -48,7 +48,11 @@ function makeStrand(b, ang, px, py, p) {
   for (let i = 0; i < w.length; i++) w[i] /= wsum;
   const seg0 = L0 / (STRAND_N - 1);
   const rad = w.map((v) => vol * v / (2 * Math.max(2, seg0)));
-  return { nodes, ang, L0, vol, vol0: vol, len: L0, seg: [], rad, w,
+  // V ＝ ふしと ふしの あいだに 入っている 中身の りょう。
+  // これが 本物の 中身で、太さは V ÷ 長さ から 出す。
+  // V は ひもの中を 流れて 動く（strandFlow）
+  const V = w.map((v) => vol * v);
+  return { nodes, ang, L0, vol, vol0: vol, len: L0, seg: [], rad, w, V,
            broken: -1, fade: 1, rel: 0, dead: false, drops: [] };
 }
 
@@ -108,25 +112,36 @@ function strandStep(s, b, px, py, p, dt, held) {
     s.seg.push(d);
     if (i !== s.broken) s.len += d;
   }
+  // 中身が ひもの中を 流れる
+  strandFlow(s, b, p, dd);
+
   // 太さは いっきには 変わらない。よくのびるスライムほど 細くなるのが おそい。
   // だから ゆっくり ひっぱれば どれも のびるし、いっきに ひっぱると
   // のびないスライムだけ ついてこられずに ちぎれる
   const thin = Math.min(1, (4.5 + (1 - p.stretch) * 26) * dd);
   for (let i = 0; i < n - 1; i++) {
-    const target = s.vol * s.w[i] / (2 * Math.max(2, s.seg[i]));
+    const target = s.V[i] / (2 * Math.max(2, s.seg[i]));
     s.rad[i] += (target - s.rad[i]) * thin;
   }
 
   if (pinEnd) {
     // ひっぱると たまから 中身が 流れ出す。よくのびるスライムほど よく流れる
     const tension = Math.max(0, (s.len - s.L0) / Math.max(1, s.L0));
-    s.vol += Math.min(1.2, tension * 4) * (0.10 + p.stretch * 1.9)
-             * b.r * b.r * 0.62 * dd;
+    // ひっぱると たまから 中身が 出てくる。入り口は ねもと なので
+    // ねもとの ほうから じわじわ ふとって、先へ 流れていく
+    const add = Math.min(1.2, tension * 4) * (0.24 + p.stretch * 1.8)
+                * b.r * b.r * 0.62 * dd;
+    // もとの すぼまり方に そって 配る（w は ぜんぶ たすと 1）。
+    // ねもとに どっと 入れると そこだけ こぶになって あばれる
+    for (let i = 0; i < s.V.length; i++) s.V[i] += add * s.w[i];
+    s.vol += add;
     // のびた 長さに だんだん なじむ（よくのびるスライムほど 早く なじむ）
     s.L0 += (s.len - s.L0) * Math.min(1, (0.35 + p.stretch * 2.6) * dd);
 
     // 細くなりすぎたら そこで ちぎれる
-    const rBreak = b.r * Math.max(0.012, 0.085 - p.stretch * 0.070);
+    // くびれが ここまで 細くなったら 切れる。
+    // 細くなる きっかけは 上の strandFlow が 作っている
+    const rBreak = b.r * Math.max(0.010, 0.052 - p.stretch * 0.040);
     let mi = -1, mr = 1e9;
     for (let i = 1; i < n - 3; i++) if (s.rad[i] < mr) { mr = s.rad[i]; mi = i; }
     if (mi >= 0 && mr < rBreak) {
@@ -144,7 +159,9 @@ function strandStep(s, b, px, py, p, dt, held) {
     // すこし たったら すーっと 消して かたづける
     s.rel += dt;
     s.L0 += (b.r * 0.3 - s.L0) * Math.min(1, 9 * dd);
-    s.vol *= Math.max(0, 1 - 2.8 * dd);
+    const k = Math.max(0, 1 - 2.8 * dd);       // たまへ すいこまれて 帰る
+    for (let i = 0; i < s.V.length; i++) s.V[i] *= k;
+    s.vol *= k;
     if (s.rel > 0.75) s.fade -= dt * 2.2;
   }
   if (s.broken >= 0) s.fade -= dt * 0.9;
@@ -155,6 +172,46 @@ function strandStep(s, b, px, py, p, dt, held) {
     d.vy += 1400 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.life -= dt;
     if (s.floor && d.y > s.floor) { d.y = s.floor; d.vy = 0; d.vx *= 0.6; }
     if (d.life <= 0) s.drops.splice(i, 1);
+  }
+}
+
+// ひもの中を 中身が 流れる。ここが「まっすぐ のびない」理由。
+//
+// ① 表面張力。細い ところほど 中の 圧が 高い（1÷半径）。
+//    だから 中身は 細い ところから 太い ところへ 逃げていって、
+//    細い ところは もっと 細く、太い ところは もっと 太くなる。
+//    ほうっておくと ひもは ひとりでに 数珠つなぎに くびれて、
+//    いちばん 細い ところで 切れる。
+//    （プラトー・レイリー不安定。水道の水が つぶつぶに なるのと同じ）
+// ② おもり。中身は 下へ 下へ 流れていくので、たれた ところが ふとる。
+//
+// ねばりが 強い（よくのびる）スライムほど 流れが おそいので、
+// くびれが できるまでに 時間がかかる ＝ 長く のびる。
+function strandFlow(s, b, p, dd) {
+  const n = s.V.length;
+  const unit = b.r * b.r;
+  // ねばりが 強いほど 流れが おそい。よくのびるスライムは ここが 25倍 おそく、
+  // だから くびれが できるまでに 時間がかかって 長く のびる
+  const visc = Math.pow(1 - p.stretch, 2);      // 0＝とろとろ 1＝さらさら
+  const mob = 0.0006 + visc * 0.010;            // 表面張力での 流れやすさ
+  const drain = 0.02 + visc * 0.08;             // 下へ たれる 流れやすさ
+  for (let i = 0; i < n - 1; i++) {
+    const ra = Math.max(0.05, s.rad[i] / b.r);
+    const rb = Math.max(0.05, s.rad[i + 1] / b.r);
+    // 細い→太い（圧の 高いほうから 低いほうへ）
+    let q = mob * (1 / ra - 1 / rb);
+    // 下へ
+    q += drain * (s.nodes[i + 2].y - s.nodes[i].y) / (2 * b.r);
+    q = Math.max(-2.5, Math.min(2.5, q)) * unit * dd;
+    // 1回で 出しすぎない（数字が あばれないように）
+    const m = q > 0 ? Math.min(q, s.V[i] * 0.04)
+                    : Math.max(q, -s.V[i + 1] * 0.04);
+    s.V[i] -= m; s.V[i + 1] += m;
+  }
+  s.vol = 0;
+  for (let i = 0; i < n; i++) {
+    if (s.V[i] < 0) s.V[i] = 0;
+    s.vol += s.V[i];
   }
 }
 
@@ -185,19 +242,23 @@ function strandPiece(c, s, p, b, a, z) {
   if (z - a < 1) return;
   const N = s.nodes;
   const L = [], R = [];
+  let ltx = 1, lty = 0;
   for (let i = a; i <= z; i++) {
     const q = N[i];
     const pv = N[Math.max(a, i - 1)], nx = N[Math.min(z, i + 1)];
     let tx = nx.x - pv.x, ty = nx.y - pv.y;
-    const tl = Math.hypot(tx, ty) || 1;
-    tx /= tl; ty /= tl;
+    const tl = Math.hypot(tx, ty);
+    // ふしが かさなると 向きが 決まらず、とがった ゴミが 出る。
+    // そういう ときは 1つ前の 向きを つかう
+    if (tl < 0.6) { tx = ltx; ty = lty; }
+    else { tx /= tl; ty /= tl; ltx = tx; lty = ty; }
     let r = i === a ? s.rad[a] : i >= z ? s.rad[z - 1]
                                         : (s.rad[i - 1] + s.rad[i]) / 2;
     if (i === 0) r = Math.max(r, b.r * 0.5);        // ねもとは たまに つながる
     // 先っぽは とがらせる。切り口も 少し すぼめる
     const tip = z - i;
     if (tip < 3) r *= 0.34 + 0.22 * tip;
-    r = Math.max(b.r * 0.012, r);
+    r = Math.max(b.r * 0.012, Math.min(b.r * 0.55, r));
     L.push([q.x - ty * r, q.y + tx * r]);
     R.push([q.x + ty * r, q.y - tx * r]);
   }

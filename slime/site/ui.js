@@ -1,0 +1,710 @@
+// 画面と入力とメインループ。
+
+'use strict';
+
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+
+const SAVE_KEY = 'slime.v1';
+const SHELF_MAX = 12;
+
+const save = { shelf: [], made: 0, bestStretch: 0, bestPoke: 0, bestBounce: 0 };
+
+function loadSave() {
+  try {
+    const o = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+    if (Array.isArray(o.shelf)) save.shelf = o.shelf.slice(0, SHELF_MAX);
+    for (const k of ['made', 'bestStretch', 'bestPoke', 'bestBounce']) {
+      if (Number.isFinite(o[k])) save[k] = o[k];
+    }
+  } catch (e) { /* 壊れていても遊べなくはしない */ }
+}
+function storeSave() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
+}
+
+const game = {
+  screen: 'title',   // title / howto / lab / done / playmenu / stretch / poke / bounce / shelf
+  m: emptyMix(),
+  p: null,
+  name: '', title: null,
+  blob: null,
+  t: 0,
+  hold: null,        // 押しっぱなしの材料
+  shelfSel: -1,
+  // あそび用
+  play: null,
+  msg: '', msgT: 0,
+};
+
+const ui = { buttons: [], drag: null, bowl: null, stage: null };
+
+function layout() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', () => setTimeout(layout, 200));
+
+// --- 部品 -----------------------------------------------------------------
+
+function rr(c, x, y, w, h, r) {
+  const k = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + k, y);
+  c.arcTo(x + w, y, x + w, y + h, k);
+  c.arcTo(x + w, y + h, x, y + h, k);
+  c.arcTo(x, y + h, x, y, k);
+  c.arcTo(x, y, x + w, y, k);
+  c.closePath();
+}
+
+function fitFont(text, maxW, maxH, weight) {
+  let fs = Math.round(maxH);
+  for (let i = 0; i < 14; i++) {
+    ctx.font = (weight || '') + fs + 'px system-ui, sans-serif';
+    if (ctx.measureText(text).width <= maxW || fs <= 9) break;
+    fs = Math.max(9, Math.floor(fs * 0.9));
+  }
+  return fs;
+}
+
+function button(x, y, w, h, on, tag) {
+  const b = { x, y, w, h, on, tag };
+  ui.buttons.push(b);
+  return b;
+}
+
+function drawButton(b, label, col, textCol) {
+  ctx.fillStyle = col || '#FFFFFF';
+  rr(ctx, b.x, b.y, b.w, b.h, Math.min(14, b.h * 0.26));
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = textCol || '#3A2A4A';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  fitFont(label, b.w * 0.88, b.h * 0.44, 'bold ');
+  ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+}
+
+function hit(px, py) {
+  for (let i = ui.buttons.length - 1; i >= 0; i--) {
+    const b = ui.buttons[i];
+    if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) return b;
+  }
+  return null;
+}
+
+function meter(x, y, w, h, v, col, label) {
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  rr(ctx, x, y, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = col;
+  rr(ctx, x, y, Math.max(h, w * Math.max(0, Math.min(1, v))), h, h / 2); ctx.fill();
+  if (label) {
+    ctx.fillStyle = '#5A4A66';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = Math.round(h * 0.95) + 'px system-ui, sans-serif';
+    ctx.fillText(label, x + w + h * 0.5, y + h / 2);
+  }
+}
+
+function bg(c0, c1) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, c0); g.addColorStop(1, c1);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+// --- タイトル -------------------------------------------------------------
+
+function demoProps(i) {
+  const m = emptyMix();
+  m.glue = 40; m.borax = 12; m.stir = 90;
+  const c = [[20, 0, 0], [0, 18, 0], [0, 0, 20], [12, 12, 0], [10, 0, 14]][i % 5];
+  m.red = c[0]; m.yellow = c[1]; m.blue = c[2];
+  m.glitter = i % 2 ? 8 : 0;
+  return analyze(m);
+}
+
+function drawTitle() {
+  bg('#5B3B7A', '#C9A0DC');
+  const i = Math.floor(game.t / 2.2) % 5;
+  const p = demoProps(i);
+  if (!game.demoBlob) game.demoBlob = makeBlob(0, 0, 1);
+  const b = game.demoBlob;
+  b.x = W * 0.78; b.y = H * 0.52; b.r = Math.min(W * 0.12, H * 0.26);
+  blobUpdate(b, 1 / 60, p);
+  if (Math.random() < 0.02) blobPoke(b, b.x + b.r, b.y, 0.6, p);
+  drawSlime(ctx, b, p, { face: true, blink: Math.sin(game.t * 1.6) > 0.96 });
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#FFFFFF';
+  fitFont('りなのスライムラボ', W * 0.55, H * 0.13, 'bold ');
+  ctx.fillText('りなのスライムラボ', H * 0.06, H * 0.07);
+  ctx.fillStyle = '#F0E2FA';
+  fitFont('まぜる量で 色も 手ざわりも かわる！', W * 0.5, H * 0.045);
+  ctx.fillText('まぜる量で 色も 手ざわりも かわる！', H * 0.07, H * 0.22);
+  ctx.fillStyle = '#FFE9A8';
+  fitFont('つくった数 ' + save.made + '　だな ' + save.shelf.length + '/' + SHELF_MAX,
+          W * 0.5, H * 0.038);
+  ctx.fillText('つくった数 ' + save.made + '　だな ' + save.shelf.length + '/' + SHELF_MAX,
+               H * 0.07, H * 0.29);
+
+  const bw = H * 0.62, bh = H * 0.14;
+  drawButton(button(H * 0.06, H * 0.39, bw, bh, () => {
+    enterFullscreen(); newMix();
+  }), 'スライムを つくる', '#FFD166');
+  drawButton(button(H * 0.06, H * 0.57, bw * 0.48, bh * 0.8,
+                    () => { game.screen = 'shelf'; game.shelfSel = -1; }), 'スライムだな', '#CFEAF4');
+  drawButton(button(H * 0.06 + bw * 0.52, H * 0.57, bw * 0.48, bh * 0.8,
+                    () => { game.screen = 'howto'; }), 'あそびかた', '#E6D8F2');
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  fitFont('つくったスライムは のばす・ぷにぷに・バウンド で あそべる', W * 0.55, H * 0.032);
+  ctx.fillText('つくったスライムは のばす・ぷにぷに・バウンド で あそべる', H * 0.06, H * 0.79);
+}
+
+function drawHowto() {
+  ctx.fillStyle = '#F7F2FB'; ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#5B3B7A';
+  ctx.font = 'bold ' + Math.round(H * 0.07) + 'px system-ui, sans-serif';
+  ctx.fillText('あそびかた', H * 0.05, H * 0.05);
+  const lines = [
+    '① 材料のボタンを 長おしすると、おしただけ 入る',
+    '② のり＋水が「かさ」、ホウ砂水が「かたさ」を決める',
+    '　 少なすぎると ベタベタ、多すぎると カチカチ',
+    '③ 絵の具は あか・きいろ・あお。まぜかたで 色がかわる（あお＋きいろ＝みどり）',
+    '④ ボウルの上を ゆびでこすって かきまぜる。まぜるほど なめらか',
+    '⑤ できたら のばす・ぷにぷに・バウンド で あそべる。だなに しまえる',
+  ];
+  ctx.fillStyle = '#6A5A7A';
+  lines.forEach((s, i) => {
+    fitFont(s, W * 0.92, H * 0.044);
+    ctx.fillText(s, H * 0.05, H * 0.19 + i * H * 0.088);
+  });
+  const bh = H * 0.11;
+  drawButton(button(H * 0.05, H - bh - H * 0.05, H * 0.4, bh,
+                    () => { game.screen = 'title'; }), 'もどる', '#FFD166');
+}
+
+// --- ラボ（つくる）--------------------------------------------------------
+
+function newMix() {
+  game.m = emptyMix();
+  game.p = analyze(game.m);
+  game.screen = 'lab';
+}
+
+function drawLab(dt) {
+  ctx.fillStyle = '#F7F2FB'; ctx.fillRect(0, 0, W, H);
+  const m = game.m;
+  if (game.hold) {
+    const g = INGREDIENTS.find((x) => x.key === game.hold);
+    m[g.key] += g.rate * dt;
+  }
+  game.p = analyze(m);
+  const p = game.p;
+  const pad = H * 0.03;
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#5B3B7A';
+  ctx.font = 'bold ' + Math.round(H * 0.055) + 'px system-ui, sans-serif';
+  ctx.fillText('スライムを つくる', pad, pad);
+  ctx.fillStyle = '#8A7A9A';
+  ctx.font = Math.round(H * 0.03) + 'px system-ui, sans-serif';
+  ctx.fillText('ボタンは 長おしすると たくさん入る', pad, pad + H * 0.065);
+
+  // 左：ボウル
+  const bw = W * 0.36, bh = H * 0.42;
+  const bx = pad, by = pad + H * 0.12;
+  drawBowl(ctx, bx, by, bw, bh, m, p);
+  ui.bowl = { x: bx, y: by, w: bw, h: bh };
+  ui.buttons.push({ x: bx, y: by, w: bw, h: bh * 1.2, tag: 'stir' });
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#6A5A7A';
+  ctx.font = Math.round(H * 0.032) + 'px system-ui, sans-serif';
+  ctx.fillText('↑ ここを ゆびで こすって かきまぜる', bx + bw / 2, by + bh * 1.18);
+
+  // メーター
+  const mx = bx, my = by + bh * 1.3, mw = bw * 0.62, mh = H * 0.032;
+  const stateCol = p.state === 'good' ? '#7FC98F'
+                 : p.state === 'tiny' ? '#B8C2CE' : '#E8895F';
+  meter(mx, my, mw, mh, p.volume / 80, '#9FC8E8', 'かさ');
+  meter(mx, my + mh * 1.7, mw, mh, p.ratio / 0.8, stateCol,
+        p.state === 'sticky' ? 'ベタベタ' : p.state === 'hard' ? 'カチカチ'
+        : p.state === 'tiny' ? 'ちいさい' : 'ちょうどいい');
+  meter(mx, my + mh * 3.4, mw, mh, p.stir, '#D9A0E8', 'まぜ');
+
+  // 右：材料ボタン
+  const px0 = bx + bw + H * 0.05;
+  const pw = W - px0 - pad;
+  const cols = 4, rows = Math.ceil(INGREDIENTS.length / cols);
+  const gap = H * 0.016;
+  const availH = H - (pad + H * 0.12) - pad - H * 0.14;
+  const cw = (pw - gap * (cols - 1)) / cols;
+  const chh = Math.min((availH - gap * (rows - 1)) / rows, H * 0.16);
+  INGREDIENTS.forEach((g, i) => {
+    const x = px0 + (i % cols) * (cw + gap);
+    const y = pad + H * 0.12 + ((i / cols) | 0) * (chh + gap);
+    const on = game.hold === g.key;
+    ctx.fillStyle = on ? '#FFD166' : '#FFFFFF';
+    rr(ctx, x, y, cw, chh, H * 0.02); ctx.fill();
+    ctx.strokeStyle = on ? '#E0A63A' : 'rgba(0,0,0,0.14)';
+    ctx.lineWidth = on ? 3 : 1.5; ctx.stroke();
+    // 色見本
+    ctx.fillStyle = g.col;
+    ctx.beginPath();
+    ctx.arc(x + cw * 0.5, y + chh * 0.3, chh * 0.16, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#4A3A5A';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    fitFont(g.name, cw * 0.9, chh * 0.2, 'bold ');
+    ctx.fillText(g.name, x + cw / 2, y + chh * 0.52);
+    ctx.fillStyle = '#8A7A9A';
+    fitFont(Math.round(m[g.key]) + g.unit, cw * 0.9, chh * 0.18);
+    ctx.fillText(Math.round(m[g.key]) + g.unit, x + cw / 2, y + chh * 0.76);
+    ui.buttons.push({ x, y, w: cw, h: chh, tag: 'ing', key: g.key });
+  });
+
+  // 下のボタン
+  const gbH = H * 0.11;
+  drawButton(button(px0, H - gbH - pad, pw * 0.34, gbH, newMix), 'さいしょから', '#E6D8F2');
+  drawButton(button(px0 + pw * 0.38, H - gbH - pad, pw * 0.62, gbH, finishMix),
+             'できた！ →', p.state === 'tiny' ? '#DDD6E4' : '#7FD0A0');
+  drawButton(button(pad, H - gbH - pad, bw * 0.4, gbH,
+                    () => { game.screen = 'title'; }), 'やめる', '#EDE6F4');
+}
+
+function finishMix() {
+  const p = analyze(game.m);
+  if (p.state === 'tiny') { game.msg = 'のりを もっと 入れてね'; game.msgT = 1.6; return; }
+  game.p = p;
+  game.title = rareTitle(game.m, p);
+  game.name = slimeName(game.m, p);
+  save.made++;
+  storeSave();
+  game.blob = makeBlob(0, 0, 1);
+  game.screen = 'done';
+}
+
+// --- できあがり -----------------------------------------------------------
+
+function drawDone() {
+  bg('#4C3A6A', '#B79BD4');
+  const p = game.p;
+  const b = game.blob;
+  b.x = W * 0.26; b.y = H * 0.55; b.r = Math.min(W * 0.14, H * 0.28);
+  blobUpdate(b, 1 / 60, p);
+  if (Math.random() < 0.02) blobPoke(b, b.x + b.r * 0.8, b.y - b.r * 0.4, 0.5, p);
+  drawSlime(ctx, b, p, { face: true, blink: Math.sin(game.t * 1.6) > 0.96 });
+  ui.buttons.push({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2, tag: 'poke' });
+
+  const lx = W * 0.48;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  if (game.title) {
+    ctx.fillStyle = '#FFE07A';
+    fitFont('★ ' + game.title + ' ★', W * 0.46, H * 0.05, 'bold ');
+    ctx.fillText('★ ' + game.title + ' ★', lx, H * 0.1);
+  }
+  ctx.fillStyle = '#FFFFFF';
+  fitFont(game.name, W * 0.48, H * 0.085, 'bold ');
+  ctx.fillText(game.name, lx, H * 0.17);
+
+  const mw = W * 0.3, mh = H * 0.03;
+  const rows = [['のび', p.stretch, '#9FE8C0'], ['はずみ', p.bounce, '#9FC8E8'],
+                ['やわらかさ', p.soft, '#E8C09F'], ['きらきら', p.sparkle, '#F2E08A'],
+                ['つぶつぶ', p.crunch, '#E8A0C0']];
+  rows.forEach(([n, v, c], i) => {
+    ctx.fillStyle = '#EFE4F8';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.font = Math.round(H * 0.032) + 'px system-ui, sans-serif';
+    ctx.fillText(n, lx + W * 0.1, H * 0.31 + i * H * 0.058 + mh / 2);
+    meter(lx + W * 0.115, H * 0.31 + i * H * 0.058, mw, mh, v, c);
+  });
+
+  // できばえ
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  const stars = 1 + Math.round(p.grade * 4);
+  ctx.fillStyle = '#FFE07A';
+  ctx.font = 'bold ' + Math.round(H * 0.05) + 'px system-ui, sans-serif';
+  ctx.fillText('できばえ ' + '★'.repeat(stars) + '☆'.repeat(5 - stars), lx, H * 0.62);
+  ctx.fillStyle = '#EFE4F8';
+  fitFont(advice(p), W * 0.48, H * 0.034);
+  ctx.fillText(advice(p), lx, H * 0.69);
+
+  const bw2 = W * 0.15, bh2 = H * 0.12;
+  drawButton(button(lx, H * 0.78, bw2, bh2, () => { game.screen = 'playmenu'; }),
+             'あそぶ', '#FFD166');
+  drawButton(button(lx + bw2 * 1.1, H * 0.78, bw2, bh2, shelveIt), 'だなに しまう', '#CFEAF4');
+  drawButton(button(lx + bw2 * 2.2, H * 0.78, bw2, bh2, newMix), 'また つくる', '#E6D8F2');
+}
+
+function shelveIt() {
+  save.shelf.unshift({ m: Object.assign({}, game.m), name: game.name, title: game.title });
+  if (save.shelf.length > SHELF_MAX) save.shelf.pop();
+  storeSave();
+  game.msg = 'だなに しまった！'; game.msgT = 1.6;
+}
+
+// --- あそぶ ---------------------------------------------------------------
+
+function drawPlayMenu() {
+  bg('#3F6E8C', '#9FD8E8');
+  const p = game.p, b = game.blob;
+  b.x = W * 0.22; b.y = H * 0.55; b.r = Math.min(W * 0.12, H * 0.24);
+  blobUpdate(b, 1 / 60, p);
+  drawSlime(ctx, b, p, { face: true, blink: Math.sin(game.t * 1.6) > 0.96 });
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#FFFFFF';
+  fitFont(game.name + ' で あそぶ', W * 0.6, H * 0.08, 'bold ');
+  ctx.fillText(game.name + ' で あそぶ', W * 0.42, H * 0.12);
+
+  const items = [
+    ['のばす', 'どこまで のびる？', 'stretch', '#9FE8C0'],
+    ['ぷにぷに', '15びょうで 何回 つつける？', 'poke', '#F2D08A'],
+    ['バウンド', 'どこまで はずむ？', 'bounce', '#9FC8E8'],
+  ];
+  const bw = W * 0.5, bh = H * 0.14;
+  items.forEach(([n, sub, key, col], i) => {
+    const y = H * 0.26 + i * (bh + H * 0.03);
+    const bb = button(W * 0.42, y, bw, bh, () => startPlay(key));
+    ctx.fillStyle = col;
+    rr(ctx, bb.x, bb.y, bb.w, bb.h, H * 0.025); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#2A3A4A';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    fitFont(n, bw * 0.5, bh * 0.36, 'bold ');
+    ctx.fillText(n, bb.x + bw * 0.05, bb.y + bh * 0.16);
+    ctx.fillStyle = 'rgba(42,58,74,0.7)';
+    fitFont(sub, bw * 0.6, bh * 0.24);
+    ctx.fillText(sub, bb.x + bw * 0.05, bb.y + bh * 0.58);
+    const best = key === 'stretch' ? save.bestStretch
+               : key === 'poke' ? save.bestPoke : save.bestBounce;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#2A3A4A';
+    ctx.font = 'bold ' + Math.round(bh * 0.3) + 'px system-ui, sans-serif';
+    ctx.fillText('さいこう ' + Math.round(best), bb.x + bw * 0.95, bb.y + bh * 0.35);
+    ctx.textAlign = 'left';
+  });
+  const gbH = H * 0.11;
+  drawButton(button(W * 0.42, H - gbH - H * 0.04, bw * 0.45, gbH,
+                    () => { game.screen = 'done'; }), 'もどる', '#E6EEF4');
+}
+
+function startPlay(kind) {
+  game.play = { kind, t: 0, score: 0, best: 0, over: false, broken: false,
+                px: 0, py: 0, y: 0, vy: 0, bounces: 0, peak: 0 };
+  const b = game.blob;
+  b.x = W / 2; b.y = H * 0.55; b.r = Math.min(W * 0.11, H * 0.22);
+  for (const q of b.pts) { q.off = 0; q.vel = 0; }
+  b.sy = 1; b.vsy = 0;
+  game.screen = kind;
+  game.msg = kind === 'stretch' ? 'スライムを ひっぱって！'
+           : kind === 'poke' ? 'つついて つついて！' : '画面を タップで おとす';
+  game.msgT = 2;
+}
+
+function playHud(title, value, unit) {
+  ctx.fillStyle = 'rgba(10,20,30,0.55)';
+  ctx.fillRect(0, 0, W, H * 0.1);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold ' + Math.round(H * 0.045) + 'px system-ui, sans-serif';
+  ctx.fillText(title, H * 0.03, H * 0.05);
+  ctx.textAlign = 'right';
+  ctx.fillText(value + unit, W - H * 0.03, H * 0.05);
+  ctx.textAlign = 'left';
+  const gbH = H * 0.1;
+  drawButton(button(W / 2 - W * 0.09, H - gbH - H * 0.03, W * 0.18, gbH,
+                    () => { game.screen = 'playmenu'; }), 'やめる', '#E6EEF4');
+}
+
+function drawStretch(dt) {
+  bg('#DCF0F6', '#F6F1DC');
+  const p = game.p, b = game.blob, pl = game.play;
+  b.x = W * 0.22; b.y = H * 0.55;
+  blobUpdate(b, dt, p);
+  const limit = b.r * (2.2 + p.stretch * 12);
+  if (ui.drag && ui.drag.tag === 'pull' && !pl.broken) {
+    pl.px = ui.drag.x; pl.py = ui.drag.y;
+    const len = Math.hypot(pl.px - b.x, pl.py - b.y);
+    pl.score = Math.max(pl.score, len / b.r * 5);   // 「cm」っぽい数字にする
+    if (len > limit) {
+      pl.broken = true;
+      game.msg = 'ちぎれた！'; game.msgT = 1.4;
+      if (pl.score > save.bestStretch) { save.bestStretch = pl.score; storeSave(); }
+    }
+  }
+  if (pl.broken) {
+    pl.t += dt;
+    if (pl.t > 1.2) { pl.broken = false; pl.t = 0; }
+  }
+  if (ui.drag && ui.drag.tag === 'pull' && !pl.broken) drawBand(ctx, b, pl.px, pl.py, p, false);
+  drawSlime(ctx, b, p, { face: true });
+  if (ui.drag && ui.drag.tag === 'pull' && !pl.broken) {
+    ctx.fillStyle = rgbCss(p.rgb);
+    ctx.beginPath(); ctx.arc(pl.px, pl.py, b.r * 0.22, 0, 7); ctx.fill();
+    ctx.strokeStyle = rgbCss(shade(p.rgb, -0.3)); ctx.lineWidth = 2; ctx.stroke();
+  }
+  ui.buttons.push({ x: b.x - b.r * 1.3, y: b.y - b.r * 1.3,
+                    w: b.r * 2.6, h: b.r * 2.6, tag: 'pull' });
+  playHud('のばす　さいこう ' + Math.round(save.bestStretch) + 'cm',
+          Math.round(pl.score), 'cm');
+}
+
+function drawPoke(dt) {
+  bg('#F6E8F6', '#FDF6E4');
+  const p = game.p, b = game.blob, pl = game.play;
+  b.x = W / 2; b.y = H * 0.55;
+  if (!pl.over) {
+    pl.t += dt;
+    if (pl.t > 15) {
+      pl.over = true;
+      if (pl.score > save.bestPoke) { save.bestPoke = pl.score; storeSave(); }
+    }
+  }
+  blobUpdate(b, dt, p);
+  drawSlime(ctx, b, p, { face: true, blink: Math.sin(game.t * 1.6) > 0.96 });
+  ui.buttons.push({ x: b.x - b.r * 1.2, y: b.y - b.r * 1.2,
+                    w: b.r * 2.4, h: b.r * 2.4, tag: 'poke' });
+  playHud('ぷにぷに　のこり ' + Math.max(0, Math.ceil(15 - pl.t)) + 'びょう',
+          pl.score, 'かい');
+  if (pl.over) {
+    ctx.fillStyle = 'rgba(10,20,30,0.55)';
+    ctx.fillRect(0, H * 0.38, W, H * 0.18);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold ' + Math.round(H * 0.07) + 'px system-ui, sans-serif';
+    ctx.fillText(pl.score + ' かい！', W / 2, H * 0.47);
+  }
+}
+
+function drawBounce(dt) {
+  bg('#E4F0FA', '#F6ECDC');
+  const p = game.p, b = game.blob, pl = game.play;
+  const floor = H * 0.82;
+  b.x = W / 2;
+  if (pl.dropped) {
+    pl.vy += 1800 * dt;
+    pl.y += pl.vy * dt;
+    if (pl.y + b.r > floor) {
+      pl.y = floor - b.r;
+      if (pl.vy > 60) {
+        pl.vy = -pl.vy * (0.28 + p.bounce * 0.62);
+        pl.bounces++;
+        blobPoke(b, b.x, b.y + b.r, Math.min(1, Math.abs(pl.vy) / 900), p);
+        b.vsy -= Math.min(6, Math.abs(pl.vy) / 160);
+      } else { pl.vy = 0; pl.resting = (pl.resting || 0) + dt; }
+    }
+    // 高さは「1 回はずんだあと」から測る。落とした高さを数えても
+    // どのスライムも同じ点になってしまうため
+    if (pl.bounces >= 1) pl.peak = Math.max(pl.peak, (floor - b.r - pl.y) / H * 100);
+    pl.score = Math.round(pl.peak);
+    if (pl.resting > 1.2 && !pl.over) {
+      pl.over = true;
+      if (pl.score > save.bestBounce) { save.bestBounce = pl.score; storeSave(); }
+    }
+  } else {
+    pl.y = H * 0.18;
+  }
+  b.y = pl.y;
+  blobUpdate(b, dt, p);
+  // 床
+  ctx.fillStyle = '#C8B79A';
+  ctx.fillRect(0, floor, W, H - floor);
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(0, floor, W, 4);
+  drawSlime(ctx, b, p, { face: true });
+  ui.buttons.push({ x: 0, y: H * 0.1, w: W, h: H * 0.72, tag: 'drop' });
+  playHud('バウンド　' + pl.bounces + 'かい はずんだ', pl.score, '');
+  if (pl.over) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(10,20,30,0.55)';
+    ctx.fillRect(0, H * 0.38, W, H * 0.18);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold ' + Math.round(H * 0.06) + 'px system-ui, sans-serif';
+    ctx.fillText('たかさ ' + pl.score + '　' + pl.bounces + 'かい はずんだ', W / 2, H * 0.47);
+  }
+}
+
+// --- スライムだな ---------------------------------------------------------
+
+function drawShelf() {
+  ctx.fillStyle = '#F7F2FB'; ctx.fillRect(0, 0, W, H);
+  const pad = H * 0.03;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#5B3B7A';
+  ctx.font = 'bold ' + Math.round(H * 0.06) + 'px system-ui, sans-serif';
+  ctx.fillText('スライムだな', pad, pad);
+  ctx.fillStyle = '#8A7A9A';
+  ctx.font = Math.round(H * 0.03) + 'px system-ui, sans-serif';
+  ctx.fillText(save.shelf.length + ' / ' + SHELF_MAX + '　えらぶと あそべる', pad + W * 0.22, pad + H * 0.02);
+
+  if (!save.shelf.length) {
+    ctx.fillStyle = '#A899B8';
+    ctx.textAlign = 'center';
+    ctx.font = Math.round(H * 0.05) + 'px system-ui, sans-serif';
+    ctx.fillText('まだ 何もないよ。つくって「だなにしまう」', W / 2, H * 0.45);
+  }
+
+  const cols = 6, gap = H * 0.02;
+  const cw = (W - pad * 2 - gap * (cols - 1)) / cols;
+  const chh = cw * 1.15;
+  save.shelf.forEach((s, i) => {
+    const x = pad + (i % cols) * (cw + gap);
+    const y = pad + H * 0.13 + ((i / cols) | 0) * (chh + gap);
+    const p = analyze(s.m);
+    const sel = game.shelfSel === i;
+    ctx.fillStyle = sel ? '#FFF0C4' : '#FFFFFF';
+    rr(ctx, x, y, cw, chh, H * 0.02); ctx.fill();
+    ctx.strokeStyle = sel ? '#E0A63A' : 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = sel ? 3 : 1.5; ctx.stroke();
+    const tb = makeBlob(x + cw / 2, y + chh * 0.38, cw * 0.3);
+    drawSlime(ctx, tb, p, {});
+    ctx.fillStyle = '#4A3A5A';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    fitFont(s.name, cw * 0.92, chh * 0.13, 'bold ');
+    ctx.fillText(s.name, x + cw / 2, y + chh * 0.7);
+    if (s.title) {
+      ctx.fillStyle = '#E0A63A';
+      fitFont('★' + s.title, cw * 0.92, chh * 0.11);
+      ctx.fillText('★' + s.title, x + cw / 2, y + chh * 0.86);
+    }
+    ui.buttons.push({ x, y, w: cw, h: chh, tag: 'shelf', idx: i });
+  });
+
+  const gbH = H * 0.11;
+  drawButton(button(pad, H - gbH - pad, W * 0.16, gbH,
+                    () => { game.screen = 'title'; }), 'もどる', '#E6D8F2');
+  if (game.shelfSel >= 0 && save.shelf[game.shelfSel]) {
+    drawButton(button(pad + W * 0.18, H - gbH - pad, W * 0.24, gbH, () => {
+      const s = save.shelf[game.shelfSel];
+      game.m = Object.assign(emptyMix(), s.m);
+      game.p = analyze(game.m);
+      game.name = s.name; game.title = s.title;
+      game.blob = makeBlob(0, 0, 1);
+      game.screen = 'playmenu';
+    }), 'これで あそぶ', '#FFD166');
+    drawButton(button(pad + W * 0.44, H - gbH - pad, W * 0.16, gbH, () => {
+      save.shelf.splice(game.shelfSel, 1);
+      game.shelfSel = -1;
+      storeSave();
+    }), 'すてる', '#F2D8D8');
+  }
+}
+
+// --- 全画面 ---------------------------------------------------------------
+
+function fullscreenSupported() {
+  const e = document.documentElement;
+  return !!(e.requestFullscreen || e.webkitRequestFullscreen);
+}
+function enterFullscreen() {
+  const e = document.documentElement;
+  const f = e.requestFullscreen || e.webkitRequestFullscreen;
+  if (f) { try { f.call(e); } catch (err) {} }
+  if (screen.orientation && screen.orientation.lock) {
+    try { const r = screen.orientation.lock('landscape'); if (r && r.catch) r.catch(() => {}); }
+    catch (err) {}
+  }
+}
+
+// --- 入力 -----------------------------------------------------------------
+
+function pos(ev) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+
+canvas.addEventListener('pointerdown', (ev) => {
+  ev.preventDefault();
+  const { x, y } = pos(ev);
+  const b = hit(x, y);
+  if (!b) return;
+  if (b.tag === 'ing') { game.hold = b.key; }
+  else if (b.tag === 'stir') { ui.drag = { tag: 'stir', x, y }; }
+  else if (b.tag === 'pull') { ui.drag = { tag: 'pull', x, y }; game.play.broken = false; }
+  else if (b.tag === 'poke') {
+    blobPoke(game.blob, x, y, 1, game.p);
+    if (game.screen === 'poke' && !game.play.over) game.play.score++;
+  } else if (b.tag === 'drop') {
+    if (!game.play.dropped) { game.play.dropped = true; game.play.vy = 0; }
+    else blobPoke(game.blob, x, y, 0.7, game.p);
+  } else if (b.tag === 'shelf') { game.shelfSel = b.idx; }
+  else if (b.on) b.on();
+  canvas.setPointerCapture && canvas.setPointerCapture(ev.pointerId);
+});
+
+canvas.addEventListener('pointermove', (ev) => {
+  if (!ui.drag) return;
+  const { x, y } = pos(ev);
+  if (ui.drag.tag === 'stir') {
+    const d = Math.hypot(x - ui.drag.x, y - ui.drag.y);
+    game.m.stir = Math.min(140, game.m.stir + d / (W * 0.01));
+  }
+  ui.drag.x = x; ui.drag.y = y;
+});
+
+function endDrag() { ui.drag = null; game.hold = null; }
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// --- たて画面 -------------------------------------------------------------
+
+function drawRotate() {
+  ctx.fillStyle = '#2A1E38'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold ' + Math.round(W * 0.07) + 'px system-ui, sans-serif';
+  ctx.fillText('よこ向きにしてね', W / 2, H * 0.45);
+  ctx.font = Math.round(W * 0.045) + 'px system-ui, sans-serif';
+  ctx.fillStyle = '#C9A0DC';
+  ctx.fillText('スマホをたおすと あそべます', W / 2, H * 0.56);
+}
+
+// --- ループ ---------------------------------------------------------------
+
+let last = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  last = now;
+  game.t += dt;
+  ui.buttons = [];
+
+  if (W < H * 1.15) { drawRotate(); return; }
+
+  if (game.screen === 'lab') drawLab(dt);
+  else if (game.screen === 'done') drawDone();
+  else if (game.screen === 'playmenu') drawPlayMenu();
+  else if (game.screen === 'stretch') drawStretch(dt);
+  else if (game.screen === 'poke') drawPoke(dt);
+  else if (game.screen === 'bounce') drawBounce(dt);
+  else if (game.screen === 'shelf') drawShelf();
+  else if (game.screen === 'howto') drawHowto();
+  else drawTitle();
+
+  if (game.msgT > 0) {
+    game.msgT -= dt;
+    ctx.globalAlpha = Math.min(1, game.msgT);
+    ctx.fillStyle = 'rgba(20,14,30,0.72)';
+    const tw = W * 0.5, th = H * 0.11;
+    rr(ctx, W / 2 - tw / 2, H * 0.12, tw, th, H * 0.03); ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    fitFont(game.msg, tw * 0.9, th * 0.45, 'bold ');
+    ctx.fillText(game.msg, W / 2, H * 0.12 + th / 2);
+    ctx.globalAlpha = 1;
+  }
+}
+
+loadSave();
+layout();
+requestAnimationFrame(frame);

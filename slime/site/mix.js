@@ -153,7 +153,7 @@ function analyze(m) {
   const grade = clamp01(balance * 0.55 + sizeOk * 0.25 + stir * 0.20);
 
   return { volume, ratio, rgb, stretch, bounce, soft, gloss, sparkle, crunch,
-           stir, state, grade, foamRatio };
+           stir, state, grade, foamRatio, marble: m.marble || null };
 }
 
 // 手ざわりの名前

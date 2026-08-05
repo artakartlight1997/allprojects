@@ -19,6 +19,7 @@ const FL_N = 620;          // つぶの数
 const FL_MAXNB = 48;       // 1つぶが 見る ご近所の 数の 上限
 const FL_MAXSPR = 20;      // 1つぶから 出る バネの 数の 上限
 const FL_SPR_MAX = 3.4;    // バネが ちぎれる 長さ（ふだんの 間かくの 8倍ほど）
+const FL_SPR_STEP = 0.045; // バネ 1本が 1回で 動かせる 量の かぎり
 const FL_ITER = 3;         // こみぐあいを 直す 回数
 const FL_D0 = 0.42;        // つぶ同士の ふだんの 間かく（h＝1 として）
 
@@ -144,7 +145,12 @@ function applySprings(f, X, Y, dt, mat) {
       if (r > L + d) L += dt * alpha * (r - L - d);
       else if (r < L - d) L -= dt * alpha * (L - d - r);
       if (L > FL_SPR_MAX) continue;         // のびきった → 消える
-      const D = dt2 * k * (L - r) / r;
+      // 1本の バネが 1回で 動かせる 量に かぎりを つける。
+      // これが ないと かたい スライムで 数字が あばれて、
+      // つぶが 画面じゅうに 飛び散る
+      let D = dt2 * k * (L - r) / r;
+      const move = Math.abs(D) * r;
+      if (move > FL_SPR_STEP) D *= FL_SPR_STEP / move;
       const hx = ddx * D * 0.5, hy = ddy * D * 0.5;
       X[i] -= hx; Y[i] -= hy;
       X[j] += hx; Y[j] += hy;
@@ -243,7 +249,8 @@ function computeDensity(f, X, Y) {
 // mat: { visc, coh, scorr } ＝ 材料から 決まる ねばり・くっつき・はじけ
 function fluidStep(f, dt, mat, grav) {
   const n = f.n, X = f.px, Y = f.py;
-  const g = grav === undefined ? 110 : grav;
+  const g = mat.grav !== undefined ? mat.grav
+          : (grav === undefined ? 110 : grav);
 
   const adh = mat.adhere === undefined ? 0 : mat.adhere;
   for (let i = 0; i < n; i++) {
@@ -338,10 +345,15 @@ function fluidStep(f, dt, mat, grav) {
   }
 
   const inv = 1 / dt;
+  const rest = mat.rest === undefined ? 0 : mat.rest;
   for (let i = 0; i < n; i++) {
     f.vx[i] = (X[i] - f.x[i]) * inv;
     f.vy[i] = (Y[i] - f.y[i]) * inv;
     f.x[i] = X[i]; f.y[i] = Y[i];
+    // 床で はねかえる。位置を 止めるだけだと 速さが 消えて 全く はずまない
+    if (rest > 0 && f.y[i] >= f.floor - 1e-6 && f.vy[i] > 0) {
+      f.vy[i] = -f.vy[i] * rest;
+    }
   }
 
   // ねばり（XSPH）。まわりの つぶと 速さを そろえる。
@@ -399,6 +411,27 @@ function fluidHold(f, sx, sy) {
 }
 
 function fluidRelease(f) { f.held.fill(0); }
+
+// つつく。まわりの つぶを ゆびから 外へ おしのける。
+// へこみが 波になって 伝わるのは つぶ同士の おしくらまんじゅう から
+function fluidPoke(f, sx, sy, rad, power) {
+  const ux = (sx - f.ox) / f.scale, uy = (sy - f.oy) / f.scale;
+  const r = rad / f.scale;
+  let hit = 0;
+  for (let i = 0; i < f.n; i++) {
+    const dx = f.x[i] - ux, dy = f.y[i] - uy;
+    const d = Math.hypot(dx, dy);
+    if (d > r) continue;
+    hit++;
+    const w = 1 - d / r;
+    if (d > 1e-4) {
+      f.vx[i] += dx / d * w * power;
+      f.vy[i] += dy / d * w * power;
+    }
+    f.vy[i] += w * power * 0.35;      // 上から おす ぶん
+  }
+  return hit;
+}
 
 // --- つながり（ちぎれたかを 見る）------------------------------------------
 //

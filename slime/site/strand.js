@@ -17,12 +17,24 @@
 
 const STRAND_N = 16;
 
-function makeStrand(b, px, py, p) {
+// つまんだ ところの ふち。まわりが へこんでいれば それも ついてくる
+function anchorPoint(b, ang) {
+  const n = b.pts.length;
+  const t = (((ang / (Math.PI * 2)) % 1) + 1) % 1 * n;
+  const i = Math.floor(t), f = t - i;
+  const off = b.pts[i % n].off * (1 - f) + b.pts[(i + 1) % n].off * f;
+  const r = (b.r + off) * 0.84;
+  return { x: b.x + Math.cos(ang) * r * b.sx, y: b.y + Math.sin(ang) * r * b.sy };
+}
+
+// ang ＝ たまの どこを つまんだか。ひもは そこから 生える
+function makeStrand(b, ang, px, py, p) {
   const nodes = [];
-  const L0 = Math.max(b.r * 0.6, Math.hypot(px - b.x, py - b.y));
+  const a0 = anchorPoint(b, ang);
+  const L0 = Math.max(b.r * 0.5, Math.hypot(px - a0.x, py - a0.y));
   for (let i = 0; i < STRAND_N; i++) {
     const t = i / (STRAND_N - 1);
-    const x = b.x + (px - b.x) * t, y = b.y + (py - b.y) * t;
+    const x = a0.x + (px - a0.x) * t, y = a0.y + (py - a0.y) * t;
     nodes.push({ x, y, ox: x, oy: y });
   }
   const vol = L0 * b.r * 0.75;
@@ -36,8 +48,8 @@ function makeStrand(b, px, py, p) {
   for (let i = 0; i < w.length; i++) w[i] /= wsum;
   const seg0 = L0 / (STRAND_N - 1);
   const rad = w.map((v) => vol * v / (2 * Math.max(2, seg0)));
-  return { nodes, L0, vol, vol0: vol, len: L0, seg: [], rad, w,
-           broken: -1, fade: 1, dead: false, drops: [] };
+  return { nodes, ang, L0, vol, vol0: vol, len: L0, seg: [], rad, w,
+           broken: -1, fade: 1, rel: 0, dead: false, drops: [] };
 }
 
 function strandStep(s, b, px, py, p, dt, held) {
@@ -59,7 +71,8 @@ function strandStep(s, b, px, py, p, dt, held) {
       q.oy = q.y;
     }
   }
-  N[0].x = b.x; N[0].y = b.y; N[0].ox = b.x; N[0].oy = b.y;
+  const a0 = anchorPoint(b, s.ang);        // つまんだ ところに くっついたまま
+  N[0].x = a0.x; N[0].y = a0.y; N[0].ox = a0.x; N[0].oy = a0.y;
   if (pinEnd) {
     const e = N[n - 1];
     e.ox = e.x; e.oy = e.y;        // ゆびの はやさを ひもに つたえる
@@ -126,12 +139,16 @@ function strandStep(s, b, px, py, p, dt, held) {
       }
     }
   } else {
-    // はなしたら（か ちぎれたら）ちぢんで たまに もどる
-    s.L0 += (b.r * 0.5 - s.L0) * Math.min(1, 5 * dd);
-    s.vol *= Math.max(0, 1 - 2.4 * dd);
+    // はなしたら（か ちぎれたら）ちぢんで たまに もどる。
+    // おもりが かかっているので 完全には ちぢみきらない。
+    // すこし たったら すーっと 消して かたづける
+    s.rel += dt;
+    s.L0 += (b.r * 0.3 - s.L0) * Math.min(1, 9 * dd);
+    s.vol *= Math.max(0, 1 - 2.8 * dd);
+    if (s.rel > 0.75) s.fade -= dt * 2.2;
   }
   if (s.broken >= 0) s.fade -= dt * 0.9;
-  if (s.fade <= 0 || (!held && s.len < b.r * 0.9)) s.dead = true;
+  if (s.fade <= 0 || (!held && s.len < b.r * 1.4)) s.dead = true;
 
   for (let i = s.drops.length - 1; i >= 0; i--) {
     const d = s.drops[i];

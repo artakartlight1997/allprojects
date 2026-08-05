@@ -57,7 +57,7 @@ function blobPull(b, ang, amount) {
   for (let i = 0; i < n; i++) {
     const a = i / n * Math.PI * 2;
     const d = Math.abs(((a - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-    const w = Math.max(0, 1 - d / 1.15);
+    const w = Math.max(0, 1 - d / 0.9);   // せまめ。つまんだ ところだけ 出る
     const q = b.pts[i];
     q.off += (amount * w * w - q.off) * 0.3;
   }

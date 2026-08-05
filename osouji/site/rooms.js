@@ -232,3 +232,53 @@ function makeFinds(seed, level) {
   }
   return out;
 }
+
+// --- カビ ------------------------------------------------------------------
+//
+// ほうっておくと 広がる よごれ。ここが 時間との たたかいに なる。
+// こすると 小さくなり、消しきると コインに なる。
+
+function makeMolds(seed, level) {
+  const rn = rnd32(seed * 17 + 91);
+  const n = 2 + Math.min(4, (level / 2) | 0);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push({
+      x: 0.10 + rn() * 0.80, y: 0.16 + rn() * 0.68,
+      r: 0.030 + rn() * 0.016,          // いまの 大きさ（画面の 横はば ぶんの 1）
+      max: 0.085 + rn() * 0.035,        // ここまで 広がる
+      grow: 0.0042 + rn() * 0.0030 + level * 0.0006,   // 1びょうで 広がる ぶん
+      seed: rn() * 100,
+      dead: false,
+    });
+  }
+  return out;
+}
+
+// --- こわれもの ------------------------------------------------------------
+//
+// こすると ヒビが 入り、3回で こわれる。よけて そうじする ひつようがある。
+// ブラシを 大きくするほど 速いが、よけるのが むずかしくなる。
+
+const BREAKABLES = [
+  { name: 'かびん', col: '#8FD0C0', tall: true },
+  { name: 'コップ', col: '#BFE4F5', tall: true },
+  { name: 'しゃしんたて', col: '#E8C08A', tall: false },
+  { name: 'おきもの', col: '#F0A8C0', tall: false },
+];
+
+function makeBreakables(seed, level) {
+  const rn = rnd32(seed * 53 + 7);
+  const n = 1 + Math.min(3, (level / 2) | 0);
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const b = BREAKABLES[(rn() * BREAKABLES.length) | 0];
+    out.push({
+      x: 0.12 + rn() * 0.76, y: 0.20 + rn() * 0.62,
+      r: 0.042 + rn() * 0.014,
+      name: b.name, col: b.col, tall: b.tall,
+      hp: 3, broken: false, shake: 0, guard: 0,
+    });
+  }
+  return out;
+}

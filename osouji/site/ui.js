@@ -143,9 +143,10 @@ function drawHowto() {
   ctx.fillText('あそびかた', H * 0.05, H * 0.05);
   const lines = [
     '① 画面を ゆびで こすると よごれが おちる',
-    '② したの 3つの 道具を もちかえる。合った 道具だと 3ばい 速い',
-    '　 ぞうきん＝ほこり / スポンジ＝あぶら / たわし＝こびりつき と カビ',
-    '③ みどりの カビは ほうっておくと 広がる！ さきに たいじ しよう',
+    '② したの 4つの 道具を もちかえる。合った 道具だと 3ばい 速い',
+    '　 ぞうきん＝ほこり / スポンジ＝あぶら / たわし＝こびりつき',
+    '③ みどりの カビは ほうっておくと 広がる！「カビとり」を ふきかけて 消す',
+    '　 カビとりは こわれものを 割らないので、かびんの となりでも 安心',
     '④ かびん や コップは こすると こわれる。3回で パリン。よけて そうじ',
     '⑤ よごれが おち続けている あいだ コンボが のびる。とまると 切れる',
     '⑥ よごれの下の おとしものは コインになる。おみせで 道具を 強くできる',
@@ -265,27 +266,45 @@ function drawClean() {
     ctx.beginPath(); ctx.arc(rx - rad * 0.25, ry - rad * 0.1, rad * 0.12, 0, 7); ctx.fill();
     ctx.beginPath(); ctx.arc(rx + rad * 0.25, ry - rad * 0.1, rad * 0.12, 0, 7); ctx.fill();
   }
-  // こすっている ふきだし
+  // こすっている ふきだし。カビとりの ときは スプレーの しぶき
   if (game.scrubT > 0 && ui.drag) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(ui.drag.sx, ui.drag.sy, brushR() / DIRT_W * b.w, 0, 7);
-    ctx.stroke();
+    const rad = brushR() * curTool().rMul / DIRT_W * b.w;
+    if (curTool().spray) {
+      ctx.fillStyle = 'rgba(200,244,210,0.35)';
+      ctx.beginPath(); ctx.arc(ui.drag.sx, ui.drag.sy, rad * 1.15, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(230,255,238,0.75)';
+      for (let i = 0; i < 7; i++) {
+        const a = i * 2.399 + game.t * 6;
+        const rr2 = rad * (0.25 + (i % 4) * 0.24);
+        ctx.beginPath();
+        ctx.arc(ui.drag.sx + Math.cos(a) * rr2, ui.drag.sy + Math.sin(a) * rr2,
+                rad * 0.11, 0, 7);
+        ctx.fill();
+      }
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(ui.drag.sx, ui.drag.sy, rad, 0, 7);
+      ctx.stroke();
+    }
   }
   ctx.restore();
   ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2;
   rr(ctx, b.x, b.y, b.w, b.h, H * 0.02); ctx.stroke();
 
-  for (const p of game.pops) {
-    ctx.globalAlpha = Math.max(0, 1 - p.t / 1.6);
+  // 同時に 出ると 重なって 読めないので、出ている 順に 上へ ずらす
+  game.pops.forEach((p, i) => {
+    ctx.globalAlpha = Math.max(0, Math.min(1, 1 - p.t / 1.6));
     ctx.fillStyle = p.col;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = 'bold ' + Math.round(H * 0.04) + 'px system-ui, sans-serif';
-    ctx.fillText(p.text, b.x + p.x * b.w,
-                 b.y + (p.y - (p.lift || 0)) * b.h - p.t * H * 0.06);
+    ctx.font = 'bold ' + Math.round(H * 0.038) + 'px system-ui, sans-serif';
+    const px2 = Math.max(b.x + b.w * 0.16,
+                         Math.min(b.x + b.w * 0.84, b.x + p.x * b.w));
+    ctx.fillText(p.text, px2,
+                 b.y + p.y * b.h - i * H * 0.055 - Math.max(0, p.t) * H * 0.05);
     ctx.globalAlpha = 1;
-  }
+  });
 
   // HUD
   ctx.fillStyle = 'rgba(10,18,26,0.75)';
@@ -336,9 +355,10 @@ function drawClean() {
 function drawToolBar() {
   const h = H * TOOLBAR_H * 0.78;
   const y = H - H * TOOLBAR_H + H * 0.012;
-  const gap = H * 0.02;
-  const w = Math.min(H * 0.52, (W - gap * 4) / 3);
-  const x0 = (W - (w * 3 + gap * 2)) / 2;
+  const n = TOOLS.length;
+  const gap = H * 0.016;
+  const w = Math.min(H * 0.46, (W - gap * (n + 1)) / n);
+  const x0 = (W - (w * n + gap * (n - 1))) / 2;
   TOOLS.forEach((t, i) => {
     const x = x0 + i * (w + gap);
     const on = game.tool === i;
@@ -351,10 +371,12 @@ function drawToolBar() {
     fitFont(t.name, w * 0.88, h * 0.42, 'bold ');
     ctx.fillText(t.name, x + w / 2, y + h * 0.35);
     // とくいな よごれ
-    const best = t.mul.dust >= 1.5 ? 'ほこり' : t.mul.grease >= 1.5 ? 'あぶら' : 'こびりつき';
+    const best = t.spray ? 'カビ せんよう'
+               : t.mul.dust >= 1.5 ? 'ほこりに つよい'
+               : t.mul.grease >= 1.5 ? 'あぶらに つよい' : 'こびりつきに つよい';
     ctx.fillStyle = on ? 'rgba(30,44,54,0.75)' : 'rgba(220,230,238,0.6)';
-    fitFont(best + 'に つよい', w * 0.9, h * 0.26);
-    ctx.fillText(best + 'に つよい', x + w / 2, y + h * 0.72);
+    fitFont(best, w * 0.9, h * 0.26);
+    ctx.fillText(best, x + w / 2, y + h * 0.72);
     ui.buttons.push({ x, y, w, h, tag: 'tool', idx: i });
   });
   ctx.textAlign = 'left';

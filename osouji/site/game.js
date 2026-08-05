@@ -95,6 +95,10 @@ const TOOLS = [
     mul: { dust: 0.9, grease: 1.8, stuck: 0.6 } },
   { key: 'brush',  name: 'たわし',   col: '#E8956A', rMul: 0.78,
     mul: { dust: 0.6, grease: 0.9, stuck: 2.0 } },
+  // カビとり。ふきかけるだけ なので こわれものを 割らない。
+  // ただし ふつうの よごれは ほとんど 落ちない ＝ つかうと 時間を 使う
+  { key: 'mold',   name: 'カビとり', col: '#A8E8B0', rMul: 0.9, spray: true,
+    mul: { dust: 0.15, grease: 0.2, stuck: 0.3 }, moldMul: 6.0 },
 ];
 function curTool() { return TOOLS[game.tool] || TOOLS[0]; }
 
@@ -135,6 +139,8 @@ const game = {
   broke: 0,             // こわした 数
   moldKilled: 0, moldTotal: 0,
   shake: 0,
+  sprayT: 0,
+  tipT: 0,
 };
 
 // きれい度をはかる用の小さな下じき
@@ -198,6 +204,8 @@ function loadRoom() {
   game.broke = 0;
   game.combo = 0; game.comboT = 0; game.bestCombo = 0;
   game.shake = 0;
+  game.sprayT = 0;
+  game.tipT = 0;
   game.pixDirt0 = measureDirt() || 1;
   game.startDirt = game.pixDirt0 + moldDirt();
   game.clean = 0;
@@ -224,7 +232,9 @@ function scrub(u, v, prevU, prevV, strength, byRobot) {
   const r = brushR() * (strength || 1) * curTool().rMul;
   if (!byRobot) {
     rubMold(u, v, strength || 1);
-    rubBreakable(u, v, r / DIRT_W);
+    // スプレーは ふきかけるだけ なので こわれものを 割らない。
+    // かびんの となりの カビは これで たいじ できる
+    if (!curTool().spray) rubBreakable(u, v, r / DIRT_W);
   }
   for (const kind of ['dust', 'grease', 'stuck']) {
     const c = game.dirt[kind].ctx;
@@ -250,8 +260,9 @@ function scrub(u, v, prevU, prevV, strength, byRobot) {
 
 // カビを こする。合った 道具（たわし）だと ずっと よく 減る
 function rubMold(u, v, strength) {
+  const t = curTool();
   const power = 0.055 * strength * soapPower()
-              * (0.45 + curTool().mul.stuck * 0.55);
+              * (t.moldMul !== undefined ? t.moldMul : 0.45 + t.mul.stuck * 0.55);
   for (const m of game.molds) {
     if (m.dead) continue;
     const d = Math.hypot((u - m.x), (v - m.y) * (DIRT_H / DIRT_W));
@@ -262,8 +273,10 @@ function rubMold(u, v, strength) {
       game.moldKilled++;
       const c = Math.round(70 * rewardMul());
       game.foundCoins += c; save.coins += c; storeSave();
-      game.pops.push({ x: m.x, y: m.y, text: 'カビ たいじ +' + c, t: 0,
+      game.pops.push({ x: m.x, y: m.y, text: 'カビ たいじ！ +' + c, t: 0,
                        col: '#A8F0C4', lift: game.pops.length * 0.05 });
+    } else if (t.spray) {
+      game.sprayT = 0.3;
     }
   }
 }
@@ -337,8 +350,20 @@ function updateClean(dt) {
   }
   for (const b of game.breaks) if (b.guard > 0) b.guard -= dt;
   if (game.shake > 0) game.shake -= dt;
+  if (game.sprayT > 0) game.sprayT -= dt;
   if (game.comboT > 0) { game.comboT -= dt; if (game.comboT <= 0) game.combo = 0; }
 
+  // カビに 手を つけないまま しばらく たったら 教える
+  if (game.moldKilled === 0 && game.molds.some((m) => !m.dead)) {
+    game.tipT += dt;
+    if (game.tipT > 6 && game.tipT < 6 + dt * 1.5) {
+      const m = game.molds.find((q) => !q.dead);
+      game.pops.push({ x: m.x, y: m.y - 0.06, text: 'カビには カビとり！', t: -1.4,
+                       col: '#FFD166', lift: 0 });
+    }
+  }
+
+  if (game.pops.length > 6) game.pops.splice(0, game.pops.length - 6);
   for (const p of game.pops) p.t += dt;
   game.pops = game.pops.filter((p) => p.t < 1.6);
   for (const f of game.finds) if (f.found) f.t += dt;

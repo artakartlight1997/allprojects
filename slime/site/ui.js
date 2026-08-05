@@ -497,14 +497,14 @@ function playHud(title, value, unit) {
 function slimeMat(p, over) {
   const m = {
     visc: 0.15 + p.stretch * 0.82,      // ねばり
-    coh: 80 + p.stretch * 520,          // くっつく力
+    coh: 150 + p.stretch * 700,         // くっつく力
     scorr: 0.0016 + (1 - p.stretch) * 0.0075,
     // バネ。かたいスライムほど 強くて、形を おぼえなおさない ＝ はずむ。
     // やわらかいスライムほど よく のびて もどらない
-    kspr: 2200 + p.bounce * 1600,
+    kspr: 2900 + p.bounce * 1900,
     plast: 0.4 + p.stretch * 6.0,
     yieldR: 0.08 + p.bounce * 0.30,
-    adhere: 480,                        // つくえへの ねばりつき
+    adhere: 360,                        // つくえへの ねばりつき
     rest: 0.05 + p.bounce * 0.55,       // 床で はねかえる 割合
   };
   if (over) for (const k in over) m[k] = over[k];
@@ -522,11 +522,18 @@ function ensureFluid(pl, cx, cy, base, floorY) {
   return f;
 }
 
-// 1フレームを 2回に 分けて 解くと 落ちつく
+// 1フレーム 1回だけ 解く。2回に 分けると なめらかだが スマホでは 重い。
+// おそい 機械では 時間の きざみが 小さくなる ＝ ゆっくり 動くだけで、
+// 数字が あばれることは ない
 function stepFluid(f, mat, dt) {
-  const sub = Math.min(0.018, Math.max(0.004, dt / 2));
-  fluidStep(f, sub, mat);
-  fluidStep(f, sub, mat);
+  fluidStep(f, Math.min(0.017, Math.max(0.004, dt)), mat);
+}
+
+// つながり調べは 毎フレームで なくていい。数フレームに 1回で 十分
+function fluidInfo(pl, f) {
+  pl.infoT = (pl.infoT || 0) + 1;
+  if (!pl.info || pl.infoT >= 4) { pl.infoT = 0; pl.info = fluidBig(f); }
+  return pl.info;
 }
 
 // いちばん 大きい かたまり。かおの 位置と「ちぎれた?」に つかう
@@ -614,7 +621,7 @@ function drawStretch(dt) {
   for (const id of ids) if (!ui.pulls[id].held) delete ui.pulls[id];
 
   stepFluid(f, mat, dt);
-  const info = fluidBig(f);
+  const info = fluidInfo(pl, f);
 
   if (pl.grabbed && holding) {
     let apart = 0, heldN = 0;
@@ -674,7 +681,9 @@ function drawPoke(dt) {
   drawTable(floor, '#E4D2C0');
 
   const f = ensureFluid(pl, W * 0.5, floor - base * 0.98, base, floor);
-  const mat = slimeMat(p);
+  // つつく あそびでは、おもりも 机への ねばりつきも 弱め。
+  // 強いと つぶれた 座ぶとんに なって、ぷにぷに しなくなる
+  const mat = slimeMat(p, { grav: 52, adhere: 90 });
   if (!pl.over) {
     pl.t += dt;
     if (pl.t > 15) {
@@ -683,7 +692,7 @@ function drawPoke(dt) {
     }
   }
   stepFluid(f, mat, dt);
-  const info = fluidBig(f);
+  const info = fluidInfo(pl, f);
   drawFluidSlime(f, p, base, info);
 
   ui.buttons.push({ x: 0, y: H * 0.1, w: W, h: H * 0.76, tag: 'poke' });
@@ -859,7 +868,7 @@ canvas.addEventListener('pointerdown', (ev) => {
   }
   else if (b.tag === 'poke') {
     const f = game.play && game.play.fluid;
-    if (f && fluidPoke(f, x, y, f.scale * 1.5, 26) > 0
+    if (f && fluidPoke(f, x, y, f.scale * 1.1, 8) > 0
         && !game.play.over) game.play.score++;
   } else if (b.tag === 'drop') {
     if (!game.play.dropped) { game.play.dropped = true; game.play.vy = 0; }
@@ -917,10 +926,33 @@ function drawRotate() {
 
 // --- ループ ---------------------------------------------------------------
 
+// おそい 機械かどうかを 見て、自動で 軽くする。
+// スマホの 性能は ばらばら なので、決めうちに しない。
+// 行ったり来たり しないよう、1回 変えたら しばらく 変えない。
+const Q_LEVELS = [
+  { iter: 2, lines: true,  scale: 0.22, soft: false, n: 300 },
+  { iter: 1, lines: false, scale: 0.18, soft: false, n: 230 },
+  { iter: 1, lines: false, scale: 0.15, soft: true,  n: 170 },
+];
+let slowAvg = 16, qLevel = 0, qHold = 0;
+function tuneQuality(ms) {
+  slowAvg += (Math.min(200, ms) - slowAvg) * 0.05;
+  qHold -= ms / 1000;
+  if (qHold > 0) return;
+  let want = qLevel;
+  if (slowAvg > 26 && qLevel < 2) want++;
+  else if (slowAvg < 15 && qLevel > 0) want--;
+  if (want === qLevel) return;
+  qLevel = want; qHold = 2.5;
+  const q = Q_LEVELS[qLevel];
+  for (const k in q) FL_Q[k] = q[k];
+}
+
 let last = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000 || 0);
+  if (last) tuneQuality(now - last);
   last = now;
   game.t += dt;
   ui.buttons = [];

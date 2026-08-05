@@ -15,13 +15,17 @@
 
 'use strict';
 
-const FL_N = 620;          // つぶの数
+const FL_N = 300;          // つぶの数（おそい 機械では FL_Q.n で へらす）
 const FL_MAXNB = 48;       // 1つぶが 見る ご近所の 数の 上限
-const FL_MAXSPR = 20;      // 1つぶから 出る バネの 数の 上限
+const FL_MAXSPR = 14;      // 1つぶから 出る バネの 数の 上限
 const FL_SPR_MAX = 3.4;    // バネが ちぎれる 長さ（ふだんの 間かくの 8倍ほど）
 const FL_SPR_STEP = 0.045; // バネ 1本が 1回で 動かせる 量の かぎり
-const FL_ITER = 3;         // こみぐあいを 直す 回数
-const FL_D0 = 0.42;        // つぶ同士の ふだんの 間かく（h＝1 として）
+
+const FL_D0 = 0.42;
+
+// 重さの きりかえ。おそい 機械では 自動で 軽くなる（ui.js が いじる）
+const FL_Q = { iter: 2, lines: true, scale: 0.22, soft: false, n: 300 };
+        // つぶ同士の ふだんの 間かく（h＝1 として）
 
 // 2次元の カーネル（h＝1）
 const FL_POLY6 = 4 / Math.PI;
@@ -33,23 +37,23 @@ function wsp(r) { const t = 1 - r; return t > 0 ? FL_SPIKY * t * t : 0; }
 const FL_SCORR_Q = w6(0.2 * 0.2);
 
 function makeFluid(cx, cy, rpx) {
-  const n = FL_N;
+  const n = Math.min(FL_N, Math.max(120, FL_Q.n | 0));
   // 円に つめる ときの 半径（つぶ 1こが d0×d0 を 受けもつ）
   const rs = Math.sqrt(n * FL_D0 * FL_D0 / Math.PI);
   const f = {
-    n, scale: rpx / rs, rs,
-    x: new Float64Array(n), y: new Float64Array(n),
-    vx: new Float64Array(n), vy: new Float64Array(n),
-    px: new Float64Array(n), py: new Float64Array(n),
-    lam: new Float64Array(n), rho: new Float64Array(n),
-    dx: new Float64Array(n), dy: new Float64Array(n),
-    held: new Uint8Array(n), hx: new Float64Array(n), hy: new Float64Array(n),
-    ohx: new Float64Array(n), ohy: new Float64Array(n),   // ゆびからの ずれ
+    n, cap: FL_N, scale: rpx / rs, rs,
+    x: new Float64Array(FL_N), y: new Float64Array(FL_N),
+    vx: new Float64Array(FL_N), vy: new Float64Array(FL_N),
+    px: new Float64Array(FL_N), py: new Float64Array(FL_N),
+    lam: new Float64Array(FL_N), rho: new Float64Array(FL_N),
+    dx: new Float64Array(FL_N), dy: new Float64Array(FL_N),
+    held: new Uint8Array(FL_N), hx: new Float64Array(FL_N), hy: new Float64Array(FL_N),
+    ohx: new Float64Array(FL_N), ohy: new Float64Array(FL_N),   // ゆびからの ずれ
     // つぶ同士を つなぐ「バネ」。スライムが 形を たもつのは これのおかげ
-    sj: new Int32Array(n * FL_MAXSPR), sl: new Float32Array(n * FL_MAXSPR),
-    sn: new Int32Array(n), sprT: 0,
-    root: new Int32Array(n),
-    nb: new Int32Array(n * FL_MAXNB), nbn: new Int32Array(n),
+    sj: new Int32Array(FL_N * FL_MAXSPR), sl: new Float32Array(FL_N * FL_MAXSPR),
+    sn: new Int32Array(FL_N), sprT: 0,
+    root: new Int32Array(FL_N),
+    nb: new Int32Array(FL_N * FL_MAXNB), nbn: new Int32Array(FL_N),
     cell: null, cellStart: null, order: null, gw: 0, gh: 0,
     gx0: 0, gy0: 0,
     rho0: 1, ox: cx, oy: cy,          // ox,oy ＝ しみゅの原点（画面の どこか）
@@ -176,8 +180,8 @@ function buildGrid(f, X, Y) {
   if (!f.cellStart || f.cellStart.length < cells + 1) {
     f.cellStart = new Int32Array(cells + 1);
     f.fillBuf = new Int32Array(cells + 1);
-    f.order = new Int32Array(n);
-    f.cell = new Int32Array(n);
+    f.order = new Int32Array(f.cap);
+    f.cell = new Int32Array(f.cap);
   }
   f.gw = gw; f.gh = gh; f.gx0 = x0 - 1; f.gy0 = y0 - 1;
   const cs = f.cellStart;
@@ -283,7 +287,7 @@ function fluidStep(f, dt, mat, grav) {
   // eps は 0わり よけ。大きすぎると 直しが 弱くなって
   // 液体が すかすかに つぶれ、水たまりのように 広がってしまう
   const rho0 = f.rho0, eps = 0.05;
-  for (let it = 0; it < FL_ITER; it++) {
+  for (let it = 0; it < FL_Q.iter; it++) {
     // こみぐあい と λ
     for (let i = 0; i < n; i++) {
       let rho = w6(0), sg = 0, gxs = 0, gys = 0;
@@ -480,8 +484,25 @@ function fluidComponents(f, link) {
 const flCv = document.createElement('canvas');
 const flCx = flCv.getContext('2d', { willReadFrequently: true });
 
+// つぶ 1こぶんの ぼやけた 丸。1まいだけ 作って 使いまわす。
+// これを 毎フレーム つぶの数だけ 作りなおすと、スマホでは それだけで 止まる
+const flSpr = document.createElement('canvas');
+function particleSprite(r) {
+  const s = Math.max(4, Math.round(r * 2) + 2);
+  if (flSpr.width !== s) {
+    flSpr.width = s; flSpr.height = s;
+    const c = flSpr.getContext('2d');
+    const g = c.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    g.addColorStop(0, 'rgba(255,255,255,0.42)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, s, s);
+  }
+  return flSpr;
+}
+
 function drawFluid(c, f, p, vw, vh) {
-  const S = 0.34;
+  const S = FL_Q.scale;
   const w = Math.max(8, Math.round(vw * S)), h = Math.max(8, Math.round(vh * S));
   if (flCv.width !== w || flCv.height !== h) { flCv.width = w; flCv.height = h; }
   flCx.clearRect(0, 0, w, h);
@@ -530,6 +551,18 @@ function drawFluid(c, f, p, vw, vh) {
   }
   flCx.globalCompositeOperation = 'source-over';
 
+  if (FL_Q.soft) {
+    // 読みもどさずに 色を つけるだけ。ふちは ぼやけるが とても 軽い
+    flCx.globalCompositeOperation = 'source-in';
+    flCx.fillStyle = rgbCss(base);
+    flCx.fillRect(0, 0, w, h);
+    flCx.globalCompositeOperation = 'source-over';
+    c.save();
+    c.imageSmoothingEnabled = true;
+    c.drawImage(flCv, 0, 0, w, h, 0, 0, vw, vh);
+    c.restore();
+    return hi;
+  }
   const img = flCx.getImageData(0, 0, w, h);
   const d = img.data;
   const base = p.rgb, lo = shade(base, -0.32), hi = shade(base, 0.30);

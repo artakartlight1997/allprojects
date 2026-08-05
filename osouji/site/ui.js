@@ -143,16 +143,17 @@ function drawHowto() {
   ctx.fillText('あそびかた', H * 0.05, H * 0.05);
   const lines = [
     '① 画面を ゆびで こすると よごれが おちる',
-    '② よごれは 3しゅるい。うすい ほこり → こい あぶら → 黒い こびりつき の順に かたい',
-    '③ よごれの下に おとしものが かくれている。ほると コインになる',
-    '④ 100% ピカピカにすると ボーナス。のこり時間も 点になる',
-    '⑤ 部屋のあいだの おみせで 道具を強くできる。道具は ずっと のこる',
-    '　 ロボットを 買うと かってに そうじしてくれる',
+    '② したの 3つの 道具を もちかえる。合った 道具だと 3ばい 速い',
+    '　 ぞうきん＝ほこり / スポンジ＝あぶら / たわし＝こびりつき と カビ',
+    '③ みどりの カビは ほうっておくと 広がる！ さきに たいじ しよう',
+    '④ かびん や コップは こすると こわれる。3回で パリン。よけて そうじ',
+    '⑤ よごれが おち続けている あいだ コンボが のびる。とまると 切れる',
+    '⑥ よごれの下の おとしものは コインになる。おみせで 道具を 強くできる',
   ];
   ctx.fillStyle = '#3A5A6E';
   lines.forEach((s, i) => {
-    fitFont(s, W * 0.92, H * 0.044);
-    ctx.fillText(s, H * 0.05, H * 0.19 + i * H * 0.088);
+    fitFont(s, W * 0.92, H * 0.042);
+    ctx.fillText(s, H * 0.05, H * 0.17 + i * H * 0.079);
   });
   const bh = H * 0.11;
   drawButton(button(H * 0.05, H - bh - H * 0.05, H * 0.4, bh,
@@ -161,9 +162,11 @@ function drawHowto() {
 
 // --- そうじ ---------------------------------------------------------------
 
+const TOOLBAR_H = 0.135;      // 画面の したに 道具の ボタンを おく
+
 function roomBox() {
   const top = H * 0.11;
-  const availH = H - top - H * 0.03;
+  const availH = H - top - H * (TOOLBAR_H + 0.02);
   const availW = W - H * 0.06;
   let w = availW, h = w * (DIRT_H / DIRT_W);
   if (h > availH) { h = availH; w = h * (DIRT_W / DIRT_H); }
@@ -189,6 +192,66 @@ function drawClean() {
   }
   for (const kind of ['grease', 'stuck', 'dust']) {
     ctx.drawImage(game.dirt[kind].cv, b.x, b.y, b.w, b.h);
+  }
+  // カビ。よごれより 上に 描くので、広がってくるのが すぐ わかる
+  for (const m of game.molds) {
+    if (m.dead) continue;
+    const mx = b.x + m.x * b.w, my = b.y + m.y * b.h, mr = m.r * b.w;
+    const g = ctx.createRadialGradient(mx, my, mr * 0.2, mx, my, mr);
+    g.addColorStop(0, 'rgba(38,74,44,0.95)');
+    g.addColorStop(0.7, 'rgba(58,96,54,0.85)');
+    g.addColorStop(1, 'rgba(74,110,62,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(mx, my, mr, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(26,52,32,0.9)';
+    for (let i = 0; i < 9; i++) {
+      const a = i * 2.399 + m.seed;
+      const rr2 = mr * (0.2 + (i % 4) * 0.19);
+      ctx.beginPath();
+      ctx.arc(mx + Math.cos(a) * rr2, my + Math.sin(a) * rr2, mr * 0.14, 0, 7);
+      ctx.fill();
+    }
+  }
+  // こわれもの。よけて そうじする ひつようが あるので いちばん 上に
+  for (const bk of game.breaks) {
+    const sx = b.x + bk.x * b.w + (bk.shake > 0 ? (Math.random() - 0.5) * 6 : 0);
+    const sy = b.y + bk.y * b.h;
+    const rr2 = bk.r * b.w;
+    if (bk.broken) {
+      ctx.fillStyle = 'rgba(120,120,130,0.55)';
+      for (let i = 0; i < 6; i++) {
+        const a = i * 1.7;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * rr2 * 1.2, sy + Math.sin(a) * rr2 * 0.7);
+        ctx.lineTo(sx + Math.cos(a + 0.4) * rr2 * 1.5, sy + Math.sin(a + 0.4) * rr2 * 0.9);
+        ctx.lineTo(sx, sy + rr2 * 0.5);
+        ctx.closePath(); ctx.fill();
+      }
+      continue;
+    }
+    if (bk.shake > 0) bk.shake -= 1 / 60;
+    ctx.fillStyle = bk.col;
+    if (bk.tall) {
+      rr(ctx, sx - rr2 * 0.6, sy - rr2 * 1.1, rr2 * 1.2, rr2 * 2.2, rr2 * 0.35);
+      ctx.fill();
+    } else {
+      rr(ctx, sx - rr2, sy - rr2 * 0.8, rr2 * 2, rr2 * 1.6, rr2 * 0.25);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2;
+    ctx.stroke();
+    // ヒビ
+    if (bk.hp < 3) {
+      ctx.strokeStyle = 'rgba(40,30,40,0.85)';
+      ctx.lineWidth = Math.max(1.5, rr2 * 0.12);
+      for (let i = 0; i < 3 - bk.hp; i++) {
+        ctx.beginPath();
+        ctx.moveTo(sx - rr2 * 0.4 + i * rr2 * 0.4, sy - rr2 * 0.7);
+        ctx.lineTo(sx - rr2 * 0.1 + i * rr2 * 0.4, sy + rr2 * 0.1);
+        ctx.lineTo(sx - rr2 * 0.5 + i * rr2 * 0.4, sy + rr2 * 0.7);
+        ctx.stroke();
+      }
+    }
   }
   // ロボット
   for (const r of game.robots) {
@@ -241,14 +304,59 @@ function drawClean() {
   rr(ctx, gx, H * 0.032, gw, H * 0.036, H * 0.018); ctx.fill();
   ctx.fillStyle = game.clean > 0.9 ? '#8FE0A8' : game.clean > 0.5 ? '#FFD166' : '#FF9C7A';
   rr(ctx, gx, H * 0.032, Math.max(3, gw * game.clean), H * 0.036, H * 0.018); ctx.fill();
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold ' + Math.round(H * 0.03) + 'px system-ui, sans-serif';
-  ctx.fillText('きれい度', gx - H * 0.015, H * 0.05);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#22303A';        // バーの上なので 濃い色にする
   ctx.font = 'bold ' + Math.round(H * 0.028) + 'px system-ui, sans-serif';
   ctx.fillText(Math.round(game.clean * 100) + '%', gx + gw / 2, H * 0.0505);
+  ctx.textAlign = 'left';
+
+  // のこっている カビ の数（時間との たたかい なので 目立たせる）
+  const alive = game.molds.filter((m) => !m.dead).length;
+  if (alive > 0) {
+    ctx.fillStyle = '#A8F0C4';
+    ctx.font = 'bold ' + Math.round(H * 0.036) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('カビ ' + alive + 'こ', gx - H * 0.02, H * 0.05);
+    ctx.textAlign = 'left';
+  }
+  // コンボ
+  if (game.combo >= 3) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFD166';
+    const s = 1 + Math.min(0.3, game.combo * 0.02);
+    ctx.font = 'bold ' + Math.round(H * 0.055 * s) + 'px system-ui, sans-serif';
+    ctx.fillText('コンボ ' + game.combo + '！', W / 2, H * 0.17);
+    ctx.textAlign = 'left';
+  }
+
+  drawToolBar();
+}
+
+// 道具の ボタン。合った 道具を えらぶと ずっと 速く 落ちる
+function drawToolBar() {
+  const h = H * TOOLBAR_H * 0.78;
+  const y = H - H * TOOLBAR_H + H * 0.012;
+  const gap = H * 0.02;
+  const w = Math.min(H * 0.52, (W - gap * 4) / 3);
+  const x0 = (W - (w * 3 + gap * 2)) / 2;
+  TOOLS.forEach((t, i) => {
+    const x = x0 + i * (w + gap);
+    const on = game.tool === i;
+    ctx.fillStyle = on ? t.col : 'rgba(255,255,255,0.16)';
+    rr(ctx, x, y, w, h, h * 0.28); ctx.fill();
+    ctx.strokeStyle = on ? '#FFFFFF' : 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = on ? 3 : 1.5; ctx.stroke();
+    ctx.fillStyle = on ? '#1E2C36' : '#DCE6EE';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    fitFont(t.name, w * 0.88, h * 0.42, 'bold ');
+    ctx.fillText(t.name, x + w / 2, y + h * 0.35);
+    // とくいな よごれ
+    const best = t.mul.dust >= 1.5 ? 'ほこり' : t.mul.grease >= 1.5 ? 'あぶら' : 'こびりつき';
+    ctx.fillStyle = on ? 'rgba(30,44,54,0.75)' : 'rgba(220,230,238,0.6)';
+    fitFont(best + 'に つよい', w * 0.9, h * 0.26);
+    ctx.fillText(best + 'に つよい', x + w / 2, y + h * 0.72);
+    ui.buttons.push({ x, y, w, h, tag: 'tool', idx: i });
+  });
   ctx.textAlign = 'left';
 }
 
@@ -265,22 +373,34 @@ function drawResult() {
   ctx.fillText(title, W / 2, H * 0.1);
 
   const lines = [
-    'きれい度 ' + Math.round(game.clean * 100) + '%',
-    'おそうじ代 ' + game.earned.toLocaleString() + ' コイン',
-    'おとしもの ' + game.foundCoins.toLocaleString() + ' コイン',
-    'この へや ' + game.roundScore.toLocaleString() + ' 点',
+    ['きれい度 ' + Math.round(game.clean * 100) + '%', '#E8F0F6'],
+    ['おそうじ代 ' + game.earned.toLocaleString() + ' コイン', '#E8F0F6'],
+    ['おとしもの ' + game.foundCoins.toLocaleString() + ' コイン', '#E8F0F6'],
   ];
-  ctx.fillStyle = '#E8F0F6';
-  lines.forEach((s, i) => {
-    fitFont(s, W * 0.7, H * 0.05);
-    ctx.fillText(s, W / 2, H * 0.26 + i * H * 0.072);
+  // おまけ。何が よかったのか／だめだったのか を はっきり 見せる
+  if (game.bonusSafe) lines.push(['ひとつも こわさなかった +300', '#A8F0C4']);
+  else lines.push([game.broke + 'こ こわしちゃった', '#FF9C7A']);
+  if (game.bonusMold) lines.push(['カビ ぜんめつ +' + game.bonusMold, '#A8F0C4']);
+  else {
+    const left = game.molds.filter((m) => !m.dead).length;
+    if (left) lines.push(['カビが ' + left + 'こ のこった', '#FFD166']);
+  }
+  if (game.bonusCombo) lines.push(['さいこうコンボ ' + game.bestCombo
+                                   + ' +' + game.bonusCombo, '#FFD166']);
+  lines.push(['この へや ' + game.roundScore.toLocaleString() + ' 点', '#FFFFFF']);
+
+  const step = Math.min(H * 0.066, (H * 0.40) / lines.length);
+  lines.forEach((L, i) => {
+    ctx.fillStyle = L[1];
+    fitFont(L[0], W * 0.7, step * 0.72);
+    ctx.fillText(L[0], W / 2, H * 0.235 + i * step);
   });
 
   const got = game.finds.filter((f) => f.found).map((f) => f.name);
   ctx.fillStyle = '#FFD166';
   const gotText = got.length ? '見つけた: ' + got.join('・') : 'おとしもの なし';
-  fitFont(gotText, W * 0.86, H * 0.036);
-  ctx.fillText(gotText, W / 2, H * 0.58);
+  fitFont(gotText, W * 0.86, H * 0.034);
+  ctx.fillText(gotText, W / 2, H * 0.235 + lines.length * step + H * 0.01);
 
   const bw = W * 0.36, bh = H * 0.13;
   drawButton(button(W / 2 - bw / 2, H * 0.7, bw, bh, afterResult),
@@ -418,6 +538,7 @@ canvas.addEventListener('pointerdown', (ev) => {
   const b = hit(x, y);
   if (b) {
     if (b.tag === 'buy') { buy(b.key); return; }
+    if (b.tag === 'tool') { game.tool = b.idx; return; }
     if (b.on) { b.on(); return; }
   }
   if (game.screen === 'clean') {

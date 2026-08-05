@@ -51,6 +51,18 @@ function blobPoke(b, px, py, power, p) {
   b.vsy -= power * 3 * (0.4 + p.soft);
 }
 
+// ひっぱられている あいだ、ゆびの方へ たまが とんがる
+function blobPull(b, ang, amount) {
+  const n = b.pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2;
+    const d = Math.abs(((a - ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    const w = Math.max(0, 1 - d / 1.15);
+    const q = b.pts[i];
+    q.off += (amount * w * w - q.off) * 0.3;
+  }
+}
+
 function blobPath(c, b) {
   const n = b.pts.length;
   const px = [], py = [];
@@ -195,37 +207,6 @@ function drawSlime(c, b, p, opts) {
     c.arc(b.x, ey + b.r * 0.1, b.r * 0.12, 0.3, Math.PI - 0.3);
     c.stroke();
   }
-  c.restore();
-}
-
-// のばしたときの帯
-function drawBand(c, b, px, py, p, broken) {
-  const dx = px - b.x, dy = py - b.y;
-  const len = Math.hypot(dx, dy);
-  if (len < 1) return;
-  const ux = dx / len, uy = dy / len;
-  const nx = -uy, ny = ux;
-  const w0 = b.r * 0.55, w1 = b.r * 0.14;
-  const thin = broken ? 0 : Math.max(0.12, 1 - len / (b.r * 14));
-  c.save();
-  c.beginPath();
-  c.moveTo(b.x + nx * w0, b.y + ny * w0);
-  c.quadraticCurveTo(b.x + ux * len * 0.5 + nx * w0 * thin * 0.7,
-                     b.y + uy * len * 0.5 + ny * w0 * thin * 0.7,
-                     px + nx * w1 * thin, py + ny * w1 * thin);
-  c.lineTo(px - nx * w1 * thin, py - ny * w1 * thin);
-  c.quadraticCurveTo(b.x + ux * len * 0.5 - nx * w0 * thin * 0.7,
-                     b.y + uy * len * 0.5 - ny * w0 * thin * 0.7,
-                     b.x - nx * w0, b.y - ny * w0);
-  c.closePath();
-  const g = c.createLinearGradient(b.x, b.y, px, py);
-  g.addColorStop(0, rgbCss(p.rgb));
-  g.addColorStop(1, rgbCss(shade(p.rgb, 0.2)));
-  c.fillStyle = g;
-  c.fill();
-  c.strokeStyle = rgbCss(shade(p.rgb, -0.28), 0.7);
-  c.lineWidth = Math.max(1, b.r * 0.02);
-  c.stroke();
   c.restore();
 }
 

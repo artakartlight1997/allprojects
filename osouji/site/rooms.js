@@ -242,8 +242,9 @@ function makeFinds(seed, level) {
 function makeMolds(seed, level, mul, growMul) {
   const rn = rnd32(seed * 17 + 91);
   const gm = growMul === undefined ? 1 : growMul;
-  const n = Math.max(1, Math.round((2 + Math.min(4, (level / 2) | 0))
-                                   * (mul === undefined ? 1 : mul)));
+  // 多すぎると 画面が うまるだけで 手も つけられないので 上を おさえる
+  const n = Math.max(1, Math.min(12,
+    Math.round((2 + Math.min(4, (level / 2) | 0)) * (mul === undefined ? 1 : mul))));
   const out = [];
   for (let i = 0; i < n; i++) {
     out.push({
@@ -272,8 +273,9 @@ const BREAKABLES = [
 
 function makeBreakables(seed, level, mul) {
   const rn = rnd32(seed * 53 + 7);
-  const n = Math.max(0, Math.round((1 + Math.min(3, (level / 2) | 0))
-                                   * (mul === undefined ? 1 : mul)));
+  // こわれものだらけで そうじする すきまが なくなると こまるので 上を おさえる
+  const n = Math.max(0, Math.min(9,
+    Math.round((1 + Math.min(3, (level / 2) | 0)) * (mul === undefined ? 1 : mul))));
   const out = [];
   for (let i = 0; i < n; i++) {
     const b = BREAKABLES[(rn() * BREAKABLES.length) | 0];
@@ -283,6 +285,37 @@ function makeBreakables(seed, level, mul) {
       name: b.name, col: b.col, tall: b.tall,
       hp: 3, broken: false, shake: 0, guard: 0,
     });
+  }
+  return out;
+}
+
+// --- 局面（ギミック）------------------------------------------------------
+//
+// ただ よごれが 多いだけでは 単調なので、部屋ごとに
+// 「そもそも やりかたが 変わる」しかけを 出す。
+
+const GIMMICKS = [
+  { key: 'rain', name: 'あめもり！', col: '#7FB3EA',
+    desc: 'てんじょうから よごれが おちてくる。もたもたすると ふえる' },
+  { key: 'dark', name: 'ていでん！', col: '#9A8AD8',
+    desc: 'まっくら。ゆびの まわりしか 見えない' },
+  { key: 'fragile', name: 'たからもの だらけ！', col: '#F0A8C0',
+    desc: 'こわれものが いっぱい。よけて そうじ' },
+  { key: 'mold', name: 'カビ 大はっせい！', col: '#7FD0A0',
+    desc: 'カビが どんどん 広がる。さきに たいじ！' },
+];
+
+// chance の かくりつで しかけを えらぶ。n を 2 に すると
+// 「ていでん ＋ あめもり」の ように かさなる（おに の 終わりの ほう）。
+// 2つめは 出にくく している。
+function pickGimmicks(seed, chance, n) {
+  const rn = rnd32(seed * 7 + 313);
+  const pool = GIMMICKS.slice();
+  const out = [];
+  for (let i = 0; i < (n || 1) && pool.length; i++) {
+    // chance が 1（おに）の ときは 2つめも かならず 出す
+    if (rn() >= (i === 0 || chance >= 1 ? chance : chance * 0.75)) break;
+    out.push(pool.splice((rn() * pool.length) | 0, 1)[0]);
   }
   return out;
 }

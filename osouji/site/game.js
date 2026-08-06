@@ -17,17 +17,27 @@ const DIFFS = [
   { key: 'easy', name: 'やさしい', col: '#8FE0A8',
     sub: 'ゆっくり できる。カビも すくない',
     time: 1.30, dirt: 0.72, mold: 0.5, grow: 0.55, brk: 0.5,
-    done: 0.975, star: 0.95, pay: 0.85 },
+    done: 0.975, star: 0.95, pay: 0.85, gim: 0, sweep: 1.15 },
   { key: 'norm', name: 'ふつう', col: '#FFD166',
-    sub: 'ちょうど いい かんじ',
+    sub: 'ときどき へんな 部屋。さいごの へやは かならず へんな 部屋',
     time: 1.00, dirt: 1.00, mold: 1.0, grow: 1.00, brk: 1.0,
-    done: 0.985, star: 0.97, pay: 1.00 },
+    done: 0.985, star: 0.97, pay: 1.00, gim: 0.3, sweep: 1.0 },
   { key: 'hard', name: 'むずかしい', col: '#FF9C7A',
-    sub: '時間みじかめ。カビも こわれものも 多い。コイン 1.6ばい',
-    time: 0.78, dirt: 1.35, mold: 1.6, grow: 1.55, brk: 1.7,
-    done: 0.990, star: 0.98, pay: 1.60 },
+    sub: '半分は へんな 部屋。時間みじかめ。コイン 1.6ばい',
+    time: 0.70, dirt: 1.45, mold: 1.6, grow: 1.55, brk: 1.7,
+    done: 0.990, star: 0.98, pay: 1.60, gim: 0.55, sweep: 0.8 },
+  { key: 'oni', name: 'おに', col: '#E86A6A',
+    sub: 'ぜんぶ へんな 部屋。さいごの 2へやは しかけが 2つ！ コイン 2.3ばい',
+    time: 0.58, dirt: 1.75, mold: 2.1, grow: 2.0, brk: 2.2,
+    done: 0.992, star: 0.985, pay: 2.30, gim: 1.0, sweep: 0.6 },
 ];
 function dif() { return DIFFS[save.diff] || DIFFS[1]; }
+// この部屋に そのしかけが あるか
+function hasGim(k) {
+  const g = game.gims;
+  for (let i = 0; i < g.length; i++) if (g[i].key === k) return true;
+  return false;
+}
 function cleanDone() { return dif().done; }
 function cleanPerfect() { return dif().star; }
 
@@ -44,19 +54,21 @@ const SWEEP_TIME = 0.85;       // 波が わたりきる 時間
 
 const UPGRADES = [
   { key: 'brush', name: 'ブラシ', max: 6, icon: '🖌',
-    desc: (lv) => 'こする はばが 広くなる（いま ' + (28 + lv * 9) + '）',
+    desc: (lv) => 'こする はばが 広くなる（いま ' + brushRAt(lv) + '）',
     cost: (lv) => 120 + lv * 160 },
   { key: 'soap', name: 'せんざい', max: 6, icon: '🧴',
-    desc: (lv) => 'よごれの おちが 速くなる（いま ' + (100 + lv * 35) + '%）',
+    desc: (lv) => 'よごれの おちが 速くなる（いま '
+                + Math.round(soapAt(lv) * 100) + '%）',
     cost: (lv) => 150 + lv * 190 },
   { key: 'tawashi', name: 'たわし', max: 5, icon: '🧽',
-    desc: (lv) => 'こびりつきに 強くなる（いま ' + (100 + lv * 70) + '%）',
+    desc: (lv) => 'こびりつきに 強くなる（いま '
+                + Math.round(tawashiAt(lv) * 100) + '%）',
     cost: (lv) => 200 + lv * 240 },
   { key: 'robot', name: 'ロボット', max: 5, icon: '🤖',
     desc: (lv) => lv ? 'かってに そうじしてくれる（' + lv + 'だい）' : 'かってに そうじしてくれる',
     cost: (lv) => 400 + lv * 420 },
   { key: 'time', name: 'すいとう', max: 5, icon: '🥤',
-    desc: (lv) => 'そうじの 時間が のびる（いま ' + (BASE_TIME + lv * 8) + '秒）',
+    desc: (lv) => 'そうじの 時間が のびる（+' + (lv * 8) + '秒）',
     cost: (lv) => 180 + lv * 200 },
   { key: 'reward', name: 'おこづかい', max: 5, icon: '💰',
     desc: (lv) => 'もらえる コインが ふえる（いま ' + (100 + lv * 25) + '%）',
@@ -82,6 +94,7 @@ function loadSave() {
     if (Number.isFinite(o.perfect)) save.perfect = o.perfect;
     if (o.lv && typeof o.lv === 'object') save.lv = o.lv;
     if (o.finds && typeof o.finds === 'object') save.finds = o.finds;
+    if (Number.isFinite(o.diff)) save.diff = Math.max(0, Math.min(DIFFS.length - 1, o.diff | 0));
   } catch (e) { /* 壊れていても遊べなくはしない */ }
   for (const u of UPGRADES) {
     const v = save.lv[u.key];
@@ -96,11 +109,23 @@ function storeSave() {
 function lvOf(key) { return save.lv[key] || 0; }
 function upgOf(key) { return UPGRADES.find((u) => u.key === key); }
 
-// 道具の効きめ
-function brushR() { return 28 + lvOf('brush') * 9; }          // 汚れ下じきの中の半径
-function soapPower() { return 1 + lvOf('soap') * 0.35; }
-function tawashiPower() { return 1 + lvOf('tawashi') * 0.7; }
-function roundTime() { return (BASE_TIME + lvOf('time') * 8) * dif().time; }
+// 道具の効きめ。
+// むかしは MAX で ブラシの はんけいが 82（部屋の よこはばの 17%）も あって、
+// 3すじ なぞれば 部屋が おわって しまった。上を おさえてある。
+function brushRAt(lv) { return Math.round(26 + lv * 5.5); }   // 汚れ下じきの中の半径
+function soapAt(lv) { return 1 + lv * 0.25; }
+function tawashiAt(lv) { return 1 + lv * 0.5; }
+function brushR() { return brushRAt(lvOf('brush')); }
+function soapPower() { return soapAt(lvOf('soap')); }
+function tawashiPower() { return tawashiAt(lvOf('tawashi')); }
+
+// よごれレベルが 上がると 時間も じわじわ みじかくなる。
+// よごれの 絵は すぐ 真っ黒に なって しまい それ以上 増えないので、
+// 「上に いくほど 手ごわい」を こちらで つくる。
+function roundTime() {
+  const squeeze = Math.max(0.62, 1 - (game.level - 1) * 0.03);
+  return (BASE_TIME + lvOf('time') * 8) * dif().time * squeeze;
+}
 function rewardMul() { return (1 + lvOf('reward') * 0.25) * dif().pay; }
 function robotCount() { return lvOf('robot'); }
 
@@ -173,6 +198,11 @@ const game = {
   fever: 0,          // ノリノリ ちゅう の のこり時間
   sparks: [],        // きらきら
   flash: 0,          // ぱっと 光る
+  gims: [],          // この部屋の しかけ（おに の 終盤は 2つ かさなる）
+  gim: null,         // その 1つめ（ふだ を 出すとき に つかう）
+  gimT: 0,           // しかけの 名前を 出す のこり時間
+  drips: [],         // あめもり の しずく
+  dripT: 0,
 };
 
 // きれい度をはかる用の小さな下じき
@@ -228,10 +258,25 @@ function loadRoom() {
   game.room = ROOMS[game.roomIndex];
   const seed = ((Math.random() * 1e9) | 0);
   const d = dif();
+  // 1へやめは ふつう。2へやめから へんな 部屋が 出る。
+  // さいごの へやは かならず へんな 部屋（山場を つくる）。
+  // おに では 終わりの 2へやで しかけが 2つ かさなる。
+  const last = game.round >= ROUND_ROOMS - 1;
+  const chance = (d.gim > 0 && last) ? Math.max(d.gim, 0.9) : d.gim;
+  const many = (d.gim >= 1 && game.round >= ROUND_ROOMS - 2) ? 2 : 1;
+  const gims = game.round === 0 ? [] : pickGimmicks(seed, chance, many);
+  game.gims = gims;
+  game.gim = gims[0] || null;
+  game.gimT = gims.length ? 2.6 : 0;
+  const moldMul = d.mold * (hasGim('mold') ? 2.2 : 1);
+  const growMul = d.grow * (hasGim('mold') ? 1.8 : 1);
+  const brkMul = d.brk * (hasGim('fragile') ? 2.2 : 1);
   game.dirt = makeDirt(seed, game.level, d.dirt);
   game.finds = makeFinds(seed, game.level);
-  game.molds = makeMolds(seed, game.level, d.mold, d.grow);
-  game.breaks = makeBreakables(seed, game.level, d.brk);
+  game.molds = makeMolds(seed, game.level, moldMul, growMul);
+  game.breaks = makeBreakables(seed, game.level, brkMul);
+  game.drips = [];
+  game.dripT = 0;
   game.moldTotal = game.molds.length;
   game.moldKilled = 0;
   game.broke = 0;
@@ -308,7 +353,7 @@ function rubMold(u, v, strength) {
       game.moldKilled++;
       const c = Math.round(70 * rewardMul());
       game.foundCoins += c; save.coins += c; storeSave();
-      game.power = Math.min(1, game.power + 0.12);   // カビ たいじでも たまる
+      game.power = Math.min(1, game.power + 0.06 * dif().sweep);
       game.pops.push({ x: m.x, y: m.y, text: 'カビ たいじ！ +' + c, t: 0,
                        col: '#A8F0C4', lift: game.pops.length * 0.05 });
     } else if (t.spray) {
@@ -365,11 +410,14 @@ function startSweep() {
 function sweepBand(fromU, toU) {
   const x0 = fromU * DIRT_W, x1 = toU * DIRT_W;
   if (x1 <= x0) return;
+  // ぜんぶ 消して しまうと いっそう 1回で 部屋が おわって しまうので、
+  // 「かるい よごれは 流れる、こびりつきは のこる」に する。
+  // 見た目は はでに、でも 仕上げは 自分の 手で。
   for (const kind of ['dust', 'grease', 'stuck']) {
     const c = game.dirt[kind].ctx;
     c.save();
     c.globalCompositeOperation = 'destination-out';
-    c.globalAlpha = kind === 'stuck' ? 0.55 : 1;
+    c.globalAlpha = kind === 'dust' ? 0.88 : kind === 'grease' ? 0.5 : 0.26;
     c.fillStyle = '#000';
     c.fillRect(x0 - 2, 0, (x1 - x0) + 4, DIRT_H);
     c.restore();
@@ -397,6 +445,48 @@ function sweepBand(fromU, toU) {
     game.sparks.push({ x: toU, y: Math.random(), t: 0,
                        vx: (Math.random() - 0.3) * 0.25,
                        vy: (Math.random() - 0.5) * 0.4 });
+  }
+}
+
+// --- あめもり ---------------------------------------------------------------
+//
+// てんじょうから よごれが おちてくる。おちた ところに 新しい よごれが つく。
+// もたもたして いると どんどん ふえるので、いそぐ ことに なる。
+
+function dripFall(dt) {
+  game.dripT -= dt;
+  if (game.dripT <= 0) {
+    // よごれレベルが 高いほど よく ふる
+    game.dripT = Math.max(0.22, 0.85 - game.level * 0.05);
+    game.drips.push({ x: 0.06 + Math.random() * 0.88, y: -0.03,
+                      ty: 0.32 + Math.random() * 0.56,
+                      v: 0.55 + Math.random() * 0.4 });
+  }
+  for (let i = game.drips.length - 1; i >= 0; i--) {
+    const d = game.drips[i];
+    d.y += d.v * dt;
+    if (d.y < d.ty) continue;
+    // ぽたっ。おちた ところに あぶら汚れが ひろがる
+    const c = game.dirt.grease.ctx;
+    const x = d.x * DIRT_W, y = d.ty * DIRT_H;
+    c.save();
+    c.fillStyle = DIRT_STYLE.grease.col;
+    c.globalAlpha = 0.9;
+    c.beginPath(); c.arc(x, y, 16 + Math.random() * 12, 0, 7); c.fill();
+    for (let k = 0; k < 3; k++) {
+      c.beginPath();
+      c.arc(x + (Math.random() - 0.5) * 44, y + (Math.random() - 0.5) * 30,
+            6 + Math.random() * 8, 0, 7);
+      c.fill();
+    }
+    c.restore();
+    // しぶきを ちらす（気づかせる ため）
+    for (let k = 0; k < 4; k++) {
+      game.sparks.push({ x: d.x, y: d.ty, t: 0.3, col: '#9FC8E8',
+                         vx: (Math.random() - 0.5) * 0.35,
+                         vy: -Math.random() * 0.3 });
+    }
+    game.drips.splice(i, 1);
   }
 }
 
@@ -446,6 +536,8 @@ function updateClean(dt) {
   if (game.shake > 0) game.shake -= dt;
   if (game.sprayT > 0) game.sprayT -= dt;
   if (game.fever > 0) game.fever -= dt;
+  if (game.gimT > 0) game.gimT -= dt;
+  if (hasGim('rain')) dripFall(dt);
   if (game.flash > 0) game.flash -= dt;
 
   // いっそうの 波
@@ -496,7 +588,8 @@ function updateClean(dt) {
       // よごれを 落とすほど いっそう ゲージが たまる。
       // いっそう自身で 落ちた ぶんは 数えない（すぐ また たまって しまう）
       if (game.sweep < 0) {
-        game.power = Math.min(1, game.power + Math.min(0.12, gain * 4.5));
+        game.power = Math.min(1, game.power
+          + Math.min(0.045, gain * 1.8) * dif().sweep);
       }
       if (game.combo >= 8) game.fever = Math.max(game.fever, 2.2);
     }
@@ -557,4 +650,6 @@ function buy(key) {
 }
 
 loadSave();
-game.level = 1 + Math.min(6, (save.rounds / 2) | 0);
+// 遊ぶほど よごれが ふえる。道具を そろえきった あとも まだ 上が あるように、
+// 上どまりを 高くしてある（前は 7で 止まっていて、すぐ 簡単に なった）
+game.level = 1 + Math.min(14, (save.rounds / 2) | 0);

@@ -125,9 +125,12 @@ function drawTitle() {
   ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.font = 'bold ' + Math.round(H * 0.036) + 'px system-ui, sans-serif';
   ctx.fillText('むずかしさ', H * 0.06, H * 0.355);
-  const cw2 = bw / 3 - H * 0.012, ch2 = H * 0.105;
+  // 4つ ならべる。右の 部屋の絵に かからない はばに おさめる
+  const dRow = Math.min(H * 1.02, dx - H * 0.09);
+  const gap2 = H * 0.014;
+  const cw2 = (dRow - gap2 * (DIFFS.length - 1)) / DIFFS.length, ch2 = H * 0.105;
   DIFFS.forEach((d, i) => {
-    const x = H * 0.06 + i * (cw2 + H * 0.018), y = H * 0.40;
+    const x = H * 0.06 + i * (cw2 + gap2), y = H * 0.40;
     const on = save.diff === i;
     ctx.fillStyle = on ? d.col : 'rgba(255,255,255,0.18)';
     rr(ctx, x, y, cw2, ch2, ch2 * 0.28); ctx.fill();
@@ -141,7 +144,7 @@ function drawTitle() {
   });
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  fitFont(dif().sub, bw * 1.15, H * 0.037);
+  fitFont(dif().sub, dRow, H * 0.037);
   ctx.fillText(dif().sub, H * 0.06, H * 0.518);
 
   const bh = H * 0.13;
@@ -171,14 +174,18 @@ function drawHowto() {
     '⑥ よごれを 落とすと ★いっそう★ ゲージが たまる。いっぱいで つかうと',
     '　 光の波が 画面を わたって、通り道が いっぺんに ピカピカになる！',
     '⑦ よごれの下の おとしものは コインになる。おみせで 道具を 強くできる',
+    '⑧ 2へやめから 「へんな 部屋」が 出る（むずかしさで 出る回数が かわる）',
+    '　 あめもり＝よごれが ふってくる / ていでん＝まっくら',
+    '　 たからもの だらけ＝こわれものが いっぱい / カビ大はっせい＝カビが 増える',
   ];
   ctx.fillStyle = '#3A5A6E';
+  const step2 = Math.min(H * 0.079, (H * 0.70) / lines.length);
   lines.forEach((s, i) => {
-    fitFont(s, W * 0.92, H * 0.042);
-    ctx.fillText(s, H * 0.05, H * 0.17 + i * H * 0.079);
+    fitFont(s, W * 0.92, Math.min(H * 0.042, step2 * 0.68));
+    ctx.fillText(s, H * 0.05, H * 0.15 + i * step2);
   });
   const bh = H * 0.11;
-  drawButton(button(H * 0.05, H - bh - H * 0.05, H * 0.4, bh,
+  drawButton(button(W - H * 0.45, H * 0.05, H * 0.4, bh,
                     () => { game.screen = 'title'; }), 'もどる', '#FFD166');
 }
 
@@ -190,6 +197,101 @@ const TOOLBAR_H = 0.135;      // 画面の したに 道具の ボタンを お�
 // 前は 上下を あけていて 部屋が 小さかった
 function roomBox() {
   return { x: 0, y: 0, w: W, h: H };
+}
+
+// --- へんな 部屋 ------------------------------------------------------------
+
+// ていでん。ゆびの まわり だけ 見える。
+// どこを こすったか おぼえて いないと いけないので ぐっと むずかしい。
+// カビと こわれものは うっすら 見えるように している（見えないと つらすぎる）
+function drawDark(b) {
+  const lx = ui.drag ? ui.drag.sx : W * 0.5;
+  const ly = ui.drag ? ui.drag.sy : H * 0.5;
+  const flick = 0.88 + Math.sin(game.t * 11.3) * 0.06 + Math.sin(game.t * 3.7) * 0.06;
+  const r = Math.max(H * 0.19, brushR() * curTool().rMul / DIRT_W * b.w * 2.4) * flick;
+  const g = ctx.createRadialGradient(lx, ly, r * 0.3, lx, ly, r);
+  g.addColorStop(0, 'rgba(4,8,14,0)');
+  g.addColorStop(0.55, 'rgba(4,8,14,0.45)');
+  g.addColorStop(1, 'rgba(4,8,14,0.94)');
+  ctx.fillStyle = g;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const m of game.molds) {
+    if (m.dead) continue;
+    const mx = b.x + m.x * b.w, my = b.y + m.y * b.h, mr = m.r * b.w;
+    const g2 = ctx.createRadialGradient(mx, my, 0, mx, my, Math.max(4, mr * 1.2));
+    g2.addColorStop(0, 'rgba(70,150,90,0.55)');
+    g2.addColorStop(1, 'rgba(70,150,90,0)');
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.arc(mx, my, Math.max(4, mr * 1.2), 0, 7); ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(220,200,150,0.30)';
+  ctx.lineWidth = 2;
+  for (const bk of game.breaks) {
+    if (bk.broken) continue;
+    const rr2 = bk.r * b.w;
+    ctx.beginPath();
+    ctx.ellipse(b.x + bk.x * b.w, b.y + bk.y * b.h, rr2 * 1.05, rr2 * 0.85, 0, 0, 7);
+    ctx.stroke();
+  }
+}
+
+// 部屋に 入った ときに 「なにが おきているか」を 大きく 見せる。
+// おに の 終わりの ほうでは 2つ かさなるので、2つとも 見せる。
+function drawGimBanner() {
+  const gs = game.gims;
+  if (!gs.length || game.gimT <= 0) return;
+  const a = Math.min(1, game.gimT / 0.6);
+  const grow = game.gimT > 2.35 ? 1 + (game.gimT - 2.35) * 1.6 : 1;
+  const rowH = H * 0.155;
+  const bw = Math.min(W * 0.88, H * 1.6) * grow;
+  const bh = (rowH * gs.length + H * 0.035) * grow;
+  const x = (W - bw) / 2, y = H * 0.40 - bh / 2;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(12,20,30,0.85)';
+  rr(ctx, x, y, bw, bh, H * 0.03); ctx.fill();
+  ctx.strokeStyle = gs[gs.length - 1].col;
+  ctx.lineWidth = Math.max(2, H * 0.008);
+  rr(ctx, x, y, bw, bh, H * 0.03); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  gs.forEach((g, i) => {
+    const cy = y + bh * 0.5 + (i - (gs.length - 1) / 2) * rowH * grow;
+    ctx.fillStyle = g.col;
+    fitFont(g.name, bw * 0.9, rowH * 0.42 * grow, 'bold ');
+    ctx.fillText(g.name, x + bw / 2, cy - rowH * 0.19 * grow);
+    ctx.fillStyle = '#E8F0F6';
+    fitFont(g.desc, bw * 0.92, rowH * 0.25 * grow);
+    ctx.fillText(g.desc, x + bw / 2, cy + rowH * 0.22 * grow);
+  });
+  ctx.restore();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+
+// ずっと 出しておく 小さな ふだ。なにが おきているか わすれない ため
+function drawGimBadge() {
+  if (!game.gims.length) return;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const fs = Math.round(H * 0.032);
+  ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
+  const pad = H * 0.014, bh = fs * 1.6;
+  let x = H * 0.03;
+  const y = H * 0.112;
+  for (const g of game.gims) {
+    const tw = ctx.measureText(g.name).width;
+    ctx.fillStyle = 'rgba(10,18,26,0.72)';
+    rr(ctx, x, y, tw + pad * 2, bh, bh * 0.35); ctx.fill();
+    ctx.strokeStyle = g.col; ctx.lineWidth = 2;
+    rr(ctx, x, y, tw + pad * 2, bh, bh * 0.35); ctx.stroke();
+    ctx.fillStyle = g.col;
+    ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
+    ctx.fillText(g.name, x + pad, y + bh / 2);
+    x += tw + pad * 2 + H * 0.014;
+  }
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawClean() {
@@ -283,6 +385,36 @@ function drawClean() {
     ctx.beginPath(); ctx.arc(rx - rad * 0.25, ry - rad * 0.1, rad * 0.12, 0, 7); ctx.fill();
     ctx.beginPath(); ctx.arc(rx + rad * 0.25, ry - rad * 0.1, rad * 0.12, 0, 7); ctx.fill();
   }
+  // あめもりの しずく。おちる さきに わっかを 出して、
+  // 「あそこが よごれる」と 先に わかるように している
+  for (const d of game.drips) {
+    const dx2 = b.x + d.x * b.w, dy2 = b.y + d.y * b.h;
+    const ty2 = b.y + d.ty * b.h;
+    const rr3 = H * 0.019;
+    const near = Math.max(0, Math.min(1, 1 - (d.ty - d.y) / 0.5));
+    ctx.strokeStyle = 'rgba(120,190,240,' + (0.35 + near * 0.5).toFixed(2) + ')';
+    ctx.lineWidth = Math.max(2, H * 0.006);
+    ctx.beginPath();
+    ctx.ellipse(dx2, ty2, rr3 * (1.6 + near * 1.4), rr3 * (0.8 + near * 0.7), 0, 0, 7);
+    ctx.stroke();
+    // しっぽ
+    const gt = ctx.createLinearGradient(dx2, dy2 - rr3 * 5, dx2, dy2);
+    gt.addColorStop(0, 'rgba(170,215,245,0)');
+    gt.addColorStop(1, 'rgba(170,215,245,0.7)');
+    ctx.fillStyle = gt;
+    ctx.beginPath();
+    ctx.moveTo(dx2, dy2 - rr3 * 5);
+    ctx.lineTo(dx2 + rr3 * 0.75, dy2);
+    ctx.lineTo(dx2 - rr3 * 0.75, dy2);
+    ctx.closePath(); ctx.fill();
+    // つぶ
+    ctx.fillStyle = 'rgba(120,180,225,0.95)';
+    ctx.beginPath(); ctx.arc(dx2, dy2, rr3, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(dx2 - rr3 * 0.3, dy2 - rr3 * 0.3, rr3 * 0.38, 0, 7);
+    ctx.fill();
+  }
   // こすっている ふきだし。カビとりの ときは スプレーの しぶき
   if (game.scrubT > 0 && ui.drag) {
     const rad = brushR() * curTool().rMul / DIRT_W * b.w;
@@ -306,6 +438,8 @@ function drawClean() {
       ctx.stroke();
     }
   }
+  // ていでん。ゆびの まわり だけ 見える
+  if (hasGim('dark')) drawDark(b);
   // いっそうの 波
   if (game.sweep >= 0) {
     const wx = b.x + game.sweep * b.w;
@@ -324,7 +458,7 @@ function drawClean() {
   for (const s of game.sparks) {
     const a = Math.max(0, 1 - s.t / 0.9);
     ctx.globalAlpha = a;
-    ctx.fillStyle = s.t < 0.4 ? '#FFFFFF' : '#FFF3B0';
+    ctx.fillStyle = s.col || (s.t < 0.4 ? '#FFFFFF' : '#FFF3B0');
     const sz = H * 0.012 * (1 - s.t * 0.5);
     ctx.beginPath();
     ctx.arc(b.x + s.x * b.w, b.y + s.y * b.h, Math.max(1, sz), 0, 7);
@@ -405,6 +539,8 @@ function drawClean() {
     ctx.textAlign = 'left';
   }
 
+  drawGimBadge();
+  drawGimBanner();
   drawSweepButton();
   drawToolBar();
 }

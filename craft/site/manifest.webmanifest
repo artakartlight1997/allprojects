@@ -1,6 +1,6 @@
 {
-  "name": "りなのブロックワールド",
-  "short_name": "ブロック",
+  "name": "りなクラフト",
+  "short_name": "りなクラフト",
   "start_url": "./",
   "display": "fullscreen",
   "orientation": "landscape",

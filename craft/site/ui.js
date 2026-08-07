@@ -494,8 +494,8 @@ function drawTitle() {
 
   hx.textAlign = 'left'; hx.textBaseline = 'top';
   hx.fillStyle = '#FFFFFF';
-  fitFont('りなのブロックワールド', W2 * 0.62, H2 * 0.13, 'bold ');
-  hx.fillText('りなのブロックワールド', H2 * 0.07, H2 * 0.07);
+  fitFont('りなクラフト', W2 * 0.62, H2 * 0.13, 'bold ');
+  hx.fillText('りなクラフト', H2 * 0.07, H2 * 0.07);
   hx.fillStyle = '#EAF4FF';
   fitFont('ほって つんで、じぶんの せかいを つくる', W2 * 0.6, H2 * 0.05);
   hx.fillText('ほって つんで、じぶんの せかいを つくる', H2 * 0.075, H2 * 0.215);

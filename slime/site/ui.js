@@ -129,6 +129,20 @@ function demoProps(i) {
   return analyze(m);
 }
 
+// ほかの ゲームを えらぶ 入口（ゲームランド）へ もどる。
+// タイトル画面の 右上に 小さく 出す。全画面で 遊んでいると
+// ブラウザの「もどる」が 見えないので、ここから 帰れるようにしておく。
+function gotoHub() {
+  try { if (document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  location.href = '/allprojects/';
+}
+
+function drawHubButton() {
+  const mw = Math.min(W * 0.30, H * 0.60), mh = H * 0.085;
+  drawButton(button(W - mw - H * 0.03, H * 0.03, mw, mh, gotoHub),
+       '≡ ゲームをえらぶ', 'rgba(255,255,255,0.86)', '#33304A');
+}
+
 function drawTitle() {
   bg('#5B3B7A', '#C9A0DC');
   const i = Math.floor(game.t / 2.2) % 5;
@@ -166,6 +180,7 @@ function drawTitle() {
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   fitFont('のばす と ぷにぷに は 620つぶの 本物の スライム。ちぎれて くっつく', W * 0.55, H * 0.032);
   ctx.fillText('のばす と ぷにぷに は 620つぶの 本物の スライム。ちぎれて くっつく', H * 0.06, H * 0.79);
+  drawHubButton();
 }
 
 function drawHowto() {

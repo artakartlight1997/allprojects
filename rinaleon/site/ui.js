@@ -121,6 +121,20 @@ function pickFromThumb(u, v) {
 
 // --- タイトル -------------------------------------------------------------
 
+// ほかの ゲームを えらぶ 入口（ゲームランド）へ もどる。
+// タイトル画面の 右上に 小さく 出す。全画面で 遊んでいると
+// ブラウザの「もどる」が 見えないので、ここから 帰れるようにしておく。
+function gotoHub() {
+  try { if (document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  location.href = '/allprojects/';
+}
+
+function drawHubButton() {
+  const mw = Math.min(W * 0.30, H * 0.60), mh = H * 0.085;
+  drawButton(button(W - mw - H * 0.03, H * 0.03, mw, mh, gotoHub),
+       '≡ ゲームをえらぶ', 'rgba(255,255,255,0.86)', '#33304A');
+}
+
 function drawTitle() {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#2E7D5B'); g.addColorStop(1, '#8FD0A8');
@@ -178,6 +192,7 @@ function drawTitle() {
           W * 0.52, H * 0.032);
   ctx.fillText('ぜんぶで ' + ROUNDS + ' かい。パパに ' + SEEK_TIME + ' びょう 見つからなければ かち',
                H * 0.06, H * 0.80);
+  drawHubButton();
 }
 
 function drawHowto() {

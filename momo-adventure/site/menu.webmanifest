@@ -1,0 +1,9 @@
+{
+  "name": "りなのゲームランド",
+  "short_name": "ゲームランド",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#1b1426",
+  "theme_color": "#241a33",
+  "icons": [{ "src": "play/icon.png", "sizes": "512x512", "type": "image/png" }]
+}

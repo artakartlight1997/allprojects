@@ -367,6 +367,30 @@ function overlayText() {
   }
 }
 
+// ほかの ゲームを えらぶ 入口（ゲームランド）へ もどる
+function gotoHub() {
+  try { if (document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  location.href = '/allprojects/';
+}
+
+// タイトルの 左上のすみに 小さく 置く。
+// この画面は たてに ぎっしりなので、高さの 計算には まぜず 角に 重ねる。
+function drawHubButton() {
+  const h = clamp(viewH * 0.075, 26, 38);
+  setFont(h * 0.42);
+  const label = '≡ ゲームをえらぶ';
+  const w = ctx.measureText(label).width + h * 0.9;
+  const x = 10, y = 10;
+  fillRoundRect(x, y, w, h, h / 2, 'rgba(255,255,255,0.86)');
+  ctx.fillStyle = '#33304A';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + w / 2, y + h / 2);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ui.hubBtn = { x, y, w, h };
+}
+
 function drawOverlay() {
   const [title, body, btnLabel] = overlayText();
   fillRect(0, 0, viewW, viewH, 'rgba(0,0,0,0.67)');
@@ -415,6 +439,7 @@ function drawOverlay() {
     y += bodySize * 2.1;
     y += drawStagePicker(y, bodySize);
   }
+  if (isTitle) drawHubButton();
 
   ui.sizeBtns = [];
   if (isTitle) {
@@ -540,7 +565,7 @@ function drawEndingButton() {
 
 // --- 画面全体 -----------------------------------------------------------
 function drawScene() {
-  ui.left = ui.right = ui.jump = ui.overlayBtn = ui.fsBtn = null;
+  ui.left = ui.right = ui.jump = ui.overlayBtn = ui.fsBtn = ui.hubBtn = null;
   ui.sizeBtns = [];
   ui.stageBtns = [];
 
@@ -617,6 +642,7 @@ function onDown(e) {
     if (hitCircle(ui.jump, x, y)) { pointerTargets.set(e.pointerId, 'jump'); game.pressJump(); return; }
     return;
   }
+  if (hitRect(ui.hubBtn, x, y)) { gotoHub(); return; }
   for (const b of ui.stageBtns || []) {
     // うしろの景色も選んだステージに変えて、どの面か分かるようにする
     if (hitRect(b, x, y)) { game.selectStage(b.index); return; }

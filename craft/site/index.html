@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#7EC0EE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>りなのブロックワールド</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #10161C;
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* 3D は WebGL、文字とボタンは 2D。2まい重ねる。 */
+  #wrap { position: fixed; inset: 0; }
+  canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="world"></canvas>
+  <canvas id="hud"></canvas>
+</div>
+<!-- ?v= はキャッシュ避け。中身を直したら数字を 1 つ増やすこと。 -->
+<script src="gl.js?v=1"></script>
+<script src="blocks.js?v=1"></script>
+<script src="world.js?v=1"></script>
+<script src="player.js?v=1"></script>
+<script src="ui.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "りなのブロックワールド",
+  "short_name": "ブロック",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#10161C",
+  "theme_color": "#7EC0EE",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

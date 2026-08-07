@@ -21,6 +21,7 @@ on:
       - 'rinaleon/site/**'
       - 'osouji/site/**'
       - 'slime/site/**'
+      - 'craft/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -54,16 +55,18 @@ jobs:
       #   /rinaleon/   めっちゃリナレオン（ぬって隠れるかくれんぼ）
       #   /osouji/     りなのおそうじ大作戦（こすって道具を強くする）
       #   /slime/      リナのスライムラボ（材料をまぜてスライムを作る）
+      #   /craft/      りなのブロックワールド（3D のブロックの世界）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
           cp -r slime/site/. public/slime/
+          cp -r craft/site/. public/craft/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

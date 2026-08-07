@@ -266,6 +266,21 @@ function drawHud() {
 
 // ---------------------------------------------------------------- タイトル
 
+// ほかの ゲームを えらぶ 入口（ゲームランド）へ もどる。
+// タイトル画面の 右上に 小さく 出す。全画面で 遊んでいると
+// ブラウザの「もどる」が 見えないので、ここから 帰れるようにしておく。
+function gotoHub() {
+  try { if (document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  location.href = '/allprojects/';
+}
+
+function drawHubButton() {
+  const mw = Math.min(view.w * 0.30, view.h * 0.60), mh = view.h * 0.085;
+  // このゲームの drawButton は 4つめが「小さい字」なので 色は わたさない
+  drawButton(button(view.w - mw - view.h * 0.03, view.h * 0.03, mw, mh, gotoHub),
+       '≡ ゲームをえらぶ', 'rgba(255,255,255,0.86)');
+}
+
 function drawTitle() {
   const g = ctx.createLinearGradient(0, 0, 0, view.h);
   g.addColorStop(0, '#2b3f7a'); g.addColorStop(1, '#6fb6d8');
@@ -333,6 +348,7 @@ function drawTitle() {
   if (!fullscreenSupported() && !isStandalone()) {
     ctx.fillText('iPhone は「ホーム画面に追加」してから開くと大きく遊べます', t * 0.06, t * 0.945);
   }
+  drawHubButton();
 }
 
 // どこを回るか選ぶ画面。地方ごとに区切って遊べる

@@ -87,6 +87,20 @@ function roomCanvas(w, h, room) {
 
 // --- タイトル -------------------------------------------------------------
 
+// ほかの ゲームを えらぶ 入口（ゲームランド）へ もどる。
+// タイトル画面の 右上に 小さく 出す。全画面で 遊んでいると
+// ブラウザの「もどる」が 見えないので、ここから 帰れるようにしておく。
+function gotoHub() {
+  try { if (document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  location.href = '/allprojects/';
+}
+
+function drawHubButton() {
+  const mw = Math.min(W * 0.30, H * 0.60), mh = H * 0.085;
+  drawButton(button(W - mw - H * 0.03, H * 0.03, mw, mh, gotoHub),
+       '≡ ゲームをえらぶ', 'rgba(255,255,255,0.86)', '#33304A');
+}
+
 function drawTitle() {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#2F6E8C'); g.addColorStop(1, '#8FD3E8');
@@ -155,6 +169,7 @@ function drawTitle() {
                     () => { game.screen = 'shopFree'; }), 'どうぐ', '#CFEAF4');
   drawButton(button(H * 0.06 + bw * 0.52, H * 0.73, bw * 0.48, bh * 0.72,
                     () => { game.screen = 'howto'; }), 'あそびかた', '#D8E4F2');
+  drawHubButton();
 }
 
 function drawHowto() {

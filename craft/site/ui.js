@@ -478,6 +478,21 @@ function say(m) { UI.msg = m; UI.msgT = 2.2; }
 
 // --- タイトル ---------------------------------------------------------------
 
+// ほかの ゲームを えらぶ 入口（ゲームランド）へ もどる。
+// タイトル画面の 右上に 小さく 出す。全画面で 遊んでいると
+// ブラウザの「もどる」が 見えないので、ここから 帰れるようにしておく。
+function gotoHub() {
+  try { if (document.exitFullscreen) document.exitFullscreen(); } catch (e) {}
+  location.href = '/allprojects/';
+}
+
+function drawHubButton() {
+  // 右はしには ブロックを ならべた かざりが あるので、その ぶん 左に よける
+  const mw = Math.min(W2 * 0.30, H2 * 0.60), mh = H2 * 0.085;
+  drawBtn(btn(W2 - mw - H2 * 0.17, H2 * 0.03, mw, mh, gotoHub),
+       '≡ ゲームをえらぶ', 'rgba(255,255,255,0.86)', '#33304A');
+}
+
 function drawTitle() {
   const g = hx.createLinearGradient(0, 0, 0, H2);
   g.addColorStop(0, '#4E86C6'); g.addColorStop(0.55, '#8FC6E8');
@@ -546,6 +561,7 @@ function drawTitle() {
     drawBtn(btn(W2 / 2 + H2 * 0.02, H2 * 0.52, kw, kh, () => { UI.askDel = false; }),
             'やめる', '#D8E4F2');
   }
+  drawHubButton();
 }
 
 function drawHowto() {

@@ -103,7 +103,7 @@ function loadGame() {
   for (const [k, id] of W.edits) {
     if (id && blk(id).light > 0 && !blk(id).liquid) {
       const p = k.split(',');
-      W.lights.push({ x: +p[0], y: +p[1], z: +p[2], v: blk(id).light });
+      addLight(+p[0], +p[1], +p[2], blk(id).light);
     }
   }
   P.x = o.x; P.y = o.y; P.z = o.z; P.yaw = o.yaw; P.pitch = o.pitch;
@@ -123,6 +123,11 @@ function newGame(creative) {
   const s = spawnPoint();
   P.x = s.x; P.y = s.y; P.z = s.z;
   P.vx = P.vy = P.vz = 0; P.yaw = 0.6; P.pitch = 0.1;
+  // 村の そばに 出たときは、村の ほうを むいて はじめる
+  if (s.near) {
+    P.yaw = Math.atan2(s.near.x - P.x, s.near.z - P.z);
+    P.pitch = 0.05;
+  }
   P.hp = 10; P.slot = 0; P.fly = false;
   P.creative = creative;
   dayT = 0.42;
@@ -134,6 +139,8 @@ function newGame(creative) {
     invAdd(ID.planks, 16); invAdd(ID.torch, 8);
   }
   UI.hint = 6;
+  UI.msg = s.near ? 'むらが 目のまえに あるよ！' : '';
+  UI.msgT = s.near ? 4 : 0;
 }
 
 let saveT = 0;

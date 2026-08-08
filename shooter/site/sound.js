@@ -263,24 +263,44 @@ function bgmPump() {
 }
 
 function bgmBar(t0, bar, spb) {
+  // ★ パロディウス風に、行進曲みたいな はずむ 感じ に する。
+  //   ベースは「ブン・パッ」の オンパ、うわものは 木きんの ような
+  //   みじかい 音。まじめな 曲より コミカルに。
   const prog = BGM.prog[bgmSet], mins = BGM.min[bgmSet];
   const ci = bar % 4;
   const r = bgmRoot + prog[ci];
   const third = mins.indexOf(ci) >= 0 ? 3 : 4;
+
   for (let i = 0; i < 4; i++) {
-    kick(t0 + i * spb, 0.75);
-    if (i % 2 === 1) nz(t0 + i * spb, 0.09, 0.17, 900, 4600, A.mus);
+    // ドン（1・3拍）と タン（2・4拍）
+    if (i % 2 === 0) kick(t0 + i * spb, 0.8);
+    else nz(t0 + i * spb, 0.09, 0.18, 900, 4600, A.mus);
     nz(t0 + i * spb + spb / 2, 0.03, 0.06, 6000, 12000, A.mus);
   }
-  // はしる ベース
-  for (let i = 0; i < 8; i++) {
-    tone(t0 + i * (spb / 2), r - 24 + (i % 4 === 3 ? 5 : 0), spb * 0.40, 0.17, 'sawtooth', A.mus);
+
+  // オンパ ベース（うら拍で 和音を ポン）
+  for (let i = 0; i < 4; i++) {
+    tone(t0 + i * spb, r - 24, spb * 0.30, 0.20, 'triangle', A.mus);
+    for (const m of [r - 12, r - 12 + third, r - 5]) {
+      tone(t0 + i * spb + spb * 0.5, m, spb * 0.22, 0.07, 'square', A.mus);
+    }
   }
-  pad(t0, [r, r + third, r + 7], spb * 3.8, 0.11);
+
+  // 木きん風の メロディ（いつも 鳴る。はずむ）
+  const mel = [12, 12, 14, 16, 16, 14, 12, 7];
+  const len = [0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.75, 0.25];
+  let at = 0;
+  for (let i = 0; i < mel.length; i++) {
+    const d = len[i] * spb * 2;
+    tone(t0 + at, r + mel[i] + (bar % 2 ? 0 : 0), d * 0.55, 0.13, 'triangle', A.mus);
+    tone(t0 + at, r + mel[i] + 12, d * 0.30, 0.05, 'sine', A.mus);
+    at += d;
+  }
+
   if (bgmHot) {
-    const mel = [12, 14, 15, 12, 19, 15, 14, 12];
-    for (let i = 0; i < 8; i++) {
-      tone(t0 + i * (spb / 2), r + mel[i], spb * 0.3, 0.10, 'square', A.mus);
+    // ボス中は うらで はやい 3連
+    for (let i = 0; i < 12; i++) {
+      tone(t0 + i * (spb / 3), r - 12 + (i % 3 === 0 ? 0 : third), spb * 0.18, 0.07, 'square', A.mus);
     }
   }
 }

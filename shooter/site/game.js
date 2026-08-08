@@ -13,7 +13,7 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 3;
+const GAME_VER = 4;
 
 const VH = 450;
 
@@ -50,22 +50,24 @@ function foeHpMul() { return [1, 0.92, 0.84, 0.74][assistLevel(G.stage)]; }
 
 // --- てきの しゅるい ---------------------------------------------------------------
 
-// ★ さいしょは r13 くらいだったが「てきが 小さくて わからない」ので
-//   ぜんぶ 1.4ばい くらいに 大きく した。
+// ★ 小さくて 分からない と 言われたので 1.4倍に した。
+// ★ さらに「パロディウス風」に して、敵を ぜんぶ **へんな 生き物**に した。
+//   かっこいい 宇宙船だらけ より、ペンギンや モアイが 飛んでくる 方が
+//   小学生には ウケる。
 const FOES = {
-  //                 大きさ  かたさ  てん   うつ
-  zako:  { r: 19, hp: 1, pt: 100, shoot: 0,    col: '#FF8FA0', name: 'ザコ' },
-  wave:  { r: 19, hp: 1, pt: 140, shoot: 0,    col: '#B98FE0', name: 'うねうね' },
-  dive:  { r: 20, hp: 2, pt: 220, shoot: 0,    col: '#FFC46A', name: 'つっこみ' },
-  turret:{ r: 23, hp: 4, pt: 320, shoot: 1.5,  col: '#6ACB6A', name: 'うってくる' },
-  rock:  { r: 28, hp: 8, pt: 260, shoot: 0,    col: '#9AA0B0', name: 'いわ' },
-  gunner:{ r: 22, hp: 3, pt: 380, shoot: 1.05, col: '#5AC8E8', name: 'まというち' },
+  //                 大きさ  かたさ  点     うつ
+  zako:  { r: 19, hp: 1, pt: 100, shoot: 0,    col: '#F4F0FA', name: 'ペンギン' },
+  wave:  { r: 19, hp: 1, pt: 140, shoot: 0,    col: '#FF8FBB', name: 'タコ' },
+  dive:  { r: 20, hp: 2, pt: 220, shoot: 0,    col: '#FFC0CB', name: 'とびブタ' },
+  turret:{ r: 23, hp: 4, pt: 320, shoot: 1.5,  col: '#B0A89C', name: 'モアイ' },
+  rock:  { r: 28, hp: 8, pt: 260, shoot: 0,    col: '#F7E6A8', name: 'プリン' },
+  gunner:{ r: 22, hp: 3, pt: 380, shoot: 1.05, col: '#FFD166', name: 'ネコ' },
 };
 
 // ボス
 const BOSSES = {
-  ufo:  { r: 54, hp: 78,  pt: 3000, name: 'まるいUFO' },
-  core: { r: 58, hp: 118, pt: 5000, name: 'コアマシン' },
+  moai: { r: 54, hp: 78,  pt: 3000, name: 'モアイ大王' },
+  cat:  { r: 58, hp: 118, pt: 5000, name: 'デカネコ' },
   papa: { r: 56, hp: 108, pt: 6000, name: 'リナパパ' },
 };
 
@@ -103,11 +105,11 @@ function makeWaves(st) {
 //   選ぶ画面で ラスボスが 分かって しまうと、出てきた ときの
 //   おどろきが なくなる（「ドン引き」と 言われた）。
 const S_NAMES = [
-  '1. 出発', '2. 大群', '3. 反撃の砲台', '4. 未知の影',
-  '5. 岩の帯', '6. 狙撃注意', '7. 再びあの影', '8. 弾の雨',
-  '9. 突進ラッシュ', '10. 最後の影',
+  '1. 出発だペンギン', '2. タコ大群', '3. モアイの砲台', '4. 未知の影',
+  '5. プリンの帯', '6. ネコが狙う', '7. 再びあの影', '8. 弾の雨',
+  '9. ブタ突進ラッシュ', '10. 最後の影',
 ];
-const S_BOSS = ['ufo', 'ufo', 'core', 'papa', 'ufo', 'core', 'papa', 'core', 'ufo', 'papa'];
+const S_BOSS = ['moai', 'moai', 'cat', 'papa', 'moai', 'cat', 'papa', 'cat', 'moai', 'papa'];
 
 const STAGES = S_NAMES.map((name, i) => ({
   name, boss: S_BOSS[i], bossHp: 1 + i * 0.15, waves: makeWaves(i),
@@ -129,6 +131,7 @@ const G = {
   fire: 0,
   shots: [], ebul: [], foes: [], items: [], puffs: [],
   trail: [], opts: [],   // ★ オプション（船の とおった みちを ついてくる 玉）
+  bells: [],             // ★ ベル。うつと 色が 変わる（パロディウスの あれ）
   boss: null, bossIn: 0,
   intro: 0,          // ボス とうじょうの えんしゅつ の のこり時間
   wi: 0, pend: [],     // つぎに 出す なみ
@@ -152,7 +155,7 @@ function startStage(i) {
   G.inv = 1.0;
   G.fire = 0;
   G.shots = []; G.ebul = []; G.foes = []; G.items = []; G.puffs = [];
-  G.trail = []; G.opts = [];
+  G.trail = []; G.opts = []; G.bells = [];
   G.boss = null; G.bossIn = 0;
   G.intro = 0;
   G.wi = 0; G.pend = [];
@@ -257,14 +260,50 @@ function puff(x, y, col, n) {
   }
 }
 
+// ベルの 色と こうか（うつ たびに 次の 色へ）
+const BELL = [
+  { col: '#F4ECF7', name: '白いベル', txt: '1000点！' },
+  { col: '#8FD6FF', name: '青いベル', txt: 'バリア！' },
+  { col: '#FF8FA0', name: '赤いベル', txt: '画面ぜんぶに ドカン！' },
+  { col: '#A8F0B0', name: '緑のベル', txt: 'ライフ かいふく！' },
+];
+
 function dropItem(x, y) {
   const r = Math.random();
   let k = null;
-  if (r < 0.17) k = 'pw';
-  else if (r < 0.24) k = 'hp';
-  else if (r < 0.31) k = 'sh';
+  if (r < 0.15) k = 'pw';
+  else if (r < 0.21) k = 'hp';
+  else if (r < 0.27) k = 'sh';
+  else if (r < 0.40) {
+    // ★ ベル。ふわふわ ういている。うつと 色が 変わる。
+    G.bells.push({ x, y, vx: -46, vy: -18, c: 0, t: 0, r: 14 });
+    return;
+  }
   if (!k) return;
   G.items.push({ k, x, y, vx: -70, t: 0, r: 12 });
+}
+
+function takeBell(b) {
+  const B = BELL[b.c];
+  if (b.c === 0) G.score += 1000;
+  else if (b.c === 1) { G.shield = 8; }
+  else if (b.c === 2) {
+    // 画面じゅうの てきに ダメージ
+    for (const f of G.foes) { f.hp -= 3; f.hit = 1; }
+    for (let i = G.foes.length - 1; i >= 0; i--) {
+      if (G.foes[i].hp <= 0) {
+        G.score += FOES[G.foes[i].k].pt;
+        puff(G.foes[i].x, G.foes[i].y, FOES[G.foes[i].k].col, 10);
+        G.foes.splice(i, 1);
+      }
+    }
+    G.ebul = [];
+    if (G.boss) { G.boss.hp -= 6; G.boss.hit = 1; }
+    G.shake = 1;
+  } else { G.hp = Math.min(G.maxhp, G.hp + 1); }
+  G.score += 300;
+  say(B.txt);
+  sfxItem();
 }
 
 function takeItem(it) {
@@ -393,6 +432,18 @@ function update(dt) {
   for (const it of G.items) { it.x += it.vx * dt; it.t += dt; it.y += Math.sin(it.t * 3) * 24 * dt; }
   G.items = G.items.filter((it) => it.x > -30);
 
+  // ベル（ふわふわ ういて、うつと はねる）
+  for (const b of G.bells) {
+    b.t += dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.vy += 26 * dt;                 // ゆっくり 落ちる
+    if (b.y > VH - 24) { b.y = VH - 24; b.vy = -Math.abs(b.vy) * 0.6 - 20; }
+    if (b.y < 46) { b.y = 46; b.vy = Math.abs(b.vy); }
+    b.vx += (-46 - b.vx) * dt;
+  }
+  G.bells = G.bells.filter((b) => b.x > -34);
+
   collide();
 }
 
@@ -408,10 +459,10 @@ function updateBoss(dt) {
   const wild = b.hp < b.max * 0.4 ? 1 : 0;
   if (b.cd <= 0) {
     const sp = 138 + G.stage * 6 + wild * 26;
-    if (b.k === 'ufo') {
+    if (b.k === 'moai') {
       b.cd = 1.5 - wild * 0.4;
       for (let i = -2; i <= 2; i++) efire(b.x - 20, b.y, sp, Math.PI + i * 0.22);
-    } else if (b.k === 'core') {
+    } else if (b.k === 'cat') {
       b.cd = 1.15 - wild * 0.35;
       b.ph++;
       if (b.ph % 2) { for (let i = 0; i < 8; i++) efire(b.x, b.y, sp * 0.8, i * (Math.PI / 4) + b.t); }
@@ -453,6 +504,19 @@ function collide() {
       break;
     }
     if (gone) continue;
+    let belled = false;
+    for (const bl of G.bells) {
+      if (!hit(s, bl)) continue;
+      // ★ ベルは こわれない。色が 次に 変わって 上に はねる。
+      bl.c = (bl.c + 1) % BELL.length;
+      bl.vy = -90;
+      bl.vx = 40;
+      G.shots.splice(i, 1);
+      sfxGuard();
+      belled = true;
+      break;
+    }
+    if (belled) continue;
     const b = G.boss;
     if (b && b.x < W2 + 40 && hit(s, b)) {
       b.hp -= s.dmg; b.hit = 1;
@@ -478,6 +542,9 @@ function collide() {
   if (G.boss && hit(G.boss, me)) hurt();
   for (let i = G.items.length - 1; i >= 0; i--) {
     if (hit(G.items[i], { x: G.px, y: G.py, r: 18 })) { takeItem(G.items[i]); G.items.splice(i, 1); }
+  }
+  for (let i = G.bells.length - 1; i >= 0; i--) {
+    if (hit(G.bells[i], { x: G.px, y: G.py, r: 16 })) { takeBell(G.bells[i]); G.bells.splice(i, 1); }
   }
 }
 

@@ -1,0 +1,10 @@
+{
+  "name": "みんなでパーティ",
+  "short_name": "パーティ",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#241838",
+  "theme_color": "#241838",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

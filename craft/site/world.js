@@ -997,8 +997,9 @@ function resetWorld(seed) {
 }
 
 // たね から 立てる場所を さがす。
-// まずは 村の すぐ そとを ねらう —— はじめた とたんに 村が 見えると うれしいので。
-// 見つからなければ 草の ある たいらな ところ。
+// まずは 街の ひろば —— ふんすいと あかりと 土管が そろっていて、
+// はじめた とたんに「行くところ」が 目に 入る。
+// 街が 見つからなければ 村の そと、それも なければ 草の ある たいらな ところ。
 function spawnPoint() {
   if (W.theme !== 'home') {
     // もどる 土管の すぐ そばに 立たせる
@@ -1006,18 +1007,28 @@ function spawnPoint() {
     if (s.kind === 'town') return { x: 0.5, y: s.y + 2, z: 15.5, arrival: s };
     return { x: 34.5, y: s.y + 2, z: 27.5, arrival: s };
   }
-  for (let r = 0; r <= 3; r++) {
-    for (let gz = -r; gz <= r; gz++) {
-      for (let gx = -r; gx <= r; gx++) {
-        if (Math.max(Math.abs(gx), Math.abs(gz)) !== r) continue;
-        const st = structOf(gx, gz);
-        if (!st || st.kind !== 'village') continue;
-        // ならした ところの 外がわに 立たせる（村ぜんたいが 見わたせる）
-        for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-          const x = st.x + dx * (st.r + 16), z = st.z + dz * (st.r + 16);
-          const h = heightAt(x, z);
-          if (h > SEA + 1 && h < CY - 14) {
-            return { x: x + 0.5, y: h + 1.2, z: z + 0.5, near: st };
+  // 近い ところから 順に、街 → 村 の じゅんで さがす
+  for (const want of ['town', 'village']) {
+    for (let r = 0; r <= 3; r++) {
+      for (let gz = -r; gz <= r; gz++) {
+        for (let gx = -r; gx <= r; gx++) {
+          if (Math.max(Math.abs(gx), Math.abs(gz)) !== r) continue;
+          const st = structOf(gx, gz);
+          if (!st || st.kind !== want) continue;
+          if (want === 'town') {
+            // ひろばの はし。ふんすい（まん中から 4ます）にも ベンチ（7ます）にも
+            // 街灯（かどの 9ます）にも 土管（南に 9ます）にも かからない ところ。
+            // ふんすいに くっつけると かべしか 見えないので 10ます はなし、
+            // ななめに ずらして ベンチが 目のまえに 来ないように している。
+            return { x: st.x + 10.5, y: st.y + 2, z: st.z + 5.5, near: st, town: true };
+          }
+          // ならした ところの 外がわに 立たせる（村ぜんたいが 見わたせる）
+          for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+            const x = st.x + dx * (st.r + 16), z = st.z + dz * (st.r + 16);
+            const h = heightAt(x, z);
+            if (h > SEA + 1 && h < CY - 14) {
+              return { x: x + 0.5, y: h + 1.2, z: z + 0.5, near: st };
+            }
           }
         }
       }

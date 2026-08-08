@@ -148,9 +148,11 @@
       white-space: normal; line-height: 1.25;
     }
     h1 { font-size: clamp(1.1rem, 5vh, 1.5rem); margin-bottom: 2px; }
-    .sub { font-size: .72rem; }
-    .games { gap: 8px; }
-    .game { min-height: 62px; padding: 6px 8px 6px 6px; border-radius: 13px; }
+    /* ★ ゲームが 22こ。よこ向きの スマホでも スクロールなしで
+       ぜんぶ 見えるように、あいさつの 1行は しまう。 */
+    .sub { display: none; }
+    .games { gap: 6px; }
+    .game { min-height: 56px; padding: 6px 8px 6px 6px; border-radius: 13px; }
     /* 4れつだと よこが せまい。絵を 小さくして 名前の ばしょを かせぐ。 */
     .game img { width: 34px; height: 34px; flex-basis: 34px; border-radius: 8px; }
     .game .name { font-size: .9rem; margin-bottom: 1px; }
@@ -161,10 +163,10 @@
   @media (max-height: 390px) {
     header { margin-bottom: 5px; }
     h1 { font-size: clamp(1rem, 4.6vh, 1.3rem); }
-    .games { gap: 6px; }
-    .game { min-height: 54px; padding: 5px 7px 5px 5px; border-radius: 11px; }
-    .game img { width: 30px; height: 30px; flex-basis: 30px; border-radius: 7px; }
-    .game .name { font-size: .8rem; }
+    .games { gap: 5px; }
+    .game { min-height: 50px; padding: 5px 6px 5px 5px; border-radius: 11px; }
+    .game img { width: 28px; height: 28px; flex-basis: 28px; border-radius: 7px; }
+    .game .name { font-size: .78rem; line-height: 1.22; }
     .game .desc { font-size: .66rem; line-height: 1.28; }
   }
   a { color: var(--pink); }
@@ -180,6 +182,16 @@
 
   <!-- あたらしく 作ったものから 順に ならべている -->
   <div class="games">
+
+    <a class="game" href="/allprojects/mogura/" style="--accent:#A87A50">
+      <span class="badge">あたらしい</span>
+      <img src="mogura/icon.png" alt="" width="72" height="72" loading="lazy">
+      <span class="txt">
+        <span class="name">りなのモグラたたき</span>
+        <span class="desc">たたく もの と たたかない ものを 見わける。ボスは リナパパ</span>
+      </span>
+      <span class="go">›</span>
+    </a>
 
     <a class="game" href="/allprojects/shikoku/" style="--accent:#FFC46A">
       <span class="badge">あたらしい</span>
@@ -202,8 +214,7 @@
     </a>
 
     <a class="game" href="/allprojects/dungeon/" style="--accent:#C8B8E8">
-      <span class="badge">あたらしい</span>
-      <img src="dungeon/icon.png" alt="" width="72" height="72" loading="lazy">
+            <img src="dungeon/icon.png" alt="" width="72" height="72" loading="lazy">
       <span class="txt">
         <span class="name">りなのふしぎダンジョン</span>
         <span class="desc">ターンせいの もぐりRPG。ちか10かいの ドラゴンを たおせ</span>

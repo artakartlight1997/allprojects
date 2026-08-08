@@ -134,7 +134,7 @@
   @media (max-height: 430px) {
     body { padding-top: 8px; }
     header { margin-bottom: 8px; }
-    /* ゲームが 20こに なった。3れつ（6だん）では もう 入らないので、
+    /* ゲームが 21こに なった。3れつ（6だん）では もう 入らないので、
        よこ長の 画面では **4れつ**に して 4だんに おさめる。
        せつめいは 2行で 切る。行が のびると ふだが 高くなって はみ出すため。 */
     .games { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
@@ -181,6 +181,16 @@
   <!-- あたらしく 作ったものから 順に ならべている -->
   <div class="games">
 
+    <a class="game" href="/allprojects/shikoku/" style="--accent:#FFC46A">
+      <span class="badge">あたらしい</span>
+      <img src="shikoku/icon.png" alt="" width="72" height="72" loading="lazy">
+      <span class="txt">
+        <span class="name">りなのしこくツアー</span>
+        <span class="desc">名さんの おつかい。7めんから 地図が まわる！・全10めん</span>
+      </span>
+      <span class="go">›</span>
+    </a>
+
     <a class="game" href="/allprojects/kyushu/" style="--accent:#6ACB6A">
       <span class="badge">あたらしい</span>
       <img src="kyushu/icon.png" alt="" width="72" height="72" loading="lazy">
@@ -202,7 +212,6 @@
     </a>
 
     <a class="game" href="/allprojects/rescue/" style="--accent:#9FE0F4">
-      <span class="badge">あたらしい</span>
       <img src="rescue/icon.png" alt="" width="72" height="72" loading="lazy">
       <span class="txt">
         <span class="name">あおいのどうぶつレスキュー</span>

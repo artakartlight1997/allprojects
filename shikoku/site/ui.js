@@ -95,7 +95,30 @@ function mapBox() {
   return { s, ox, oy, w, h, x: left + (aw - w) / 2, y: top + (ah - h) / 2, B };
 }
 function m2s(M, x, y) { return { x: M.ox + x * M.s, y: M.oy + y * M.s }; }
-function s2m(M, x, y) { return { x: (x - M.ox) / M.s, y: (y - M.oy) / M.s }; }
+// ★ 地図が まわって いる ときは、さわった ところを **ぎゃくに まわして** から
+//   地図の ざひょうに なおす。そうしないと ずれた ところを おした ことに なる。
+function s2m(M, x, y) {
+  if (G.spin) {
+    const c = mapCenter(M);
+    const a = -G.spin;
+    const dx = x - c.x, dy = y - c.y;
+    x = c.x + dx * Math.cos(a) - dy * Math.sin(a);
+    y = c.y + dx * Math.sin(a) + dy * Math.cos(a);
+  }
+  return { x: (x - M.ox) / M.s, y: (y - M.oy) / M.s };
+}
+// 地図の 回転を 画面ざひょうに あてはめる（字を まっすぐ かく ため）
+function rotPt(M, x, y) {
+  if (!G.spin) return { x, y };
+  const c = mapCenter(M), a = G.spin;
+  const dx = x - c.x, dy = y - c.y;
+  return { x: c.x + dx * Math.cos(a) - dy * Math.sin(a),
+           y: c.y + dx * Math.sin(a) + dy * Math.cos(a) };
+}
+function mapCenter(M) {
+  const B = M.B;
+  return m2s(M, (B.x0 + B.x1) / 2, (B.y0 + B.y1) / 2);
+}
 
 function polyPath(M, poly, dx, dy, sc) {
   ctx.beginPath();
@@ -144,6 +167,14 @@ function drawPlay(t) {
   const M = mapBox();
   const labels = [];
 
+  ctx.save();
+  if (G.spin) {
+    const c = mapCenter(M);
+    ctx.translate(c.x, c.y);
+    ctx.rotate(G.spin);
+    ctx.translate(-c.x, -c.y);
+  }
+
   // まだの ところ（かげ）
   const showHole = G.S.mode !== 'fit2' || G.S.hint;
   for (const p of G.list) {
@@ -180,18 +211,49 @@ function drawPlay(t) {
   }
 
 
-  // 名まえは まっすぐ かく
+  ctx.restore();   // 地図の 回転 ここまで
+
+  // 名まえは まっすぐ かく（地図が まわって いても 字は まわさない）
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = 'bold 14px system-ui, sans-serif';
   for (const L of labels) {
     const showName = G.S.mode !== 'name' || G.askDone.indexOf(L.p.key) >= 0;
     if (!showName) continue;
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    const q = rotPt(M, L.x, L.y);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
     ctx.strokeStyle = 'rgba(20,30,44,0.85)'; ctx.lineWidth = 3.5;
-    ctx.strokeText(L.p.name, L.x, L.y);
-    ctx.fillText(L.p.name, L.x, L.y);
+    ctx.strokeText(L.p.name, q.x, q.y);
+    ctx.fillText(L.p.name, q.x, q.y);
   }
   ctx.textAlign = 'left';
+
+  // ★ 北の やじるしは 画面の きまった ところに 出す。
+  //   地図と いっしょに うごかすと、まわった とき 地図の 上に かさなって しまう。
+  {
+    const cx = 44, cy = 82;
+    ctx.fillStyle = 'rgba(10,26,44,0.6)';
+    ctx.beginPath(); ctx.arc(cx, cy, 26, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(G.spin || 0);
+    ctx.fillStyle = '#FF8FA0';
+    ctx.beginPath();
+    ctx.moveTo(0, -17); ctx.lineTo(7, 4); ctx.lineTo(0, 0); ctx.lineTo(-7, 4);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(0, 17); ctx.lineTo(7, 4); ctx.lineTo(0, 0); ctx.lineTo(-7, 4);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#FFE066';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.save(); ctx.translate(0, -22); ctx.rotate(-(G.spin || 0));
+    ctx.fillText('北', 0, 0);
+    ctx.restore();
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
 
   drawTop();
   drawTray(M, t);
@@ -241,8 +303,8 @@ function drawTop() {
   if (G.ask) {
     ctx.fillStyle = '#FFE066';
     ctx.textAlign = 'center';
-    fitFont(G.ask.name + 'けん は どこ？', VW * 0.36, 20, 'bold ');
-    ctx.fillText(G.ask.name + 'けん は どこ？', VW * 0.52, 23);
+    fitFont(askText(), VW * 0.36, 20, 'bold ');
+    ctx.fillText(askText(), VW * 0.52, 23);
   } else {
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center';
@@ -318,11 +380,11 @@ function drawTitle(t) {
   bg();
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#FFFFFF';
-  const fs = fitFont('りなのきゅうしゅうパズル', VW * 0.44, 38, 'bold ');
-  ctx.fillText('りなのきゅうしゅうパズル', 24, 16);
+  const fs = fitFont('りなのしこくツアー', VW * 0.44, 38, 'bold ');
+  ctx.fillText('りなのしこくツアー', 24, 16);
   ctx.fillStyle = '#C8F0FF';
-  fitFont('形を はめて いるうちに、九州の 県が しぜんに おぼえられる', VW * 0.50, 15);
-  ctx.fillText('形を はめて いるうちに、九州の 県が しぜんに おぼえられる', 26, 20 + fs + 4);
+  fitFont('地図が まわる ！ 「北がわ」で おぼえないと とけないよ', VW * 0.50, 15);
+  ctx.fillText('地図が まわる ！ 「北がわ」で おぼえないと とけないよ', 26, 20 + fs + 4);
 
   // 見本の 地図
   {
@@ -358,7 +420,8 @@ function drawTitle(t) {
       ctx.fillText(String(i + 1), cxp + (cw - 8) / 2, cyp + 5);
       ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.font = 'bold 10px system-ui, sans-serif';
-      const md = { learn: 'みる', fit: 'はめる', fit2: 'かげなし', name: 'なまえ', time: 'タイム' };
+      const md = { learn: 'みる', fit: 'はめる', fit2: 'かげなし', name: 'なまえ',
+                   item: 'おつかい', where: 'ばしょ', time: 'タイム' };
       ctx.fillText(md[STAGES[i].mode], cxp + (cw - 8) / 2, cyp + 24);
       ctx.fillStyle = '#FFE066';
       ctx.font = 'bold 13px system-ui, sans-serif';
@@ -399,19 +462,20 @@ function drawHowto() {
   ctx.font = 'bold 28px system-ui, sans-serif';
   ctx.fillText('あそびかた', 24, 14);
   const lines = [
-    '① 右に ならんだ かけらを ゆびで ひっぱる',
-    '② 地図の 正しい ところで はなすと ぴたっと はまる',
-    '③ ぜんぶ はまったら クリア',
+    '① 「うどんを とどけて！」のように 言われたら、その けんを タップ',
+    '② 「形を はめる」めんは、右の かけらを ひっぱって 地図に はめる',
     '',
-    '★ まちがえても へらない。「◯◯けんは 北のほう だよ」と ヒントが 出る',
-    '★ 1回も まちがえずに できると 星が 3つ',
+    '★ 7めん目から **地図が まわる**。画面の どこに あるか だけを',
+    '　 おぼえて いると、まわった とたんに わからなく なる。',
+    '　 「香川は 北がわ」「高知は 南がわ」で おぼえよう（北の やじるしを 見てね）',
     '',
-    '「なまえ さがし」の めんは、地図の 上で 言われた 県を タップするよ。',
-    'かたちだけ 見て 分かるように なったら、もう ばっちり！',
+    '★ まちがえても へらない。ヒントが 出るよ',
+    '★ 1回も まちがえずに できると ★★★',
     '',
-    '九州は 7つの 県（＋ 沖縄県）。北から 福岡・佐賀・長崎、',
-    'まん中に 熊本、東に 大分と 宮崎、南に 鹿児島。',
+    '四国は 4つの けん。北に 香川（うどん）、東に 徳島（すだち）、',
+    '西に 愛媛（みかん）、南に 高知（かつお）。',
   ];
+
   ctx.fillStyle = '#E8F4FA';
   lines.forEach((s, i) => {
     fitFont(s, VW * 0.94, 16);

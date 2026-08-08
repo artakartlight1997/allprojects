@@ -1,215 +1,136 @@
-// コース。10しゅるい。
+// コースのデータ。
 //
-// コースは「まん中の 線（centerline）」と「はば」だけで 作る。
-// 曲がりかどを 1つ 1つ 図形で 置くと 作るのも あたるか しらべるのも たいへん。
-// まん中の 線から どれだけ はなれているかを 見るだけなら、
-//   ・道の 上か 草の 上か
-//   ・いま 何しゅう目の どこか
-//   ・CPU が どこへ むかえば よいか
-// が ぜんぶ 同じ 計算で わかる。
+// ★ 前は真上から見おろす形だったが、「小さくて見にくい・スピード感がない」
+//   ので **後ろから見る立体の道**（アウトラン方式）に作り直した。
+//   道を短い「セグメント」に切って、遠くのセグメントほど小さく描く。
+//   カーブと坂はセグメントごとの「曲がり」と「高さ」で表す。
 //
-// 作るときは かどを 10〜14こ 置くだけ。あいだは カットマル・ロム曲線で
-// なめらかに つなぐので、かくかくした コースに ならない。
+// ★ コースは下の COURSES に「まっすぐ 何こ」「カーブ 何こ・強さ」を
+//   ならべて書くだけで作れる。数字を変えれば形が変わる。
 
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 1;
+const GAME_VER = 3;
 
-// カットマル・ロム。とじた わっか として つなぐ。
-function smooth(ctrl, per) {
-  const n = ctrl.length, out = [];
-  for (let i = 0; i < n; i++) {
-    const p0 = ctrl[(i - 1 + n) % n], p1 = ctrl[i];
-    const p2 = ctrl[(i + 1) % n], p3 = ctrl[(i + 2) % n];
-    for (let k = 0; k < per; k++) {
-      const s = k / per, s2 = s * s, s3 = s2 * s;
-      out.push([
-        0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * s +
-               (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * s2 +
-               (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * s3),
-        0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * s +
-               (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * s2 +
-               (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * s3),
-      ]);
-    }
+const VH = 450;
+
+const SEG_LEN = 320;        // セグメント1つの長さ（大きいほど軽い）
+const ROAD_W = 2200;        // 道の半分のはば
+const RUMBLE_N = 4;         // しま模様の切りかわり
+const DRAW_N = 110;        // 何セグメント先まで描くか（多すぎると重い）
+
+// --- コースを組み立てる道具 ---------------------------------------------------------
+
+function easeIn(a, b, p) { return a + (b - a) * p * p; }
+function easeOut(a, b, p) { return a + (b - a) * (1 - (1 - p) * (1 - p)); }
+function easeInOut(a, b, p) { return a + (b - a) * (-Math.cos(p * Math.PI) / 2 + 0.5); }
+
+function makeBuilder() {
+  const segs = [];
+  function lastY() { return segs.length ? segs[segs.length - 1].y2 : 0; }
+  function add(curve, y) {
+    const n = segs.length;
+    segs.push({ i: n, curve, y1: lastY(), y2: y, sprites: [], karts: [] });
   }
-  return out;
+  // enter … だんだん曲がる、hold … その曲がりのまま、leave … だんだん戻る
+  function road(enter, hold, leave, curve, hill) {
+    const start = lastY();
+    const total = enter + hold + leave;
+    const end = start + (hill || 0) * SEG_LEN;
+    for (let i = 0; i < enter; i++) add(easeIn(0, curve, i / enter), easeInOut(start, end, (0 + i) / total));
+    for (let i = 0; i < hold; i++) add(curve, easeInOut(start, end, (enter + i) / total));
+    for (let i = 0; i < leave; i++) add(easeInOut(curve, 0, i / leave), easeInOut(start, end, (enter + hold + i) / total));
+  }
+  return { segs, road };
 }
 
-// まわりの かざり（木・岩など）は 毎回 同じ ばしょに 出したいので、
-// Math.random ではなく コースごとの たねから 作る。
-function rndSeed(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
+// 文字で書いたコースを組み立てる
+//   ['s', 長さ]              まっすぐ
+//   ['c', 長さ, 曲がり]      カーブ（＋で右、−で左）
+//   ['h', 長さ, 高さ]        坂（＋でのぼり、−でくだり）
+//   ['ch', 長さ, 曲がり, 高さ] カーブ＋坂
+// ★ 1しゅうの長さ。plan の数字を そのまま使うと 1しゅう5秒くらいで
+//   あっという間に終わる。5倍にして 1しゅう30秒くらいにする。
+const PLAN_SCALE = 4;
+
+function buildTrack(plan) {
+  const B = makeBuilder();
+  for (const p of plan) {
+    const k = p[0], n = p[1] * PLAN_SCALE;
+    const third = Math.max(3, Math.round(n / 3));
+    if (k === 's') B.road(third, n - third * 2, third, 0, 0);
+    else if (k === 'c') B.road(third, n - third * 2, third, p[2], 0);
+    else if (k === 'h') B.road(third, n - third * 2, third, 0, p[2]);
+    else B.road(third, n - third * 2, third, p[2], p[3]);
+  }
+  // かざりを置く（同じコースなら毎回同じ場所に出るよう index から決める）
+  for (const s of B.segs) {
+    const r = (s.i * 9301 + 49297) % 233280 / 233280;
+    if (s.i % 7 === 0) s.sprites.push({ x: -1.45 - r * 0.7, k: (s.i / 7) % 3 });
+    if (s.i % 9 === 0) s.sprites.push({ x: 1.4 + r * 0.8, k: (s.i / 9 + 1) % 3 });
+    if (s.i % 31 === 0) s.sprites.push({ x: (s.i % 62 === 0 ? -1 : 1) * (1.08 + r * 0.06), k: 3 });
+  }
+  return B.segs;
 }
 
-function buildTrack(def) {
-  const pts = smooth(def.ctrl, 14);
-  const n = pts.length;
-  // それぞれの 点までの ながさ（1しゅうの どこかを 出すのに つかう）
-  const cum = new Array(n + 1).fill(0);
-  for (let i = 0; i < n; i++) {
-    const a = pts[i], b = pts[(i + 1) % n];
-    cum[i + 1] = cum[i] + Math.hypot(b[0] - a[0], b[1] - a[1]);
-  }
-  const len = cum[n];
-  // それぞれの 点の むきと、まがり ぐあい（CPU が スピードを おとす ため）
-  const dir = [], curve = [];
-  for (let i = 0; i < n; i++) {
-    const a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n];
-    const dx = b[0] - a[0], dy = b[1] - a[1];
-    const d = Math.hypot(dx, dy) || 1;
-    dir.push([dx / d, dy / d]);
-  }
-  for (let i = 0; i < n; i++) {
-    const p = dir[(i - 3 + n) % n], q = dir[(i + 3) % n];
-    // むきの ちがい（0 まっすぐ 〜 1 Uターン）
-    curve.push(Math.min(1, Math.acos(Math.max(-1, Math.min(1, p[0] * q[0] + p[1] * q[1]))) / 1.9));
-  }
-
-  const T = { def, pts, n, cum, len, dir, curve, hw: def.hw, laps: def.laps || 3 };
-
-  // アイテムの はこ・かそくパッド・みずたまり を 「1しゅうの どこか（0〜1）」で おく
-  T.boxes = (def.boxes || []).map((b) => mk(T, b[0], b[1], 13));
-  T.pads = (def.pads || []).map((b) => mk(T, b[0], b[1], 20));
-  T.pools = (def.pools || []).map((b) => mk(T, b[0], b[1], b[2] || 34));
-
-  // かざり。道の そとがわに ならべる
-  const rnd = rndSeed(def.seed || 7);
-  T.deco = [];
-  for (let i = 0; i < 130; i++) {
-    const u = rnd();
-    const side = rnd() < 0.5 ? -1 : 1;
-    const off = def.hw + 26 + rnd() * 150;
-    const q = mk(T, u, side * off, 0);
-    q.k = rnd();
-    q.s = 0.7 + rnd() * 0.8;
-    T.deco.push(q);
-  }
-  return T;
-}
-
-// 1しゅうの どこか u（0〜1）と よこの ずれ off から、じっさいの ばしょを 出す
-function mk(T, u, off, r) {
-  const f = ((u % 1) + 1) % 1 * T.n;
-  const i = Math.floor(f) % T.n;
-  const s = f - Math.floor(f);
-  const a = T.pts[i], b = T.pts[(i + 1) % T.n];
-  const d = T.dir[i];
-  return {
-    x: a[0] + (b[0] - a[0]) * s - d[1] * off,
-    y: a[1] + (b[1] - a[1]) * s + d[0] * off,
-    u, off, r, on: true,
-  };
-}
-
-// (x,y) が まん中の 線の どこに いちばん 近いか。
-// hint（まえの コマの こたえ）の まわりだけ しらべるので はやい。
-function nearestOn(T, x, y, hint) {
-  let bi = 0, bd = 1e18, bs = 0;
-  const from = (hint === undefined) ? 0 : hint - 26;
-  const to = (hint === undefined) ? T.n : hint + 26;
-  for (let k = from; k < to; k++) {
-    const i = ((k % T.n) + T.n) % T.n;
-    const a = T.pts[i], b = T.pts[(i + 1) % T.n];
-    const vx = b[0] - a[0], vy = b[1] - a[1];
-    const L2 = vx * vx + vy * vy || 1;
-    let s = ((x - a[0]) * vx + (y - a[1]) * vy) / L2;
-    s = Math.max(0, Math.min(1, s));
-    const px = a[0] + vx * s, py = a[1] + vy * s;
-    const d = (x - px) * (x - px) + (y - py) * (y - py);
-    if (d < bd) { bd = d; bi = i; bs = s; }
-  }
-  const a = T.pts[bi], b = T.pts[(bi + 1) % T.n];
-  const d = T.dir[bi];
-  // 左右 どちらに はずれているか（＋が 右）
-  const lat = (x - a[0]) * d[1] - (y - a[1]) * d[0];
-  return {
-    i: bi, s: bs,
-    u: (T.cum[bi] + Math.hypot(b[0] - a[0], b[1] - a[1]) * bs) / T.len,
-    lat: -lat,
-    dist: Math.sqrt(bd),
-  };
-}
-
-// --- 10コース -------------------------------------------------------------------
+// --- コース ------------------------------------------------------------------------
 //
-// はば hw が 大きいほど やさしい。1〜4 は ひろくて まがりも ゆるい。
-// 8〜10 は ほそくて、みずたまりや するどい かどが 出てくる。
-
-const THEMES = {
-  green: { grass: '#4E9B4A', grass2: '#448A42', road: '#4A4A56', edge: '#F2F2F2', sky: '#8FD6FF', deco: '#2F6B32' },
-  sand:  { grass: '#D8B36A', grass2: '#C8A25C', road: '#5A5058', edge: '#FFF0C0', sky: '#FFD98F', deco: '#9C7A3A' },
-  snow:  { grass: '#E4EEF6', grass2: '#D2E2EE', road: '#6A6A78', edge: '#8FD6FF', sky: '#BFE4FF', deco: '#7FA8C8' },
-  night: { grass: '#28304A', grass2: '#222A40', road: '#3A3A48', edge: '#FFE066', sky: '#141A2E', deco: '#3E4A6E' },
-  beach: { grass: '#E8D08A', grass2: '#4AA8C8', road: '#585460', edge: '#FFFFFF', sky: '#7FD8F0', deco: '#3E8FA8' },
-  forest:{ grass: '#3A7A3E', grass2: '#2E6634', road: '#464650', edge: '#D8F0C0', sky: '#6FC0A8', deco: '#1E4A22' },
-  lava:  { grass: '#7A3A2E', grass2: '#8F4430', road: '#3A3238', edge: '#FF9C5A', sky: '#C85A38', deco: '#4E2418' },
-  city:  { grass: '#7A7A86', grass2: '#6E6E7A', road: '#4A4A56', edge: '#FFE066', sky: '#A8C0D8', deco: '#5A5A6A' },
-  space: { grass: '#2A1E4A', grass2: '#241A40', road: '#4A4458', edge: '#8FD6FF', sky: '#120C24', deco: '#5A4A8A' },
-  rain:  { grass: '#5A7A6A', grass2: '#4E6E60', road: '#40444E', edge: '#C0E8F8', sky: '#7A8A98', deco: '#3A5A48' },
-};
+// theme … 色の組み合わせ。laps … 何しゅう。
 
 const COURSES = [
-  { name: 'はじめての サーキット', theme: 'green', hw: 64, laps: 3, seed: 11,
-    ctrl: [[0,-560],[420,-480],[620,-160],[560,220],[260,520],[-160,560],[-520,380],[-620,20],[-460,-360]],
-    boxes: [[0.24,-26],[0.24,0],[0.24,26],[0.62,-26],[0.62,0],[0.62,26]],
-    pads: [[0.45,0]] },
-
-  { name: 'なみなみ ロード', theme: 'beach', hw: 60, laps: 3, seed: 23,
-    ctrl: [[0,-580],[340,-520],[520,-260],[420,-40],[560,200],[380,500],[0,600],[-360,500],[-560,200],[-420,-40],[-520,-280],[-340,-520]],
-    boxes: [[0.18,-24],[0.18,0],[0.18,24],[0.55,-24],[0.55,0],[0.55,24],[0.82,0]],
-    pads: [[0.35,0],[0.70,0]] },
-
-  { name: 'もりの ぐるぐる', theme: 'forest', hw: 58, laps: 3, seed: 37,
-    ctrl: [[0,-600],[380,-540],[640,-300],[620,60],[380,300],[420,540],[80,640],[-300,560],[-560,340],[-640,-40],[-480,-360],[-220,-540]],
-    boxes: [[0.20,-24],[0.20,0],[0.20,24],[0.52,-24],[0.52,24],[0.78,0]],
-    pads: [[0.40,0],[0.88,0]],
-    pools: [[0.66, 30, 30]] },
-
-  { name: 'さばくの ダッシュ', theme: 'sand', hw: 56, laps: 3, seed: 51,
-    ctrl: [[0,-640],[440,-560],[700,-260],[600,120],[300,240],[380,520],[40,680],[-340,580],[-620,320],[-700,-60],[-540,-400],[-240,-580]],
-    boxes: [[0.16,-24],[0.16,0],[0.16,24],[0.48,-24],[0.48,24],[0.74,-24],[0.74,24]],
-    pads: [[0.30,0],[0.62,0]],
-    pools: [[0.42,-32,30],[0.86,28,30]] },
-
-  { name: 'よるの ネオン', theme: 'night', hw: 54, laps: 3, seed: 67,
-    ctrl: [[0,-620],[420,-580],[660,-320],[520,-40],[680,220],[440,520],[60,640],[-320,600],[-520,360],[-380,80],[-660,-160],[-460,-480]],
-    boxes: [[0.22,-22],[0.22,0],[0.22,22],[0.50,-22],[0.50,22],[0.76,-22],[0.76,22]],
-    pads: [[0.36,0],[0.66,0],[0.92,0]],
-    pools: [[0.58,0,32]] },
-
-  { name: 'ゆきやま サーキット', theme: 'snow', hw: 52, laps: 3, seed: 83,
-    ctrl: [[0,-660],[400,-600],[660,-380],[560,-80],[720,180],[480,480],[120,660],[-280,640],[-580,420],[-700,80],[-560,-260],[-260,-560]],
-    boxes: [[0.14,-22],[0.14,0],[0.14,22],[0.46,-22],[0.46,22],[0.72,-22],[0.72,22]],
-    pads: [[0.28,0],[0.60,0],[0.86,0]],
-    pools: [[0.34,26,34],[0.68,-26,34]] },
-
-  { name: 'あめの ハイウェイ', theme: 'rain', hw: 50, laps: 3, seed: 101,
-    ctrl: [[0,-680],[380,-640],[640,-440],[700,-120],[480,60],[660,300],[400,560],[0,700],[-400,600],[-660,340],[-700,-20],[-540,-360],[-280,-600]],
-    boxes: [[0.18,-20],[0.18,0],[0.18,20],[0.44,-20],[0.44,20],[0.70,-20],[0.70,20],[0.90,0]],
-    pads: [[0.32,0],[0.56,0],[0.80,0]],
-    pools: [[0.26,-24,32],[0.50,24,32],[0.76,0,32]] },
-
-  { name: 'まちなか クランク', theme: 'city', hw: 46, laps: 3, seed: 127,
-    ctrl: [[0,-660],[340,-660],[420,-380],[680,-260],[660,80],[380,180],[440,480],[100,640],[-260,660],[-420,420],[-680,300],[-640,-60],[-380,-200],[-440,-520]],
-    boxes: [[0.16,-18],[0.16,18],[0.42,-18],[0.42,18],[0.66,-18],[0.66,18],[0.88,0]],
-    pads: [[0.28,0],[0.54,0],[0.78,0]],
-    pools: [[0.36,20,30],[0.72,-20,30]] },
-
-  { name: 'かざんの ぐらぐら', theme: 'lava', hw: 44, laps: 3, seed: 151,
-    ctrl: [[0,-700],[400,-660],[700,-420],[560,-140],[760,120],[520,420],[180,660],[-200,700],[-520,520],[-700,200],[-520,-40],[-740,-300],[-420,-600]],
-    boxes: [[0.14,-18],[0.14,18],[0.40,-18],[0.40,18],[0.64,-18],[0.64,18],[0.86,-18],[0.86,18]],
-    pads: [[0.26,0],[0.52,0],[0.74,0],[0.94,0]],
-    pools: [[0.22,-22,32],[0.46,22,32],[0.68,-22,32],[0.90,22,32]] },
-
-  { name: 'うちゅう グランプリ', theme: 'space', hw: 42, laps: 3, seed: 173,
-    ctrl: [[0,-720],[360,-700],[620,-500],[520,-240],[780,-40],[620,280],[300,460],[420,680],[0,760],[-380,660],[-640,420],[-500,140],[-780,-100],[-600,-420],[-300,-660]],
-    boxes: [[0.12,-16],[0.12,16],[0.36,-16],[0.36,16],[0.58,-16],[0.58,16],[0.80,-16],[0.80,16]],
-    pads: [[0.24,0],[0.48,0],[0.68,0],[0.90,0]],
-    pools: [[0.20,20,30],[0.42,-20,30],[0.62,20,30],[0.84,-20,30]] },
+  { name: '1. はじめてのサーキット', theme: 'day', laps: 3, plan: [
+    ['s', 60], ['c', 50, 2], ['s', 40], ['c', 50, -2], ['s', 60], ['c', 40, 3], ['s', 50],
+  ] },
+  { name: '2. なみの見える丘', theme: 'sea', laps: 3, plan: [
+    ['s', 40], ['h', 50, 22], ['c', 50, -3], ['h', 50, -22], ['s', 40], ['c', 60, 3], ['s', 40],
+  ] },
+  { name: '3. 森のワインディング', theme: 'forest', laps: 3, plan: [
+    ['s', 30], ['c', 40, 4], ['c', 40, -4], ['c', 40, 4], ['c', 40, -4], ['s', 40], ['c', 50, 3], ['s', 30],
+  ] },
+  { name: '4. 夕やけロード', theme: 'sunset', laps: 3, plan: [
+    ['s', 50], ['ch', 60, 3, 26], ['s', 30], ['ch', 60, -3, -26], ['s', 40], ['c', 50, 4], ['s', 40],
+  ] },
+  { name: '5. さばくの直線', theme: 'desert', laps: 3, plan: [
+    ['s', 110], ['c', 40, 5], ['s', 60], ['c', 40, -5], ['s', 90], ['c', 40, 4], ['s', 40],
+  ] },
+  { name: '6. 雪山ヘアピン', theme: 'snow', laps: 3, plan: [
+    ['s', 30], ['c', 34, 6], ['s', 24], ['c', 34, -6], ['h', 40, 24], ['c', 40, 5], ['h', 40, -24], ['s', 30],
+  ] },
+  { name: '7. 夜のベイエリア', theme: 'night', laps: 3, plan: [
+    ['s', 46], ['c', 46, -4], ['s', 30], ['c', 46, 4], ['h', 40, 20], ['c', 40, -5], ['h', 40, -20], ['s', 40],
+  ] },
+  { name: '8. かざんロード', theme: 'volcano', laps: 3, plan: [
+    ['s', 34], ['c', 36, 5], ['c', 36, -5], ['h', 44, 30], ['c', 40, 5], ['h', 44, -30], ['c', 40, -4], ['s', 34],
+  ] },
+  { name: '9. 天空サーキット', theme: 'sky', laps: 3, plan: [
+    ['h', 50, 30], ['c', 40, 6], ['h', 44, -30], ['c', 40, -6], ['s', 30], ['c', 36, 6], ['c', 36, -6], ['s', 40],
+  ] },
+  { name: '10. さいごの大レース', theme: 'night', laps: 3, plan: [
+    ['s', 40], ['c', 36, 6], ['h', 40, 26], ['c', 40, -6], ['h', 40, -26], ['s', 30],
+    ['c', 34, 7], ['c', 34, -7], ['s', 44], ['c', 46, 5], ['s', 40],
+  ] },
 ];
+
+// 色の組み合わせ
+const THEMES = {
+  day:     { sky: ['#8FD6FF', '#DFF3FF'], grass: ['#6ACB6A', '#5CB85C'], road: ['#5A5A66', '#565662'],
+             rumble: ['#FFFFFF', '#FF6B7A'], lane: '#FFFFFF', deco: '#3E8E3E', fog: '#DFF3FF' },
+  sea:     { sky: ['#5AC8E8', '#DFF6FF'], grass: ['#7ED0A0', '#6CC490'], road: ['#5E5E6A', '#5A5A66'],
+             rumble: ['#FFFFFF', '#5AC8E8'], lane: '#FFFFFF', deco: '#3E9E7E', fog: '#DFF6FF' },
+  forest:  { sky: ['#79C6E8', '#D6F0E6'], grass: ['#3F9A54', '#378C4B'], road: ['#55555F', '#51515B'],
+             rumble: ['#FFF4D0', '#4A8C3F'], lane: '#FFF4D0', deco: '#215F32', fog: '#D6F0E6' },
+  sunset:  { sky: ['#FF9C5A', '#FFD9A8'], grass: ['#C08A4A', '#B07E42'], road: ['#4E4652', '#4A424E'],
+             rumble: ['#FFE066', '#FF6B7A'], lane: '#FFE9C0', deco: '#8A5A2A', fog: '#FFD9A8' },
+  desert:  { sky: ['#FFC46A', '#FFEFC8'], grass: ['#E0C078', '#D4B46C'], road: ['#6A6258', '#665E54'],
+             rumble: ['#FFFFFF', '#E08A3A'], lane: '#FFFFFF', deco: '#A88A48', fog: '#FFEFC8' },
+  snow:    { sky: ['#BFE0F0', '#F4FBFF'], grass: ['#F0F6FA', '#E4EEF4'], road: ['#7A828E', '#767E8A'],
+             rumble: ['#FF6B7A', '#FFFFFF'], lane: '#FFFFFF', deco: '#9FC0D0', fog: '#F4FBFF' },
+  night:   { sky: ['#1B1430', '#3A2A5A'], grass: ['#243050', '#20294A'], road: ['#3E3E4A', '#3A3A46'],
+             rumble: ['#FFE066', '#FF6B7A'], lane: '#FFE066', deco: '#4A5A8A', fog: '#3A2A5A' },
+  volcano: { sky: ['#5A2A34', '#B04A3A'], grass: ['#4A2A2A', '#442626'], road: ['#3A3238', '#362E34'],
+             rumble: ['#FF8F3A', '#FFE066'], lane: '#FFC46A', deco: '#8A3A2A', fog: '#B04A3A' },
+  // ★ 空と草の色が にていると 道の外が どこか 分からない。はっきり 分ける。
+  sky:     { sky: ['#4A90E2', '#BFE0FF'], grass: ['#FFFFFF', '#DCEBFA'], road: ['#5A5A6A', '#565666'],
+             rumble: ['#FF8FBB', '#7AB8FF'], lane: '#FFFFFF', deco: '#BFD8F0', fog: '#DFF0FF' },
+};

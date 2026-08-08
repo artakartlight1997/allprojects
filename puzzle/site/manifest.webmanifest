@@ -1,0 +1,10 @@
+{
+  "name": "りなのキラキラパズル",
+  "short_name": "キラキラパズル",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2A1E3A",
+  "theme_color": "#2A1E3A",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

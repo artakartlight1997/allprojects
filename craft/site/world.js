@@ -30,6 +30,22 @@ function h3(x, y, z, s) {
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
 
+// たね から 決まる 乱数。同じ たね なら 何回 呼んでも 同じ ならび。
+function rng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function cellSeed(gx, gz, salt) {
+  return (Math.imul(gx, 73856093) ^ Math.imul(gz, 19349663)
+          ^ Math.imul(W.seed, 2654435761) ^ salt) >>> 0;
+}
+
 // なめらかな でこぼこ（バリューノイズ）
 function vn2(x, z, s) {
   const xi = Math.floor(x), zi = Math.floor(z);
@@ -62,10 +78,48 @@ const W = {
   seed: 1,
   chunks: new Map(),        // "cx,cz" → チャンク
   edits: new Map(),         // "x,y,z" → ブロック番号（じぶんが変えたところ）
-  lights: [],               // たいまつ・ひかりいし の場所
+  // あかりは チャンクごとに 分けて しまう。
+  // 1つの ながい 配列に すると、街の 街灯が 何百こにも なったとき
+  // 地形を 作るたびに ぜんぶ 見にいくことに なって 遅い。
+  lights: new Map(),        // "cx,cz" → [{x,y,z,v}]
+  structs: new Map(),       // "gx,gz" → 街や村（なければ null）
+  worms: new Map(),         // "gx,gz" → ほらあなの みちすじ
   meshQueue: [],
   built: 0,
 };
+
+// --- あかり ------------------------------------------------------------------
+
+function addLight(x, y, z, v) {
+  const k = ckey(Math.floor(x / CH), Math.floor(z / CH));
+  let a = W.lights.get(k);
+  if (!a) { a = []; W.lights.set(k, a); }
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].x === x && a[i].y === y && a[i].z === z) return;   // 二重に 入れない
+  }
+  a.push({ x, y, z, v });
+}
+
+function removeLight(x, y, z) {
+  const a = W.lights.get(ckey(Math.floor(x / CH), Math.floor(z / CH)));
+  if (!a) return;
+  for (let i = a.length - 1; i >= 0; i--) {
+    if (a[i].x === x && a[i].y === y && a[i].z === z) a.splice(i, 1);
+  }
+}
+
+// このチャンクの まわりの あかりだけ 集める
+function lightsNear(cx, cz, out) {
+  out.length = 0;
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const a = W.lights.get(ckey(cx + dx, cz + dz));
+      if (!a) continue;
+      for (let i = 0; i < a.length && out.length < 24; i++) out.push(a[i]);
+    }
+  }
+  return out;
+}
 
 function ckey(cx, cz) { return cx + ',' + cz; }
 function ekey(x, y, z) { return x + ',' + y + ',' + z; }
@@ -79,7 +133,8 @@ function biomeAt(wx, wz) {
   return f > 0.5 ? BIOME.FOREST : BIOME.PLAIN;
 }
 
-function heightAt(wx, wz) {
+// なにも 建っていない ときの 地面の 高さ
+function rawHeightAt(wx, wz) {
   const big = vn2(wx / 220, wz / 220, W.seed + 7);
   const mid = vn2(wx / 64, wz / 64, W.seed + 11);
   const fine = vn2(wx / 21, wz / 21, W.seed + 13);
@@ -87,8 +142,217 @@ function heightAt(wx, wz) {
   const m = (big - 0.5) * 2;
   // 山は とがらせ、へこみは あさく。ぜんぶ 海に なると あそべない
   const mountain = m > 0 ? m * m * m * 24 : m * 4.2;
-  let h = SEA + 3.6 + mountain + (mid - 0.5) * 8.6 + (fine - 0.5) * 3;
+  const h = SEA + 3.6 + mountain + (mid - 0.5) * 8.6 + (fine - 0.5) * 3;
   return Math.max(4, Math.min(CY - 12, Math.round(h)));
+}
+
+// --- 街と村 ------------------------------------------------------------------
+//
+// 世界を SCELL ごとの 区画に 分けて、区画ごとに 街か 村か 何もなしを 決める。
+// 場所は たね から 決まるので、同じ たね なら いつも 同じ ところに ある。
+//
+// 建物は でこぼこの 上には 建てられないので、まわりの 地面を ならす。
+// ならしかたは heightAt の 中でやる ——
+// そうすると 地面・木の 生えかた・明るさの 計算が ぜんぶ 同じ 高さを 見るので、
+// 「家が 宙に うく」「木が 屋根から 生える」といったことが 起きない。
+
+const SCELL = 320;          // 区画の 大きさ
+const SEDGE = 12;           // ならした ところから もとの 地面へ なじませる はば
+const SREACH = 90;          // 区画の へりから いちばん 遠くまで とどく はんい
+
+function structOf(gx, gz) {
+  const k = gx + ',' + gz;
+  if (W.structs.has(k)) return W.structs.get(k);
+  let s = null;
+  const rn = rng(cellSeed(gx, gz, 0x5713));
+  const roll = rn();
+  const kind = roll < 0.20 ? 'town' : roll < 0.64 ? 'village' : null;
+  if (kind) {
+    const r = kind === 'town' ? 64 : 45;
+    const pad = r + SEDGE + 6;
+    const x = Math.round(gx * SCELL + pad + rn() * (SCELL - pad * 2));
+    const z = Math.round(gz * SCELL + pad + rn() * (SCELL - pad * 2));
+    let sum = 0, n = 0, lo = 999, hi = -999, ok = true;
+    for (const [dx, dz] of [[0, 0], [-r, -r], [r, -r], [-r, r], [r, r],
+                            [0, -r], [0, r], [-r, 0], [r, 0]]) {
+      const hh = rawHeightAt(x + dx, z + dz);
+      sum += hh; n++;
+      if (hh < lo) lo = hh;
+      if (hh > hi) hi = hh;
+      if (biomeAt(x + dx, z + dz) === BIOME.SNOW) ok = false;
+    }
+    const base = Math.round(sum / n);
+    // 海の中・がけの上・高すぎる ところには 建てない
+    if (base <= SEA + 2 || hi - lo > 20 || base > CY - 26) ok = false;
+    if (ok) s = { kind, x, z, r, y: base, seed: cellSeed(gx, gz, 0x9AB1) };
+  }
+  W.structs.set(k, s);
+  return s;
+}
+
+// (wx,wz) が どの 街／村の 中に あるか。ならす はばの 外なら null。
+function structAt(wx, wz) {
+  const gx = Math.floor(wx / SCELL), gz = Math.floor(wz / SCELL);
+  const lx = wx - gx * SCELL, lz = wz - gz * SCELL;
+  let s = hitStruct(structOf(gx, gz), wx, wz);
+  if (s) return s;
+  // 区画の へりの ちかく だけ となりも しらべる（ふだんは 1回で すむ）
+  const dx0 = lx < SREACH ? -1 : 0, dx1 = lx > SCELL - SREACH ? 1 : 0;
+  const dz0 = lz < SREACH ? -1 : 0, dz1 = lz > SCELL - SREACH ? 1 : 0;
+  if (!dx0 && !dx1 && !dz0 && !dz1) return null;
+  for (let dz = dz0; dz <= dz1; dz++) {
+    for (let dx = dx0; dx <= dx1; dx++) {
+      if (!dx && !dz) continue;
+      s = hitStruct(structOf(gx + dx, gz + dz), wx, wz);
+      if (s) return s;
+    }
+  }
+  return null;
+}
+
+function hitStruct(s, wx, wz) {
+  if (!s) return null;
+  const d = Math.max(Math.abs(wx - s.x), Math.abs(wz - s.z));
+  return d <= s.r + SEDGE ? s : null;
+}
+
+// この しかくの中に かかる 街や村を あつめる
+function structsOverlapping(x0, z0, x1, z1) {
+  const out = [];
+  const g0x = Math.floor((x0 - SREACH) / SCELL), g1x = Math.floor((x1 + SREACH) / SCELL);
+  const g0z = Math.floor((z0 - SREACH) / SCELL), g1z = Math.floor((z1 + SREACH) / SCELL);
+  for (let gz = g0z; gz <= g1z; gz++) {
+    for (let gx = g0x; gx <= g1x; gx++) {
+      const s = structOf(gx, gz);
+      if (!s) continue;
+      const r = s.r + SEDGE;
+      if (s.x + r < x0 || s.x - r > x1 || s.z + r < z0 || s.z - r > z1) continue;
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+// 街や村の ところは 地面を たいらに する。そとに 行くほど もとの 地面に もどす。
+function heightAt(wx, wz) {
+  const h = rawHeightAt(wx, wz);
+  const s = structAt(wx, wz);
+  if (!s) return h;
+  const d = Math.max(Math.abs(wx - s.x), Math.abs(wz - s.z));
+  if (d <= s.r) return s.y;
+  const t = (s.r + SEDGE - d) / SEDGE;
+  return Math.round(h + (s.y - h) * t);
+}
+
+// --- ほらあな ----------------------------------------------------------------
+//
+// まえは 3D ノイズの しきい値だけで 穴を あけていた。
+// それだと「あちこちに ぽつぽつ 空どうが ある」だけで、つながっていないし
+// 地上から 入り口も 見つからない。
+//
+// そこで「ミミズ」を はわせる。ある点から 向きを すこしずつ 変えながら
+// 進ませて、通り道を まるく くりぬく。これで ぐねぐね つながった
+// ほんとうの ほらあなに なる。ときどき 大きな 広間も 作る。
+// 3回に 1回は 地面から はじめて、入り口が 外から 見えるようにしてある。
+
+const WCELL = 96;           // ミミズを わかせる 区画
+
+function wormsOf(gx, gz) {
+  const k = gx + ',' + gz;
+  let list = W.worms.get(k);
+  if (list) return list;
+  list = [];
+  const rn = rng(cellSeed(gx, gz, 0x3C71));
+  const n = rn() < 0.4 ? 2 : 1;
+  for (let i = 0; i < n; i++) {
+    const fromTop = rn() < 0.34;
+    let x = gx * WCELL + rn() * WCELL;
+    let z = gz * WCELL + rn() * WCELL;
+    const surf = rawHeightAt(Math.round(x), Math.round(z));
+    if (surf <= SEA + 1) continue;             // 海の下からは はじめない
+    let y = fromTop ? surf - 1 : 7 + rn() * 34;
+    let yaw = rn() * 6.283;
+    let pitch = fromTop ? 0.55 + rn() * 0.5 : (rn() - 0.5) * 0.5;
+    const steps = 70 + ((rn() * 90) | 0);
+    const roomAt = 12 + ((rn() * 40) | 0);
+    const path = new Float32Array(steps * 4);
+    const ns = cellSeed(gx, gz, 0x77 + i);
+    for (let t = 0; t < steps; t++) {
+      let r = 2.0 + vn2(t * 0.09, i * 13.3, ns) * 1.9;
+      if (t > roomAt && t < roomAt + 5) r = 5.5 + vn2(t * 0.4, i * 3.1, ns) * 3.0;
+      path[t * 4] = x; path[t * 4 + 1] = y; path[t * 4 + 2] = z; path[t * 4 + 3] = r;
+      yaw += (vn2(t * 0.11, i * 7.7, ns) - 0.5) * 0.55;
+      pitch += (vn2(t * 0.13 + 50, i * 5.3, ns) - 0.5) * 0.32;
+      if (pitch > 0.62) pitch = 0.62;
+      if (pitch < -0.5) pitch = -0.5;
+      // ふかく なりすぎたら 上へ、あさく なりすぎたら 下へ もどす
+      if (y < 9) pitch -= 0.10;
+      if (y > 46) pitch += 0.10;
+      const cp = Math.cos(pitch);
+      x += Math.sin(yaw) * cp * 1.3;
+      y -= Math.sin(pitch) * 1.3;
+      z += Math.cos(yaw) * cp * 1.3;
+      if (y < 3 || y > CY - 6) break;
+    }
+    list.push({ path, n: path.length / 4, top: fromTop });
+  }
+  W.worms.set(k, list);
+  if (W.worms.size > 400) {          // 遠くの ぶんは 捨てる（また 作れる）
+    const it = W.worms.keys();
+    for (let i = 0; i < 120; i++) { const kk = it.next().value; W.worms.delete(kk); }
+  }
+  return list;
+}
+
+// このチャンクの ぶんだけ くりぬく
+function carveWorms(ch) {
+  const x0 = ch.cx * CH, z0 = ch.cz * CH;
+  const g0x = Math.floor((x0 - WCELL) / WCELL), g1x = Math.floor((x0 + CH + WCELL) / WCELL);
+  const g0z = Math.floor((z0 - WCELL) / WCELL), g1z = Math.floor((z0 + CH + WCELL) / WCELL);
+  for (let gz = g0z; gz <= g1z; gz++) {
+    for (let gx = g0x; gx <= g1x; gx++) {
+      for (const w of wormsOf(gx, gz)) {
+        const p = w.path;
+        for (let t = 0; t < w.n; t++) {
+          const cxp = p[t * 4], cyp = p[t * 4 + 1], czp = p[t * 4 + 2];
+          let r = p[t * 4 + 3];
+          if (r <= 0) continue;
+          // 入り口の あたりは すこし 広げて、外から 見つけやすくする
+          if (w.top && t < 4) r += 1.2;
+          if (cxp + r < x0 || cxp - r > x0 + CH - 1) continue;
+          if (czp + r < z0 || czp - r > z0 + CH - 1) continue;
+          carveBall(ch, cxp, cyp, czp, r);
+        }
+      }
+    }
+  }
+}
+
+function carveBall(ch, cx, cy, cz, r) {
+  const x0 = ch.cx * CH, z0 = ch.cz * CH;
+  const ax = Math.max(x0, Math.floor(cx - r)), bx = Math.min(x0 + CH - 1, Math.ceil(cx + r));
+  const az = Math.max(z0, Math.floor(cz - r)), bz = Math.min(z0 + CH - 1, Math.ceil(cz + r));
+  const ay = Math.max(1, Math.floor(cy - r)), by = Math.min(CY - 1, Math.ceil(cy + r));
+  const r2 = r * r;
+  for (let z = az; z <= bz; z++) {
+    for (let x = ax; x <= bx; x++) {
+      const col = (x - x0) + (z - z0) * CH;
+      const surf = ch.hm[col];
+      const dx = x + 0.5 - cx, dz = z + 0.5 - cz;
+      const dxz = dx * dx + dz * dz;
+      if (dxz > r2) continue;
+      // 海の底に 穴を あけると 海が ぬけるので、水の下では 地面ちかくを 残す
+      const top = surf > SEA + 1 ? surf : surf - 3;
+      for (let y = ay; y <= by; y++) {
+        if (y > top) continue;
+        const dy = (y + 0.5 - cy) * 1.15;    // すこし たてに つぶす
+        if (dxz + dy * dy > r2) continue;
+        const i = col + y * CHXZ;
+        if (ch.b[i] === ID.bedrock) continue;
+        ch.b[i] = 0;
+      }
+    }
+  }
 }
 
 // 石のなかに どの鉱石が うまっているか。2x2x2 でかたまるようにしてある。
@@ -130,32 +394,54 @@ function genChunk(cx, cz) {
         } else {
           id = oreAt(wx, y, wz, h);
         }
-        // ほらあな。地面のすぐ下から 下のほうまで あく
-        if (y > 1 && y < h - 1) {
+        // こまかい 空どう。ミミズの ほらあなに ぽつぽつ 足す ていど。
+        if (y > 1 && y < h - 2) {
           const cave = vn3(wx / 26, y / 15, wz / 26, W.seed + 53);
-          const cave2 = vn3(wx / 11, y / 9, wz / 11, W.seed + 59);
-          if (cave > 0.635 || (y < 26 && cave * 0.6 + cave2 * 0.4 > 0.615)) {
-            // 水の下は くりぬかない（海が ぬける）
-            if (y < h - 2 || h > SEA + 1) id = 0;
-          }
+          if (cave > 0.70 && (y < h - 2 || h > SEA + 1)) id = 0;
         }
         b[col + y * CHXZ] = id;
-      }
-      // 海・みずうみ
-      for (let y = h + 1; y <= SEA; y++) b[col + y * CHXZ] = ID.water;
-      // いちばん下は ようがんの 海。ほらあなの 底に たまる。
-      // まえは y<9 の 空どうの 55% を ばらばらに ようがんに していて、
-      // 地下が ようがんだらけ で 見た目も あぶなさも ひどかった。
-      for (let y = 1; y <= 4; y++) {
-        if (b[col + y * CHXZ] === 0) b[col + y * CHXZ] = ID.lava;
       }
     }
   }
   const ch = { cx, cz, b, hm, bm, mesh: null, dirty: true, gen: true };
   W.chunks.set(ckey(cx, cz), ch);
-  decorate(ch);
-  applyEdits(ch);
+
+  carveWorms(ch);                       // ぐねぐねの ほらあなを ほる
+
+  for (let z = 0; z < CH; z++) {
+    for (let x = 0; x < CH; x++) {
+      const col = x + z * CH;
+      const h = hm[col];
+      for (let y = h + 1; y <= SEA; y++) b[col + y * CHXZ] = ID.water;  // 海・みずうみ
+      // いちばん下は ようがんの 海。ほらあなの 底に たまる。
+      for (let y = 1; y <= 4; y++) if (b[col + y * CHXZ] === 0) b[col + y * CHXZ] = ID.lava;
+    }
+  }
+
+  buildStructures(ch);                  // 街・村を 建てる
+  decorate(ch);                         // 木・花・草
+  applyEdits(ch);                       // じぶんが いじった ぶん
   return ch;
+}
+
+// 街や村を この チャンクの ぶんだけ 書きこむ。
+// 建物は チャンクを またぐので、かかっている ものを ぜんぶ 見て、
+// はみ出した ぶんは 捨てる（となりの チャンクが 作られるとき また 書かれる）。
+function buildStructures(ch) {
+  const x0 = ch.cx * CH, z0 = ch.cz * CH, x1 = x0 + CH - 1, z1 = z0 + CH - 1;
+  const list = structsOverlapping(x0, z0, x1, z1);
+  if (!list.length) return;
+  const put = (wx, wy, wz, id) => {
+    if (wx < x0 || wx > x1 || wz < z0 || wz > z1) return;
+    if (wy < 1 || wy >= CY) return;
+    ch.b[(wx - x0) + (wz - z0) * CH + wy * CHXZ] = id;
+    if (id && BLOCKS[id].light > 0 && !BLOCKS[id].liquid) addLight(wx, wy, wz, BLOCKS[id].light);
+  };
+  const box = { x0, z0, x1, z1 };
+  for (const s of list) {
+    if (s.kind === 'town') drawTown(s, put, box);
+    else drawVillage(s, put, box);
+  }
 }
 
 // 木・花・草・サボテン。木は チャンクを またぐので、
@@ -173,6 +459,7 @@ function decorate(ch) {
     for (let wx = x0 - 3; wx < x0 + CH + 3; wx++) {
       const h = heightAt(wx, wz);
       if (h < SEA + 1) continue;
+      if (structAt(wx, wz)) continue;      // 街や村の 中には 生やさない
       const bio = biomeAt(wx, wz);
       const r = h2(wx, wz, W.seed + 101);
 
@@ -260,15 +547,8 @@ function setBlock(x, y, z, id) {
   c.b[i] = id;
   W.edits.set(ekey(x, y, z), id);
 
-  if (blk(was).light > 0) {
-    for (let k = W.lights.length - 1; k >= 0; k--) {
-      const L = W.lights[k];
-      if (L.x === x && L.y === y && L.z === z) W.lights.splice(k, 1);
-    }
-  }
-  if (blk(id).light > 0 && !blk(id).liquid) {
-    W.lights.push({ x, y, z, v: blk(id).light });
-  }
+  if (blk(was).light > 0) removeLight(x, y, z);
+  if (blk(id).light > 0 && !blk(id).liquid) addLight(x, y, z, blk(id).light);
   // 地面の高さが変わったら 明るさも変わる
   if (y > c.hm[lx + lz * CH] && id !== 0 && blk(id).opaque) c.hm[lx + lz * CH] = y;
   else if (y === c.hm[lx + lz * CH] && id === 0) {
@@ -391,13 +671,7 @@ function buildMesh(ch) {
     }
   }
   // このチャンクの ちかくの あかり だけ 集める
-  const near = [];
-  for (const L of W.lights) {
-    if (L.x >= x0 - 9 && L.x < x0 + CH + 9 && L.z >= z0 - 9 && L.z < z0 + CH + 9) {
-      near.push(L);
-      if (near.length >= 16) break;
-    }
-  }
+  const near = lightsNear(ch.cx, ch.cz, []);
   const M = { ch, nb, near, x0, z0 };
 
   // 高さで 3 つの だん に 分ける。ほらあなの 天井や 地下の かべは
@@ -634,17 +908,38 @@ function buildSome(budgetMs) {
 function resetWorld(seed) {
   for (const [, c] of W.chunks) if (c.mesh) R.gl.deleteBuffer(c.mesh.buf);
   W.chunks.clear();
-  W.lights.length = 0;
+  W.lights.clear();
+  W.structs.clear();
+  W.worms.clear();
   W.seed = seed | 0;
 }
 
-// たね から 立てる場所を さがす（水の中や 木の中に 出ないように）
+// たね から 立てる場所を さがす。
+// まずは 村の すぐ そとを ねらう —— はじめた とたんに 村が 見えると うれしいので。
+// 見つからなければ 草の ある たいらな ところ。
 function spawnPoint() {
+  for (let r = 0; r <= 3; r++) {
+    for (let gz = -r; gz <= r; gz++) {
+      for (let gx = -r; gx <= r; gx++) {
+        if (Math.max(Math.abs(gx), Math.abs(gz)) !== r) continue;
+        const st = structOf(gx, gz);
+        if (!st || st.kind !== 'village') continue;
+        // ならした ところの 外がわに 立たせる（村ぜんたいが 見わたせる）
+        for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+          const x = st.x + dx * (st.r + 16), z = st.z + dz * (st.r + 16);
+          const h = heightAt(x, z);
+          if (h > SEA + 1 && h < CY - 14) {
+            return { x: x + 0.5, y: h + 1.2, z: z + 0.5, near: st };
+          }
+        }
+      }
+    }
+  }
   let backup = null;
   for (let r = 0; r < 90; r++) {
     for (let i = 0; i < 8; i++) {
-      const a = (r * 8 + i) * 0.7;
-      const x = Math.round(Math.cos(a) * r * 2), z = Math.round(Math.sin(a) * r * 2);
+      const a2 = (r * 8 + i) * 0.7;
+      const x = Math.round(Math.cos(a2) * r * 2), z = Math.round(Math.sin(a2) * r * 2);
       const h = heightAt(x, z);
       if (h <= SEA + 1 || h >= CY - 14) continue;
       const p = { x: x + 0.5, y: h + 1.2, z: z + 0.5 };

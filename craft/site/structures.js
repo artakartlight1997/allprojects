@@ -149,6 +149,9 @@ function drawVillage(s, put, box) {
   for (let gz = -VRING; gz <= VRING; gz++) {
     for (let gx = -VRING; gx <= VRING; gx++) {
       if (!gx && !gz) continue;
+      // ここは 土管の ぶんとして あけておく。
+      // 家を 建ててしまうと、かべに かこまれて 土管に 近づけない。
+      if (gx === VRING && gz === VRING) continue;
       const px2 = cx + gx * VPLOT, pz = cz + gz * VPLOT;
       if (!boxHit(box, px2 - 8, pz - 8, px2 + 8, pz + 10)) continue;
       const seed = (s.seed ^ Math.imul(gx + 5, 374761393) ^ Math.imul(gz + 7, 668265263)) >>> 0;
@@ -162,6 +165,16 @@ function drawVillage(s, put, box) {
       const dir = Math.abs(gx) > Math.abs(gz) ? (gx > 0 ? 3 : 2) : (gz > 0 ? 1 : 0);
       house(put, box, px2 - (w >> 1) + jx, y, pz - (d >> 1) + jz, w, d, seed, dir);
     }
+  }
+
+  // 村の はしに 土管。はじまりの せかいなら よそへ、
+  // よその せかいの まん中の 村なら 帰りの 土管。
+  if (W.theme === 'home') {
+    const dests = ['snow', 'future', 'mush'];
+    pipe(put, box, cx + VPLOT * VRING, y, cz + VPLOT * VRING,
+         dests[(s.seed >>> 3) % dests.length]);
+  } else if (s.home) {
+    pipe(put, box, cx + VPLOT * VRING, y, cz + VPLOT * VRING, 'home');
   }
 
   // 道の かどの あかり（区画の かどに 立てる）
@@ -208,6 +221,12 @@ function farm(put, box, x, y, z, seed) {
 
 const TOWN_MAT = ['brick', 'stonebrick', 'sandstone', 'planks', 'cobble',
                   'wool_white', 'wool_cyan', 'wool_yellow'];
+// みらい都市は 金属と ガラスと 光る かべ
+const TOWN_MAT_FUTURE = ['iron_block', 'glass', 'wool_cyan', 'wool_white',
+                         'wool_blue', 'iron_block', 'glass'];
+function townMats() {
+  return (W.theme === 'future') ? TOWN_MAT_FUTURE : TOWN_MAT;
+}
 
 function drawTown(s, put, box) {
   const y = s.y + 1;
@@ -257,6 +276,13 @@ function drawTown(s, put, box) {
 
   // まん中の ひろば
   plaza(put, box, s.x, y, s.z);
+  // 街にも 土管。ひろばの 中に 置くので、まわりに かべが ない。
+  if (W.theme === 'home') {
+    const dests = ['snow', 'future', 'mush'];
+    pipe(put, box, s.x, y, s.z + 9, dests[(s.seed >>> 5) % dests.length]);
+  } else if (s.home) {
+    pipe(put, box, s.x, y, s.z + 9, 'home');
+  }
 
   // 街灯（通りの まじわる ところ）
   for (let gz = z0 + 4; gz <= z1; gz += GRID) {
@@ -300,12 +326,14 @@ function drawTown(s, put, box) {
 function building(put, box, x, y, z, w, d, seed) {
   const x1 = x + w - 1, z1 = z + d - 1;
   const rn = rng(seed);
-  const floors = 2 + ((rn() * 3) | 0);
+  // みらい都市の ビルは 高い
+  const floors = W.theme === 'future' ? 4 + ((rn() * 5) | 0) : 2 + ((rn() * 3) | 0);
   const fh = 4;
   const top = y + floors * fh;
   if (!boxHit(box, x - 1, z - 1, x1 + 1, z1 + 1)) return;
-  const mat = ID[TOWN_MAT[(rn() * TOWN_MAT.length) | 0]];
-  const trim = rn() < 0.5 ? ID.stonebrick : ID.brick;
+  const mats = townMats();
+  const mat = ID[mats[(rn() * mats.length) | 0]] || ID.stonebrick;
+  const trim = W.theme === 'future' ? ID.iron_block : (rn() < 0.5 ? ID.stonebrick : ID.brick);
 
   fillBox(put, x, y - 1, z, x1, y - 1, z1, ID.planks);
   for (let f = 0; f < floors; f++) {
@@ -388,4 +416,68 @@ function plaza(put, box, cx, y, cz) {
     for (let k = 0; k < 4; k++) put(cx + dx, y + k, cz + dz, ID.cobble);
     put(cx + dx, y + 4, cz + dz, ID.glowstone);
   }
+}
+
+// --- 土管 --------------------------------------------------------------------
+//
+// マリオの 土管。3x3 の みどりの はこの まん中が たてあなに なっていて、
+// そこに 落ちると べつの せかいへ 行く。
+//
+// 「どこへ 行くか」は、あなの 底に おいた ウールの 色で 決める。
+// こうしておくと、土管の 場所を べつに おぼえておく ひつようが ない ——
+// 地形と 同じで たねから 作りなおせるし、セーブにも 何も 足さなくてよい。
+
+const PIPE_MARK = {                 // せかい → 底に おく ブロック
+  home: 'wool_lime', snow: 'wool_white', future: 'wool_cyan', mush: 'wool_magenta',
+};
+const PIPE_DEST = {};               // ブロック番号 → せかい（あとで うめる）
+
+function pipeDestInit() {
+  for (const k in PIPE_MARK) PIPE_DEST[ID[PIPE_MARK[k]]] = k;
+}
+
+// (cx,cz) を まん中に、地面 y から 土管を 建てる
+function pipe(put, box, cx, y, cz, destKey) {
+  if (!boxHit(box, cx - 3, cz - 3, cx + 3, cz + 3)) return;
+  // 3x3 の はこ（2 だん）
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let k = 0; k <= 1; k++) put(cx + dx, y + k, cz + dz, ID.pipe);
+    }
+  }
+  // まん中を たてに くりぬく
+  put(cx, y, cz, 0);
+  put(cx, y + 1, cz, 0);
+  put(cx, y - 1, cz, ID[PIPE_MARK[destKey]]);      // 行き先の しるし
+  // のぼる ための だん（1 ブロックずつ なら 歩いて 上がれる）
+  put(cx + 2, y, cz, ID.pipe);
+  put(cx - 2, y, cz, ID.pipe);
+  put(cx, y, cz + 2, ID.pipe);
+  put(cx, y, cz - 2, ID.pipe);
+  // 目じるしの あかり
+  put(cx + 2, y + 1, cz + 2, ID.glowstone);
+  put(cx - 2, y + 1, cz - 2, ID.glowstone);
+}
+
+// （いまは つかっていない）よその せかいの まっさらな 広場。
+// ついた とたんに 何もない 原っぱ だと さびしかったので、
+// いまは 街か 村の 中に 出るように している。
+function drawArrival(s, put, box) {
+  const y = s.y + 1, cx = s.x, cz = s.z, r = s.r;
+  for (let z = Math.max(cz - r, box.z0); z <= Math.min(cz + r, box.z1); z++) {
+    for (let x = Math.max(cx - r, box.x0); x <= Math.min(cx + r, box.x1); x++) {
+      const d = Math.max(Math.abs(x - cx), Math.abs(z - cz));
+      if (d > r) continue;
+      put(x, y - 1, z, d > r - 2 ? ID.stonebrick : ID.sandstone);
+    }
+  }
+  // かこいと あかり
+  for (let i = -r; i <= r; i += 1) {
+    for (const [x, z] of [[cx + i, cz - r], [cx + i, cz + r], [cx - r, cz + i], [cx + r, cz + i]]) {
+      if (!boxHit(box, x, z, x, z)) continue;
+      put(x, y, z, ID.stonebrick);
+      if (((i + r) % 6) === 0) { put(x, y + 1, z, ID.cobble); put(x, y + 2, z, ID.glowstone); }
+    }
+  }
+  pipe(put, box, cx, y, cz, 'home');
 }

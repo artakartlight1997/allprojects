@@ -15,7 +15,22 @@ let scr = 'title';         // title / play / inv / menu / howto
 let dayT = 0.42;           // 0..1 で 1 日。はじまりは 昼まえ
 const DAY_LEN = 420;       // 1 日 = 7 分
 
-const UI = { buttons: [], tab: 'craft', page: 0, msg: '', msgT: 0, hint: 4 };
+const UI = { buttons: [], tab: 'craft', page: 0, msg: '', msgT: 0, hint: 4, worldT: 0 };
+
+let gameT = 0;                      // はじめてからの 時間（生きものの ゆれに つかう）
+function game_t() { return gameT; }
+
+// タイトルで えらぶ せってい。ゲームの きろくとは 別に しまう
+// （はじめる まえの タイトル画面でも 読めるように）
+const OPT_KEY = 'craft.opt';
+const save = { enemies: true };
+try {
+  const o = JSON.parse(localStorage.getItem(OPT_KEY) || '{}');
+  if (typeof o.enemies === 'boolean') save.enemies = o.enemies;
+} catch (e) {}
+function storeOpt() {
+  try { localStorage.setItem(OPT_KEY, JSON.stringify(save)); } catch (e) {}
+}
 
 // --- 大きさ -----------------------------------------------------------------
 
@@ -68,15 +83,137 @@ function tuneQuality(frameMs, dt) {
 
 const SAVE_KEY = 'craft.v1';
 
+// --- せかいの 出しいれ --------------------------------------------------------
+//
+// せかいごとに「たね」と「じぶんが いじった ぶん」を べつに 持つ。
+// 土管で 行き来しても、それぞれの せかいは そのまま のこる。
+
+const WS = {};                 // せかいキー → { seed, edits, x,y,z,yaw,pitch, back }
+let curWorld = 'home';
+
+function worldState(key) {
+  if (!WS[key]) {
+    WS[key] = { seed: ((Math.random() * 2000000000) | 0) ^ 0x5bd1,
+                edits: new Map(), x: 0, y: 0, z: 0, yaw: 0, pitch: 0, back: null,
+                started: false };
+  }
+  return WS[key];
+}
+
+// いまの せかいの ようすを しまう
+function stashWorld() {
+  const st = worldState(curWorld);
+  st.seed = W.seed;
+  st.edits = W.edits;
+  st.x = P.x; st.y = P.y; st.z = P.z; st.yaw = P.yaw; st.pitch = P.pitch;
+}
+
+// せかいを 切りかえる。back を わたすと「もどる 場所」も 覚える。
+function enterWorld(key, back) {
+  stashWorld();
+  const st = worldState(key);
+  if (back) st.back = back;
+  curWorld = key;
+  W.theme = key;
+  W.edits = st.edits;
+  resetWorld(st.seed);
+  clearMobs();
+  if (!st.started) {
+    st.started = true;
+    const sp = spawnPoint();
+    P.x = sp.x; P.y = sp.y; P.z = sp.z;
+    P.yaw = sp.near ? Math.atan2(sp.near.x - P.x, sp.near.z - P.z) : 0.6;
+    P.pitch = 0.05;
+  } else {
+    P.x = st.x; P.y = st.y; P.z = st.z; P.yaw = st.yaw; P.pitch = st.pitch;
+  }
+  P.vx = P.vy = P.vz = 0;
+  unstick();
+  UI.worldT = 3.2;
+  say(worldOf(key).name + ' に ついた！');
+}
+
+// もどる 土管を ふんだとき
+function leaveWorld() {
+  const st = worldState(curWorld);
+  const back = st.back;
+  stashWorld();
+  const home = back ? back.world : 'home';
+  const hs = worldState(home);
+  curWorld = home;
+  W.theme = home;
+  W.edits = hs.edits;
+  resetWorld(hs.seed);
+  clearMobs();
+  if (back) { P.x = back.x; P.y = back.y; P.z = back.z; }
+  else { P.x = hs.x; P.y = hs.y; P.z = hs.z; }
+  P.vx = P.vy = P.vz = 0;
+  unstick();
+  UI.worldT = 3.2;
+  say(worldOf(home).name + ' に もどった');
+}
+
+// --- 土管に 入ったか -----------------------------------------------------------
+//
+// 足もとの ブロックが「行き先の しるし」で、まわりが 土管なら 入っている。
+// 0.8 びょう そのままだと 出発する（うっかり 落ちても すぐには 行かない）。
+
+let pipeT = 0, pipeDest = '';
+
+function checkPipe(dt) {
+  const bx = Math.floor(P.x), by = Math.floor(P.y), bz = Math.floor(P.z);
+  const mark = getBlock(bx, by - 1, bz);
+  const dest = PIPE_DEST[mark];
+  let ok = false;
+  if (dest !== undefined) {
+    let ring = 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (getBlock(bx + dx, by, bz + dz) === ID.pipe) ring++;
+    }
+    ok = ring >= 3;
+  }
+  if (!ok) { pipeT = 0; pipeDest = ''; return; }
+  pipeDest = dest;
+  pipeT += dt;
+  if (pipeT >= 0.8) {
+    pipeT = 0;
+    if (dest === curWorld || (dest === 'home' && curWorld !== 'home')) leaveWorld();
+    else enterWorld(dest, { world: curWorld, x: P.x, y: P.y + 1.2, z: P.z + 2.5 });
+  }
+}
+
+// --- セーブ -----------------------------------------------------------------
+
+function packEdits(m) {
+  const ed = [];
+  for (const [k, v] of m) ed.push(k + ':' + v);
+  return ed.join(';');
+}
+function unpackEdits(str) {
+  const m = new Map();
+  if (!str) return m;
+  for (const part of str.split(';')) {
+    if (!part) continue;
+    const c = part.lastIndexOf(':');
+    m.set(part.slice(0, c), +part.slice(c + 1));
+  }
+  return m;
+}
+
 function saveGame() {
   try {
-    const ed = [];
-    for (const [k, v] of W.edits) ed.push(k + ':' + v);
+    stashWorld();
+    const worlds = {};
+    for (const k in WS) {
+      const st = WS[k];
+      worlds[k] = { seed: st.seed, ed: packEdits(st.edits), started: st.started,
+                    x: st.x, y: st.y, z: st.z, yaw: st.yaw, pitch: st.pitch,
+                    back: st.back };
+    }
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      seed: W.seed, x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch,
+      v: 2, cur: curWorld, worlds,
       inv: P.inv.map((s) => (s ? [s.id, s.n] : 0)),
-      slot: P.slot, creative: P.creative, fly: P.fly, hp: P.hp,
-      t: dayT, ed: ed.join(';'),
+      slot: P.slot, creative: P.creative, fly: P.fly, hp: P.hp, t: dayT,
     }));
     return true;
   } catch (e) { return false; }
@@ -86,52 +223,73 @@ function hasSave() {
   try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
 }
 
-function loadGame() {
-  let o;
-  try { o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { o = null; }
-  if (!o) return false;
-  W.edits.clear();
-  resetWorld(o.seed | 0);
-  if (o.ed) {
-    for (const part of o.ed.split(';')) {
-      if (!part) continue;
-      const c = part.lastIndexOf(':');
-      W.edits.set(part.slice(0, c), +part.slice(c + 1));
-    }
-  }
-  // たいまつ・ひかりいし の場所を 覚えなおす
+// あかりの 場所を おぼえなおす（たいまつは いじった ぶんに 入っている）
+function relightFromEdits() {
   for (const [k, id] of W.edits) {
     if (id && blk(id).light > 0 && !blk(id).liquid) {
       const p = k.split(',');
       addLight(+p[0], +p[1], +p[2], blk(id).light);
     }
   }
-  P.x = o.x; P.y = o.y; P.z = o.z; P.yaw = o.yaw; P.pitch = o.pitch;
+}
+
+function loadGame() {
+  let o;
+  try { o = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { o = null; }
+  if (!o) return false;
+  for (const k in WS) delete WS[k];
+  if (o.v === 2) {
+    for (const k in o.worlds) {
+      const w = o.worlds[k];
+      WS[k] = { seed: w.seed | 0, edits: unpackEdits(w.ed), started: w.started !== false,
+                x: w.x, y: w.y, z: w.z, yaw: w.yaw, pitch: w.pitch, back: w.back || null };
+    }
+    curWorld = o.cur && WS[o.cur] ? o.cur : 'home';
+  } else {
+    // 古い きろく（せかいが 1つだけ の ころ）を 引きつぐ
+    WS.home = { seed: o.seed | 0, edits: unpackEdits(o.ed), started: true,
+                x: o.x, y: o.y, z: o.z, yaw: o.yaw, pitch: o.pitch, back: null };
+    curWorld = 'home';
+  }
+  const st = worldState(curWorld);
+  W.theme = curWorld;
+  W.edits = st.edits;
+  resetWorld(st.seed);
+  relightFromEdits();
+  P.x = st.x; P.y = st.y; P.z = st.z; P.yaw = st.yaw; P.pitch = st.pitch;
   P.vx = P.vy = P.vz = 0;
   P.inv = (o.inv || []).map((s) => (s ? { id: s[0], n: s[1] } : null));
   while (P.inv.length < 36) P.inv.push(null);
   P.slot = o.slot | 0; P.creative = !!o.creative; P.fly = !!o.fly;
   P.hp = o.hp === undefined ? 10 : o.hp;
-  if (!P.fly) unstick();
   dayT = o.t === undefined ? 0.42 : o.t;
+  clearMobs();
+  if (!P.fly) unstick();
   return true;
 }
 
 function newGame(creative) {
-  W.edits.clear();
+  for (const k in WS) delete WS[k];
+  curWorld = 'home';
+  W.theme = 'home';
+  const st = worldState('home');
+  st.started = true;
+  W.edits = st.edits;
   resetWorld((Math.random() * 2000000000) | 0);
+  st.seed = W.seed;
   const s = spawnPoint();
   P.x = s.x; P.y = s.y; P.z = s.z;
   P.vx = P.vy = P.vz = 0; P.yaw = 0.6; P.pitch = 0.1;
+  P.hp = 10; P.slot = 0; P.fly = false;
+  P.creative = creative;
+  dayT = 0.42;
+  for (let i = 0; i < P.inv.length; i++) P.inv[i] = null;
+  clearMobs();
   // 村の そばに 出たときは、村の ほうを むいて はじめる
   if (s.near) {
     P.yaw = Math.atan2(s.near.x - P.x, s.near.z - P.z);
     P.pitch = 0.05;
   }
-  P.hp = 10; P.slot = 0; P.fly = false;
-  P.creative = creative;
-  dayT = 0.42;
-  for (let i = 0; i < P.inv.length; i++) P.inv[i] = null;
   unstick();
   if (creative) fillCreative();
   else {
@@ -294,12 +452,13 @@ function dayLight() {
 }
 
 function skyColor() {
+  const w = worldOf(curWorld).sky;
   const d = dayLight();
   const dawn = Math.max(0, 1 - Math.abs(d - 0.55) * 5) * 0.6;   // 朝と夕方
   const r = 0.05 + d * 0.44 + dawn * 0.34;
   const g = 0.08 + d * 0.60 + dawn * 0.10;
   const b = 0.18 + d * 0.70 - dawn * 0.06;
-  return [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
+  return [Math.min(1, r * w[0]), Math.min(1, g * w[1]), Math.min(1, b * w[2])];
 }
 
 const CUBE_LINES = new Float32Array(72);
@@ -392,6 +551,7 @@ function renderWorld(hit) {
   gl.depthMask(true);
   gl.enable(gl.CULL_FACE);
   for (const c of list) drawSecs(c, c.mesh.secs);
+  if (scr !== 'title') drawMobs();
   // つぎに 水・ガラス。うしろが すけるので あとから。
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -544,6 +704,11 @@ function drawTitle() {
   y += bh * 1.16;
   drawBtn(btn(x, y, bw * 0.49, bh * 0.82, () => { scr = 'howto'; }),
           'あそびかた', '#D8E4F2');
+  // てきを 出すか どうか。こわがりでも あそべるように。
+  const ey = y + bh * (hasSave() ? 0.98 : 0.98);
+  drawBtn(btn(x, ey, bw, bh * 0.8, () => { save.enemies = !save.enemies; storeOpt(); }),
+          save.enemies ? 'てき　あり（スライム・おばけ）' : 'てき　なし（のんびり つくる）',
+          save.enemies ? '#F0B0A0' : '#BFE4C8');
   if (hasSave()) {
     drawBtn(btn(x + bw * 0.51, y, bw * 0.49, bh * 0.82, () => { UI.askDel = true; }),
             'きろくを けす', '#F0B8B8');
@@ -552,8 +717,8 @@ function drawTitle() {
   hx.fillStyle = 'rgba(255,255,255,0.6)';
   const tip = hasSave() ? 'つづきからで、まえの せかいに もどれる'
                         : 'そうぞうモードは ぜんぶの ブロックが つかえて 空も とべる';
-  fitFont(tip, W2 * 0.55, H2 * 0.038);
-  hx.fillText(tip, x, y + bh * 0.95);
+  fitFont(tip, W2 * 0.55, H2 * 0.036);
+  hx.fillText(tip, x, ey + bh * 0.86);
 
   if (UI.askDel) {
     hx.fillStyle = 'rgba(10,16,24,0.78)'; hx.fillRect(0, 0, W2, H2);
@@ -587,7 +752,12 @@ function drawHowto() {
     '⑦ 夜は くらい。たいまつを おくと あかるい',
     '⑧ ふかく ほると せきたん・てつ・きん・ダイヤ が 出てくる',
     '⑨ そうぞうモードは ぜんぶの ブロックが つかえて 空も とべる',
-    '⑩ ときどき ひとりでに セーブされる。タイトルの「つづきから」で もどれる',
+    '⑩ 村や街に ある みどりの ★土管★ に のると べつの せかいへ！',
+    '　 ゆきやま・みらい都市・キノコの森。もどる 土管で 帰ってこられる',
+    '⑪ 村には 村人が いる。ちかづくと 話しかけてくる',
+    '⑫ よるや ほらあなには スライムと おばけ。おしっぱなしで なぐれる',
+    '　 こわい ときは タイトルで「てき なし」に できる',
+    '⑬ ときどき ひとりでに セーブされる。タイトルの「つづきから」で もどれる',
     'パソコン: WASD 歩く / ダブルクリックで 見まわす / 左おす=ほる 右おす=おく',
   ];
   hx.fillStyle = '#D8E6F0';
@@ -602,7 +772,7 @@ function drawHowto() {
 
 // --- あそんでいるときの 画面 -------------------------------------------------
 
-function drawHUD(hit) {
+function drawHUD(hit, mob) {
   const s = Math.min(H2 * 0.115, W2 * 0.072);
   const n = 9;
   const bw = s * n, bx = (W2 - bw) / 2, by = H2 - s - H2 * 0.03;
@@ -624,6 +794,47 @@ function drawHUD(hit) {
     hx.beginPath();
     hx.arc(W2 / 2, H2 / 2, H2 * 0.05, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2);
     hx.stroke();
+  }
+
+  // 土管に 入っている あいだの あんない
+  if (pipeT > 0 && pipeDest) {
+    const f = Math.min(1, pipeT / 0.8);
+    const tw = W2 * 0.46, tx = W2 / 2 - tw / 2, ty = H2 * 0.30;
+    hx.fillStyle = 'rgba(10,20,14,0.78)';
+    rr(hx, tx, ty, tw, H2 * 0.12, 12); hx.fill();
+    hx.strokeStyle = '#5ACF6A'; hx.lineWidth = 3;
+    rr(hx, tx, ty, tw, H2 * 0.12, 12); hx.stroke();
+    hx.fillStyle = '#BFF5C8'; hx.textAlign = 'center'; hx.textBaseline = 'middle';
+    const lab = pipeDest === curWorld || (pipeDest === 'home' && curWorld !== 'home')
+      ? 'もどる…' : worldOf(pipeDest).name + ' へ…';
+    fitFont(lab, tw * 0.9, H2 * 0.05, 'bold ');
+    hx.fillText(lab, W2 / 2, ty + H2 * 0.042);
+    hx.fillStyle = 'rgba(255,255,255,0.25)';
+    hx.fillRect(tx + 10, ty + H2 * 0.082, tw - 20, H2 * 0.018);
+    hx.fillStyle = '#5ACF6A';
+    hx.fillRect(tx + 10, ty + H2 * 0.082, (tw - 20) * f, H2 * 0.018);
+  }
+  // ついた ばかりの せかいの 名まえ
+  if (UI.worldT > 0) {
+    UI.worldT -= 1 / 60;
+    hx.globalAlpha = Math.min(1, UI.worldT);
+    hx.fillStyle = worldOf(curWorld).col;
+    hx.textAlign = 'center'; hx.textBaseline = 'middle';
+    fitFont(worldOf(curWorld).name, W2 * 0.7, H2 * 0.09, 'bold ');
+    hx.strokeStyle = 'rgba(0,0,0,0.7)'; hx.lineWidth = 6;
+    hx.strokeText(worldOf(curWorld).name, W2 / 2, H2 * 0.2);
+    hx.fillText(worldOf(curWorld).name, W2 / 2, H2 * 0.2);
+    hx.globalAlpha = 1;
+  }
+
+  // 見ている 生きものの 名前
+  if (mob && !mob.dead) {
+    hx.fillStyle = MOB[mob.type].friendly ? '#A8F0C4' : '#FFB0B0';
+    hx.textAlign = 'center'; hx.textBaseline = 'middle';
+    fitFont(MOB[mob.type].name, W2 * 0.4, H2 * 0.04, 'bold ');
+    hx.strokeStyle = 'rgba(0,0,0,0.7)'; hx.lineWidth = 4;
+    hx.strokeText(MOB[mob.type].name, W2 / 2, H2 * 0.42);
+    hx.fillText(MOB[mob.type].name, W2 / 2, H2 * 0.42);
   }
 
   // 持ちものバー
@@ -914,9 +1125,12 @@ function drawMenu() {
   fitFont('メニュー', W2 * 0.6, H2 * 0.1, 'bold ');
   hx.fillText('メニュー', W2 / 2, H2 * 0.07);
 
+  hx.fillStyle = worldOf(curWorld).col;
+  fitFont(worldOf(curWorld).name, W2 * 0.8, H2 * 0.055, 'bold ');
+  hx.fillText(worldOf(curWorld).name, W2 / 2, H2 * 0.175);
   hx.fillStyle = '#BFD6E8';
-  fitFont('たね ' + W.seed + '　いま ' + posText(), W2 * 0.8, H2 * 0.04);
-  hx.fillText('たね ' + W.seed + '　いま ' + posText(), W2 / 2, H2 * 0.2);
+  fitFont('たね ' + W.seed + '　いま ' + posText(), W2 * 0.8, H2 * 0.035);
+  hx.fillText('たね ' + W.seed + '　いま ' + posText(), W2 / 2, H2 * 0.235);
 
   const bw = Math.min(W2 * 0.42, H2 * 0.9), bh = H2 * 0.115;
   let y = H2 * 0.29;
@@ -981,6 +1195,7 @@ function frame(now) {
   const raw = (now - last) || 16;
   const dt = Math.min(0.05, raw / 1000);
   last = now;
+  gameT += dt;
   hx.setTransform(1, 0, 0, 1, 0, 0);
   hx.clearRect(0, 0, hudCv.width, hudCv.height);
   const hd = Math.min(2, window.devicePixelRatio || 1);
@@ -1006,6 +1221,8 @@ function frame(now) {
       }
     }
     movePlayer(dt, inp);
+    updateMobs(dt);
+    checkPipe(dt);
     dayT = (dayT + dt / DAY_LEN) % 1;
     if (UI.hint > 0) UI.hint -= dt;
   } else {
@@ -1013,8 +1230,15 @@ function frame(now) {
   }
 
   const hit = lookingAt();
+  const mob = scr === 'play' ? mobLookedAt() : null;
+  if (P.swing > 0) P.swing -= dt;
+  if (P.hurtFlash > 0) P.hurtFlash -= dt;
   if (scr === 'play') {
-    if (digging) digTick(dt, hit);
+    if (digging && mob) {
+      // 生きものを 見ているときは ブロックでは なく そちらを なぐる
+      if (P.swing <= 0) { hitMob(mob); P.swing = 0.4; }
+      P.digY = -1; P.digT = 0;
+    } else if (digging) digTick(dt, hit);
     else { P.digY = -1; P.digT = 0; }
     if (placeTap) {
       placeTap = false;
@@ -1034,7 +1258,11 @@ function frame(now) {
   renderWorld(scr === 'play' ? hit : null);
 
   if (UI.msgT > 0) UI.msgT -= dt;
-  if (scr === 'play') drawHUD(hit);
+  if (P.hurtFlash > 0) {
+    hx.fillStyle = 'rgba(200,30,30,' + Math.min(0.4, P.hurtFlash) + ')';
+    hx.fillRect(0, 0, W2, H2);
+  }
+  if (scr === 'play') drawHUD(hit, mob);
   else if (scr === 'inv') drawInv();
   else if (scr === 'menu') drawMenu();
 
@@ -1055,6 +1283,7 @@ function drawNoGL() {
   hx.fillText('ブラウザを あたらしくすると あそべるかも', W2 / 2, H2 * 0.55);
 }
 
+pipeDestInit();
 layout();
 try {
   glOK = !!initGL(worldCv);

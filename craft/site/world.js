@@ -74,8 +74,34 @@ function vn3(x, y, z, s) {
 
 const BIOME = { PLAIN: 0, FOREST: 1, DESERT: 2, SNOW: 3 };
 
+// --- せかい ------------------------------------------------------------------
+//
+// 土管に 入ると べつの せかいへ 行ける。
+// せかいごとに 地形の 作りかたと 地面の ブロックが ちがう。
+// たねと「じぶんが いじった ぶん」は せかいごとに べつに 持つ。
+
+const WORLDS = [
+  { key: 'home',   name: 'はじまりの せかい', col: '#6DA13C', sky: [1.00, 1.00, 1.00] },
+  { key: 'snow',   name: 'ゆきやま',         col: '#DCEAF6', sky: [0.92, 0.98, 1.10] },
+  { key: 'future', name: 'みらい都市',       col: '#7FD0E8', sky: [0.80, 0.92, 1.15] },
+  { key: 'mush',   name: 'キノコの森',       col: '#E06AA0', sky: [1.12, 0.86, 1.06] },
+];
+function worldOf(key) { return WORLDS.find((w) => w.key === key) || WORLDS[0]; }
+
+const TH = {
+  home:   { base: 3.6, mount: 24, dip: 4.2, mid: 8.6, fine: 3, biome: true, treeP: 1 },
+  snow:   { base: 9.0, mount: 40, dip: 3.0, mid: 12,  fine: 4, surf: 'snow', sub: 'dirt',
+            treeP: 0.55, birch: true, freeze: true },
+  future: { base: 5.0, mount: 5,  dip: 2.0, mid: 2.5, fine: 1, surf: 'stonebrick',
+            sub: 'stone', treeP: 0, city: true },
+  mush:   { base: 4.0, mount: 16, dip: 4.0, mid: 9,   fine: 3, surf: 'grass', sub: 'dirt',
+            treeP: 0, mushroom: true },
+};
+function th() { return TH[W.theme] || TH.home; }
+
 const W = {
   seed: 1,
+  theme: 'home',
   chunks: new Map(),        // "cx,cz" → チャンク
   edits: new Map(),         // "x,y,z" → ブロック番号（じぶんが変えたところ）
   // あかりは チャンクごとに 分けて しまう。
@@ -125,6 +151,7 @@ function ckey(cx, cz) { return cx + ',' + cz; }
 function ekey(x, y, z) { return x + ',' + y + ',' + z; }
 
 function biomeAt(wx, wz) {
+  if (!th().biome) return W.theme === 'snow' ? BIOME.SNOW : BIOME.PLAIN;
   const t = vn2(wx / 340, wz / 340, W.seed + 31) * 0.7
           + vn2(wx / 90, wz / 90, W.seed + 33) * 0.3;
   if (t > 0.72) return BIOME.DESERT;
@@ -135,14 +162,15 @@ function biomeAt(wx, wz) {
 
 // なにも 建っていない ときの 地面の 高さ
 function rawHeightAt(wx, wz) {
+  const t = th();
   const big = vn2(wx / 220, wz / 220, W.seed + 7);
   const mid = vn2(wx / 64, wz / 64, W.seed + 11);
   const fine = vn2(wx / 21, wz / 21, W.seed + 13);
   // big を 3 乗ぎみにすると 平地と山が はっきり 分かれる
   const m = (big - 0.5) * 2;
   // 山は とがらせ、へこみは あさく。ぜんぶ 海に なると あそべない
-  const mountain = m > 0 ? m * m * m * 24 : m * 4.2;
-  const h = SEA + 3.6 + mountain + (mid - 0.5) * 8.6 + (fine - 0.5) * 3;
+  const mountain = m > 0 ? m * m * m * t.mount : m * t.dip;
+  const h = SEA + t.base + mountain + (mid - 0.5) * t.mid + (fine - 0.5) * t.fine;
   return Math.max(4, Math.min(CY - 12, Math.round(h)));
 }
 
@@ -163,10 +191,24 @@ const SREACH = 90;          // 区画の へりから いちばん 遠くまで 
 function structOf(gx, gz) {
   const k = gx + ',' + gz;
   if (W.structs.has(k)) return W.structs.get(k);
+  // よその せかいの まん中には かならず 街か 村を おく。
+  // そこに「もどる 土管」を 置くので、ついた とたんに
+  // 「ここが どんな せかいか」が 目に 入るし、帰り道も すぐ わかる。
+  if (W.theme !== 'home' && gx === 0 && gz === 0) {
+    const kind = th().city ? 'town' : 'village';
+    const y = Math.max(SEA + 2, rawHeightAt(0, 0));
+    const s2 = { kind, x: 0, z: 0, r: kind === 'town' ? 64 : 45, y,
+                 seed: cellSeed(0, 0, 0x11), home: true };
+    W.structs.set(k, s2);
+    return s2;
+  }
   let s = null;
+  const T4 = th();
   const rn = rng(cellSeed(gx, gz, 0x5713));
   const roll = rn();
-  const kind = roll < 0.20 ? 'town' : roll < 0.64 ? 'village' : null;
+  const kind = T4.city ? 'town'
+             : (T4.mushroom || T4.freeze) ? (roll < 0.30 ? 'village' : null)
+             : (roll < 0.20 ? 'town' : roll < 0.64 ? 'village' : null);
   if (kind) {
     const r = kind === 'town' ? 64 : 45;
     const pad = r + SEDGE + 6;
@@ -179,7 +221,7 @@ function structOf(gx, gz) {
       sum += hh; n++;
       if (hh < lo) lo = hh;
       if (hh > hi) hi = hh;
-      if (biomeAt(x + dx, z + dz) === BIOME.SNOW) ok = false;
+      if (th().biome && biomeAt(x + dx, z + dz) === BIOME.SNOW) ok = false;
     }
     const base = Math.round(sum / n);
     // 海の中・がけの上・高すぎる ところには 建てない
@@ -371,6 +413,7 @@ function oreAt(wx, wy, wz, surf) {
 }
 
 function genChunk(cx, cz) {
+  const T2 = th();
   const b = new Uint8Array(CH * CY * CH);
   const hm = new Uint8Array(CHXZ);
   const bm = new Uint8Array(CHXZ);
@@ -386,11 +429,12 @@ function genChunk(cx, cz) {
         let id;
         if (y === 0) id = ID.bedrock;
         else if (y === h) {
-          id = bio === BIOME.DESERT ? ID.sand
+          id = T2.surf ? ID[T2.surf]
+             : bio === BIOME.DESERT ? ID.sand
              : bio === BIOME.SNOW ? ID.snow
              : (h < SEA + 1 ? ID.sand : ID.grass);
         } else if (y > h - 4) {
-          id = bio === BIOME.DESERT ? ID.sand : ID.dirt;
+          id = T2.sub ? ID[T2.sub] : (bio === BIOME.DESERT ? ID.sand : ID.dirt);
         } else {
           id = oreAt(wx, y, wz, h);
         }
@@ -408,11 +452,15 @@ function genChunk(cx, cz) {
 
   carveWorms(ch);                       // ぐねぐねの ほらあなを ほる
 
+  const T2b = th();
   for (let z = 0; z < CH; z++) {
     for (let x = 0; x < CH; x++) {
       const col = x + z * CH;
       const h = hm[col];
-      for (let y = h + 1; y <= SEA; y++) b[col + y * CHXZ] = ID.water;  // 海・みずうみ
+      for (let y = h + 1; y <= SEA; y++) {
+        // ゆきやまでは 水めんが こおる
+        b[col + y * CHXZ] = (T2b.freeze && y === SEA) ? ID.ice : ID.water;
+      }
       // いちばん下は ようがんの 海。ほらあなの 底に たまる。
       for (let y = 1; y <= 4; y++) if (b[col + y * CHXZ] === 0) b[col + y * CHXZ] = ID.lava;
     }
@@ -439,7 +487,8 @@ function buildStructures(ch) {
   };
   const box = { x0, z0, x1, z1 };
   for (const s of list) {
-    if (s.kind === 'town') drawTown(s, put, box);
+    if (s.kind === 'arrival') drawArrival(s, put, box);
+    else if (s.kind === 'town') drawTown(s, put, box);
     else drawVillage(s, put, box);
   }
 }
@@ -472,9 +521,17 @@ function decorate(ch) {
         }
         continue;
       }
-      const treeP = bio === BIOME.FOREST ? 0.038 : 0.007;
-      if (r < treeP) {
-        const birch = bio === BIOME.SNOW || h2(wx, wz, W.seed + 107) < 0.3;
+      const T3 = th();
+      if (T3.mushroom) {
+        // キノコの森。おおきな キノコが 生える
+        if (r < 0.020) bigMushroom(put, wx, h, wz);
+        else if (r > 0.90) put(wx, h + 1, wz, ID.mushroom);
+        else if (r > 0.80) put(wx, h + 1, wz, ID.tallgrass);
+        continue;
+      }
+      const treeP = (bio === BIOME.FOREST ? 0.038 : 0.007) * T3.treeP;
+      if (treeP > 0 && r < treeP) {
+        const birch = T3.birch || bio === BIOME.SNOW || h2(wx, wz, W.seed + 107) < 0.3;
         const logId = birch ? ID.birch_log : ID.log;
         const tall = 4 + ((h2(wx, wz, W.seed + 109) * 3) | 0);
         const ty = h + tall;
@@ -504,6 +561,24 @@ function decorate(ch) {
   }
 }
 
+// キノコの森の おおきな キノコ。じくは しらかば、かさは 赤か 茶色の ウール。
+function bigMushroom(put, wx, h, wz) {
+  const rn = rng((Math.imul(wx, 374761393) ^ Math.imul(wz, 668265263) ^ W.seed) >>> 0);
+  const tall = 4 + ((rn() * 4) | 0);
+  const cap = rn() < 0.5 ? ID.wool_red : ID.wool_brown;
+  for (let k = 1; k <= tall; k++) put(wx, h + k, wz, ID.birch_log, true);
+  const ty = h + tall;
+  for (let dz = -3; dz <= 3; dz++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const d = Math.abs(dx) + Math.abs(dz);
+      if (d > 4) continue;
+      put(wx + dx, ty + 1, wz + dz, cap);
+      if (d <= 2) put(wx + dx, ty + 2, wz + dz, cap);
+    }
+  }
+  put(wx, ty + 1, wz, ID.glowstone);      // かさの 下が ぼんやり 光る
+}
+
 // じぶんが 掘った／置いた ぶんを かぶせる
 function applyEdits(ch) {
   const x0 = ch.cx * CH, z0 = ch.cz * CH;
@@ -527,6 +602,13 @@ function getBlock(x, y, z) {
   const cx = Math.floor(x / CH), cz = Math.floor(z / CH);
   const c = getChunk(cx, cz, true);
   return c.b[(x - cx * CH) + (z - cz * CH) * CH + y * CHXZ];
+}
+
+// 世界の 座標での 空の 明るさ（生きものの 明るさに つかう）
+function skyLightAt(x, y, z) {
+  const h = surfaceAt(x, z);
+  if (y > h) return 1;
+  return Math.max(0.05, 1 - (h - y + 1) * 0.16);
 }
 
 // 地面の高さ（明るさの計算で使う）
@@ -918,6 +1000,12 @@ function resetWorld(seed) {
 // まずは 村の すぐ そとを ねらう —— はじめた とたんに 村が 見えると うれしいので。
 // 見つからなければ 草の ある たいらな ところ。
 function spawnPoint() {
+  if (W.theme !== 'home') {
+    // もどる 土管の すぐ そばに 立たせる
+    const s = structOf(0, 0);
+    if (s.kind === 'town') return { x: 0.5, y: s.y + 2, z: 15.5, arrival: s };
+    return { x: 34.5, y: s.y + 2, z: 27.5, arrival: s };
+  }
   for (let r = 0; r <= 3; r++) {
     for (let gz = -r; gz <= r; gz++) {
       for (let gx = -r; gx <= r; gx++) {

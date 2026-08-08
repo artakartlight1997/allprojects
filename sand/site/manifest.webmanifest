@@ -1,0 +1,10 @@
+{
+  "name": "あおいの美味しいサンドイッチ作り",
+  "short_name": "サンドイッチ",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#3A2418",
+  "theme_color": "#3A2418",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

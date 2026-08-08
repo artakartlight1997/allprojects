@@ -30,6 +30,7 @@ on:
       - 'sand/site/**'
       - 'party/site/**'
       - 'kart/site/**'
+      - 'cafe/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -72,12 +73,13 @@ jobs:
       #   /sand/       あおいの美味しいサンドイッチ作り（リズムで ざいりょう あつめ）
       #   /party/      みんなでパーティ（1だいを かこんで 2〜4人 同時に あそぶ）
       #   /kart/       まさきのカートレース（見おろし型の カートレース・全10コース）
+      #   /cafe/       あおいのどうぶつカフェ（注文を さばく お店ゲーム・全15日）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -91,6 +93,7 @@ jobs:
           cp -r sand/site/. public/sand/
           cp -r party/site/. public/party/
           cp -r kart/site/. public/kart/
+          cp -r cafe/site/. public/cafe/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

@@ -134,7 +134,7 @@
   @media (max-height: 430px) {
     body { padding-top: 8px; }
     header { margin-bottom: 8px; }
-    /* ゲームが 14こに なった。よこ長の 画面では 3れつに して
+    /* ゲームが 15こに なった。よこ長の 画面では 3れつに して
        ぜんぶ スクロールなしで 見えるようにする。
        せつめいは 2行で 切る。行が のびると ふだが 高くなって はみ出すため。 */
     .games { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
@@ -161,7 +161,7 @@
     .game .name {
       font-size: .84rem;
       /* いちばん たての みじかい 画面では 名前も 1行に して、
-         ふだが 14こ ぜんぶ スクロールなしで 見えるようにする。 */
+         ふだが 15こ ぜんぶ スクロールなしで 見えるようにする。 */
       display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1;
       -webkit-box-orient: vertical; overflow: hidden;
     }
@@ -180,6 +180,16 @@
 
   <!-- あたらしく 作ったものから 順に ならべている -->
   <div class="games">
+
+    <a class="game" href="/allprojects/cafe/" style="--accent:#FF8FB8">
+      <span class="badge">あたらしい</span>
+      <img src="cafe/icon.png" alt="" width="72" height="72" loading="lazy">
+      <span class="txt">
+        <span class="name">あおいのどうぶつカフェ</span>
+        <span class="desc">たのまれた ものを 作って わたす お店ゲーム・全15日</span>
+      </span>
+      <span class="go">›</span>
+    </a>
 
     <a class="game" href="/allprojects/kart/" style="--accent:#4A9CE8">
       <span class="badge">あたらしい</span>

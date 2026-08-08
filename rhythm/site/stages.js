@@ -160,6 +160,8 @@ function decorate(notes, st) {
     const g = STAGES[n.g];
     n.p = g.root + g.pitch[n.i % g.pitch.length];
     n.pre = !!g.pre && n.k === 'tap';
+    n.preAt = g.preAt === undefined ? 1 : g.preAt;
+    n.preKind = g.preKind || '';
     n.gd = g.guide !== false && n.k === 'tap';
     if (n.kk === 'shout') n.hit = 'shout';
     n.lane = (n3++) % 3;
@@ -210,6 +212,7 @@ STAGES.push({
   key: 'neko',
   name: 'ねこパンチ',
   desc: 'とんでくる まりを ビートで パンチ',
+  rule: 'まりが とんできたら タップ！ 1拍まえに「ヒュー」と 鳴るよ',
   col: '#F0864A',
   bpm: 104, intro: 2, root: 72,
   pitch: [0, 2, 4, 5, 7, 5, 4, 2],
@@ -264,61 +267,99 @@ STAGES.push({
   gi: 1,
   key: 'nawa',
   name: 'なわとび',
-  desc: 'なわが 下に きたら ジャンプ',
+  desc: 'なわが 足もとに きたら ジャンプ',
+  rule: 'なわが 足もとに きたら タップ！ なわの 下の しるしを 見ててね',
   col: '#4FB0D8',
   bpm: 116, intro: 2, root: 71,
   pitch: [0, 4, 7, 4, 9, 7, 5, 4],
   drum: 'disco', prog: [0, 7, 5, 7], min: [],
   hit: 'jump',
-  pre: false,
+  pre: true, preAt: 0.5, preKind: 'swish',
+  // 音符の あいだが なわの 1まわり。だから ならびを 見れば
+  // 「ゆっくり まわる 小節」「速く まわる 小節」が そのまま わかる。
   pats: [
-    'o.o.o.o.', 'o.o.o.o.', 'o.o.o.o.', 'o.o.o.o.',
-    'o.o.o.o.', 'o.o.o.o.', 'o.o.oo..', 'o.o.o.o.',
-    'o.o.o.o.', 'o.o.oo..', 'o.o.o.o.', 'oo..oo..',
-    'o.o.o.o.', 'o.o.oo..', 'oo..oo..', 'o.......',
+    'o...o...', 'o...o...', 'o.o.o.o.', 'o.o.o.o.',
+    'o...o...', 'o.o.o.o.', 'o.o.o.o.', 'o...o...',
+    'o.o.o.o.', 'o.o.o.o.', 'oo..oo..', 'o.o.o.o.',
+    'o.o.o.o.', 'oo..oo..', 'o.o.o.o.', 'o.......',
   ],
   draw(v) {
     bg('#BFE8F6', '#63B4D8');
-    const gy = H * 0.78;
+    const gy = H * 0.82;                     // ゆか
     floor(gy, '#6EC46A');
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
     ctx.fillRect(0, gy, W, H * 0.012);
 
-    const cx = W / 2, s = H * 0.30;
-    // なわ。つぎの 音 で ちょうど 下に くるように まわす。
-    let prev = v.beat - 4, next = v.beat + 4;
+    const cx = W / 2;
+    const hx = W * 0.18, hx2 = W * 0.82;     // まわす人の 手
+    const hy = gy - H * 0.34;
+
+    // なわが つぎに 足もとへ 来るのは いつか
+    let prev = v.beat - 2, next = v.beat + 2;
     for (const n of v.notes) {
       if (n.g !== 1) continue;
       if (n.b <= v.beat && n.b > prev) prev = n.b;
       if (n.b > v.beat && n.b < next) next = n.b;
     }
-    const u = next > prev ? (v.beat - prev) / (next - prev) : 0;
-    const ang = u * Math.PI * 2 - Math.PI / 2;
-    const rx = H * 0.30, ry = H * 0.30;
-    ctx.strokeStyle = '#D8483C'; ctx.lineWidth = Math.max(3, H * 0.012);
-    ctx.beginPath();
-    for (let i = 0; i <= 24; i++) {
-      const a2 = -Math.PI / 2 + (i / 24) * Math.PI * 2;
-      const rr2 = 1 + Math.cos(a2 - ang) * 0.06;
-      const x = cx + Math.cos(a2) * rx * rr2 * 1.25;
-      const y = gy - ry + Math.sin(a2) * ry * rr2;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    // なわの 手もと
-    ctx.fillStyle = '#FFD166';
-    ctx.beginPath(); ctx.arc(cx + Math.cos(ang) * rx * 1.25, gy - ry + Math.sin(ang) * ry,
-                             H * 0.022, 0, 7); ctx.fill();
+    const u = next > prev ? (v.beat - prev) / (next - prev) : 0;   // 0→1 で 1まわり
+    // u=0 …… 足もと（ここで とぶ）  u=0.5 …… 頭の上
+    const midY = hy + (gy - hy) * Math.cos(u * Math.PI * 2);
+    const near = Math.max(0, Math.min(1, 1 - (next - v.beat) * 3));  // 来るぞ！
 
-    // ジャンプ
-    const jt = (v.beat - v.hitB) / 0.62;
-    const jump = jt >= 0 && jt <= 1 ? Math.sin(jt * Math.PI) * H * 0.14 : 0;
-    const pre = Math.max(0, Math.min(1, 1 - (next - v.beat) * 4));
-    chibi(cx, gy - jump, s, Object.assign({}, RINA, {
-      arm: 1.35 + jump / H * 1.6,
-      squash: jump > 0 ? 0 : pre * 0.5,
+    // 足もとの しるし。なわが 近づくほど 光る。
+    ctx.fillStyle = 'rgba(255,220,90,' + (0.20 + near * 0.65) + ')';
+    ctx.beginPath();
+    ctx.ellipse(cx, gy + H * 0.008, H * (0.11 + near * 0.05), H * (0.026 + near * 0.012), 0, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = Math.max(2, H * 0.006);
+    ctx.beginPath();
+    ctx.ellipse(cx, gy + H * 0.008, H * 0.11, H * 0.026, 0, 0, 7); ctx.stroke();
+
+    // なわ。手から 手へ たれ下がる ひとすじ。
+    // 下がってくる あいだは 手まえ、上がって いく あいだは うしろ。
+    const drawRope = () => {
+      const ctrlY = 2 * midY - hy;
+      ctx.strokeStyle = midY > hy ? '#E8483C' : 'rgba(190,60,50,0.75)';
+      ctx.lineWidth = Math.max(4, H * (0.014 + near * 0.008));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(cx, ctrlY, hx2, hy);
+      ctx.stroke();
+    };
+    const front = midY > hy;                 // 手の たかさより 下＝手まえ
+    if (!front) drawRope();
+
+    // まわす 2人。なわを 持つ ほうの うでを 上げる。
+    const s2 = H * 0.30;
+    const turn = u * Math.PI * 2;
+    const up = 2.05 + Math.sin(turn) * 0.28;
+    for (const [x, col, inner] of [[hx - W * 0.055, '#3E7ACF', 'r'],
+                                   [hx2 + W * 0.055, '#59B07A', 'l']]) {
+      chibi(x, gy, s2, Object.assign({}, PAPA, {
+        body: col,
+        arm: inner === 'l' ? up : 0.3,
+        arm2: inner === 'r' ? up : 0.3,
+        face: 'h',
+      }));
+    }
+
+    // りな。とぶ 直前は しゃがみ、たたいた しゅんかんに もう 空中に いる。
+    const jt = (v.beat - v.hitB + 0.18) / 0.78;
+    const jump = jt >= 0 && jt <= 1 ? Math.sin(jt * Math.PI) * H * 0.17 : 0;
+    chibi(cx, gy - jump, H * 0.32, Object.assign({}, RINA, {
+      arm: 0.5 + (jump / H) * 3.5,
+      squash: jump > 0 ? 0 : near * 0.45,
       face: v.missB > v.hitB && v.beat - v.missB < 0.8 ? 'x' : jump > 0 ? 'o' : 'n',
     }));
+
+    if (front) drawRope();
+
+    // なわの 手もと
+    ctx.fillStyle = '#FFD166';
+    for (const x of [hx, hx2]) {
+      ctx.beginPath(); ctx.arc(x, hy, H * 0.020, 0, 7); ctx.fill();
+    }
   },
 });
 
@@ -329,6 +370,7 @@ STAGES.push({
   key: 'mogura',
   name: 'もぐらポカポカ',
   desc: 'あなから 出た もぐらを たたく',
+  rule: 'もぐらが あなから 顔を 出したら タップ！ あなは 3つ あるよ',
   col: '#8FBE4A',
   bpm: 126, intro: 2, root: 74,
   pitch: [0, 3, 5, 7, 10, 7, 5, 3],
@@ -409,6 +451,7 @@ STAGES.push({
   key: 'mane',
   name: 'まねっこ たいこ',
   desc: 'パパの リズムを よく きいて まねる',
+  rule: 'パパが 1小節 たたく → つぎの 1小節で 同じ リズムを まねる',
   col: '#D8564A',
   bpm: 112, intro: 2, root: 69,
   pitch: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -471,6 +514,7 @@ STAGES.push({
   key: 'robo',
   name: 'ロボダンス',
   desc: 'うらびょうし も ある。ポーズを きめろ',
+  rule: '玉が まん中の 線に きたら タップ！ うら拍（ずれた ところ）も あるよ',
   col: '#9B6AE0',
   bpm: 120, intro: 2, root: 76,
   pitch: [0, -3, 2, -5, 4, -1, 2, -3],
@@ -536,6 +580,7 @@ STAGES.push({
   key: 'neji',
   name: 'ねじまき ロボ',
   desc: 'おして、音が 上がりきったら はなす',
+  rule: 'ロボが 近づいたら おしっぱなし。音が 上がりきって 線に きたら はなす',
   col: '#59A8C8',
   bpm: 108, intro: 2, root: 74,
   pitch: [0, 0, 5, 5, 7, 7, 9, 9],
@@ -635,6 +680,7 @@ STAGES.push({
   key: 'rally',
   name: 'ピンポン ラリー',
   desc: 'あいてが 打ったら 打ちかえす',
+  rule: 'パパが 打った 玉が じぶんの ところに きたら タップ！',
   col: '#4FC08A',
   bpm: 120, intro: 2, root: 76,
   pitch: [0, 2, 4, 2, 5, 4, 2, 0],
@@ -724,6 +770,7 @@ STAGES.push({
   key: 'idol',
   name: 'りなアイドル',
   desc: '手びょうし と「キャー！」',
+  rule: '玉が まん中の 線に きたら タップ！ ピンクの 玉は「キャー！」',
   col: '#F06AB0',
   bpm: 128, intro: 2, root: 79,
   pitch: [0, 0, 3, 3, 5, 5, 7, 7],
@@ -820,6 +867,7 @@ function mkRemix(gi, key, name, desc, col, bpm, root, segs) {
   for (const sg of segs) for (const p of sg.pats) pats.push(p);
   return {
     gi, key, name, desc, col,
+    rule: 'いままでの ミニゲームが 4小節ずつ つぎつぎ 出てくる。よく 見てね',
     bpm, intro: 2, root,
     pitch: [0, 2, 4, 7, 9, 7, 4, 2],
     drum: 'funk', prog: [0, 5, 3, 7], min: [2],
@@ -836,6 +884,8 @@ function mkRemix(gi, key, name, desc, col, bpm, root, segs) {
         const sub = STAGES[g];
         n.hit = n.kk === 'shout' ? 'shout' : sub.hit;
         n.pre = !!sub.pre && n.k === 'tap';
+        n.preAt = sub.preAt === undefined ? 1 : sub.preAt;
+        n.preKind = sub.preKind || '';
       }
       return notes;
     },

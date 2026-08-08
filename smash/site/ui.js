@@ -315,8 +315,7 @@ function drawPlay(t) {
   }
   ctx.restore();
 
-  drawHUD(t);
-  drawPad();
+  if (!ui.hidePad) { drawHUD(t); drawPad(); }
 }
 
 function drawHUD(t) {
@@ -643,8 +642,13 @@ function drawRule(t) {
 
 function drawResult(t) {
   const VW = G.VW;
+  // うしろの ステージは のこすが、そうさボタンや ダメージ表示までは 出さない
+  // （けっかを 読む じゃまに なる）。
+  const keepPad = ui.hidePad;
+  ui.hidePad = true;
   drawPlay(t);
-  ctx.fillStyle = G.win ? 'rgba(14,34,54,0.84)' : 'rgba(50,14,28,0.84)';
+  ui.hidePad = keepPad;
+  ctx.fillStyle = G.win ? 'rgba(14,34,54,0.90)' : 'rgba(50,14,28,0.90)';
   ctx.fillRect(0, 0, VW, VH);
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.fillStyle = G.win ? '#A8F0FF' : '#FFB0B0';

@@ -12,6 +12,11 @@
 //   mix まぜる / shake ふる / squeeze しぼる / wrap つつむ
 //
 // food … クリアすると もらえる ざいりょう
+// easy … 10ばんめまで。はんていの まどを ひろく、クリアの線を 下げる。
+//
+// ★ 10ばんめまでは **うら拍（'.o' の ような ずらし）を つかわない**。
+//   ずらした リズムは、口で「タン・タン」と 言えないので むずかしい。
+//   4分（2こま おき）を 中心に して、たまに 8分の 2つづきを 入れるくらい。
 
 'use strict';
 
@@ -29,55 +34,55 @@ const KIND_TEXT = {
 };
 
 const STAGES = [
-  { key: 'g1', name: 'パンを きろう', kind: 'cut', food: 'bread',
-    bpm: 96, drum: 'basic', root: 62, prog: [0, 0, 5, 7], min: [],
+  { key: 'g1', easy: true, name: 'パンを きろう', kind: 'cut', food: 'bread',
+    bpm: 92, drum: 'basic', root: 62, prog: [0, 0, 5, 7], min: [],
     intro: 2, hit: 'cut',
-    pats: ['o...o...', 'o...o...', 'o...o...', 'o.o.o...'] },
+    pats: ['o...o...', 'o...o...', 'o.o.o.o.', 'o...o...'] },
 
-  { key: 'g2', name: 'バターを ぬろう', kind: 'spread', food: 'butter',
-    bpm: 100, drum: 'basic', root: 64, prog: [0, 5, 7, 5], min: [],
+  { key: 'g2', easy: true, name: 'バターを ぬろう', kind: 'spread', food: 'butter',
+    bpm: 96, drum: 'basic', root: 64, prog: [0, 5, 7, 5], min: [],
     intro: 2, hit: 'spread',
     pats: ['o.o.o.o.', 'o.o.o.o.', 'o...o.o.', 'o.o.o.o.'] },
 
-  { key: 'g3', name: 'レタスを ちぎろう', kind: 'place', food: 'lettuce',
-    bpm: 104, drum: 'march', root: 60, prog: [0, 7, 5, 7], min: [],
+  { key: 'g3', easy: true, name: 'レタスを ちぎろう', kind: 'place', food: 'lettuce',
+    bpm: 98, drum: 'march', root: 60, prog: [0, 7, 5, 7], min: [],
     intro: 2, hit: 'place',
-    pats: ['o..o..o.', 'o..o..o.', 'o..o..o.', 'o.o.o.o.'] },
+    pats: ['o.o.o.o.', 'o...o...', 'o.o.o.o.', 'o...o...'] },
 
-  { key: 'g4', name: 'トマトを きろう', kind: 'cut', food: 'tomato',
-    bpm: 108, drum: 'basic', root: 62, prog: [0, 9, 5, 7], min: [1],
+  { key: 'g4', easy: true, name: 'トマトを きろう', kind: 'cut', food: 'tomato',
+    bpm: 100, drum: 'basic', root: 62, prog: [0, 9, 5, 7], min: [1],
     intro: 2, hit: 'cut',
-    pats: ['oo..oo..', 'oo..oo..', 'o.o.oo..', 'oo.oo.o.'] },
+    pats: ['o.o.o.o.', 'o.o.o.o.', 'o.o.o...', 'o...o.o.'] },
 
-  { key: 'g5', name: 'チーズを のせよう', kind: 'place', food: 'cheese',
-    bpm: 104, drum: 'disco', root: 65, prog: [0, 5, 0, 7], min: [],
+  { key: 'g5', easy: true, name: 'チーズを のせよう', kind: 'place', food: 'cheese',
+    bpm: 98, drum: 'disco', root: 65, prog: [0, 5, 0, 7], min: [],
     intro: 2, hit: 'place',
     pats: ['c...o...', 'c...o...', 'c.c.o.o.', 'o...o...'] },
 
-  { key: 'g6', name: 'ハムを ならべよう', kind: 'place', food: 'ham',
-    bpm: 112, drum: 'funk', root: 60, prog: [0, 3, 8, 7], min: [0, 1, 2, 3],
+  { key: 'g6', easy: true, name: 'ハムを ならべよう', kind: 'place', food: 'ham',
+    bpm: 102, drum: 'funk', root: 60, prog: [0, 3, 8, 7], min: [0, 1, 2, 3],
     intro: 2, hit: 'place',
-    pats: ['o.o..o..', 'o.o..o..', 'o.o.o.o.', 'o..o..o.'] },
+    pats: ['o.o.o.o.', 'o...o...', 'o.o.o.o.', 'o.o.o...'] },
 
-  { key: 'g7', name: 'たまごを まぜよう', kind: 'mix', food: 'egg',
-    bpm: 100, drum: 'basic', root: 63, prog: [0, 5, 7, 5], min: [0, 2],
+  { key: 'g7', easy: true, name: 'たまごを まぜよう', kind: 'mix', food: 'egg',
+    bpm: 96, drum: 'basic', root: 63, prog: [0, 5, 7, 5], min: [0, 2],
     intro: 2, hit: 'mix',
     pats: ['h...h...', 'h...h...', 'o.o.h...', 'H.......'] },
 
-  { key: 'g8', name: 'きゅうりを きろう', kind: 'cut', food: 'cucumber',
-    bpm: 116, drum: 'march', root: 64, prog: [0, 7, 9, 5], min: [],
+  { key: 'g8', easy: true, name: 'きゅうりを きろう', kind: 'cut', food: 'cucumber',
+    bpm: 104, drum: 'march', root: 64, prog: [0, 7, 9, 5], min: [],
     intro: 2, hit: 'cut',
-    pats: ['oo.oo.o.', 'oo.oo.o.', 'ooo.oo..', 'oo.o.oo.'] },
+    pats: ['o.o.o.o.', 'o.o.o.o.', 'o...o.o.', 'o.o.o...'] },
 
-  { key: 'g9', name: 'チキンを やこう', kind: 'grill', food: 'chicken',
-    bpm: 96, drum: 'taiko', root: 60, prog: [0, 0, 5, 7], min: [0, 1],
+  { key: 'g9', easy: true, name: 'チキンを やこう', kind: 'grill', food: 'chicken',
+    bpm: 92, drum: 'taiko', root: 60, prog: [0, 0, 5, 7], min: [0, 1],
     intro: 2, hit: 'grill', pre: true,
-    pats: ['o...o...', 'o.....o.', 'o...o...', 'o..o..o.'] },
+    pats: ['o...o...', 'o...o...', 'o...o...', 'o.o.o...'] },
 
-  { key: 'g10', name: 'ベーコンを やこう', kind: 'grill', food: 'bacon',
-    bpm: 108, drum: 'funk', root: 62, prog: [0, 5, 3, 7], min: [2],
+  { key: 'g10', easy: true, name: 'ベーコンを やこう', kind: 'grill', food: 'bacon',
+    bpm: 98, drum: 'funk', root: 62, prog: [0, 5, 3, 7], min: [2],
     intro: 2, hit: 'grill', pre: true,
-    pats: ['o..o..o.', 'o..o..o.', 'o.o..o..', 'o..o.o.o'] },
+    pats: ['o...o...', 'o.o.o.o.', 'o...o...', 'o.o.o...'] },
 
   { key: 'g11', name: 'アボカドを つぶそう', kind: 'mix', food: 'avocado',
     bpm: 112, drum: 'disco', root: 65, prog: [0, 9, 5, 7], min: [1],

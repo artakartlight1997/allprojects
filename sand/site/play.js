@@ -80,16 +80,26 @@ function canEat() { return save.got.bread && gotFoods().length >= 3; }
 const WIN_PERFECT = 0.070;
 const WIN_GOOD = 0.150;
 
+// 「おしい」の てんすう。
+// ここが 0.5 だと、**ぜんぶ たたけたのに ぜんぶ おしい** の 子が
+// 0.5点 に なって クリアできない。たたけたのに だめ、が いちばん つらい。
+// 0.8 に すると「ぜんぶ たたけたら とりあえず クリア」に なる。
+const GOOD_SCORE = 0.8;
+
 let failStage = -1, failStreak = 0;
 function assistLevel() { return Math.min(2, Math.floor(failStreak / 2)); }
 function assistMul() { return [1, 1.4, 1.8][assistLevel()]; }
-function winP() { return WIN_PERFECT * assistMul(); }
-function winG() { return WIN_GOOD * assistMul(); }
+// 10ばんめまでは まどを ひろく。はじめの ほうで つまずかせない。
+function easyMul() { return (RG.st && RG.st.easy) ? 1.35 : 1; }
+function winP() { return WIN_PERFECT * assistMul() * easyMul(); }
+function winG() { return WIN_GOOD * assistMul() * easyMul(); }
 // クリアの line。はじめの 2つは 音符が 少ないので、1こ ずれた だけで
 // てんすうが 大きく さがる。はじめて さわる ところで つまずかせない ように
 // すこし 下げておく。
 function clearLine() {
-  return (RG.si2 <= 1 ? 0.54 : 0.62) - assistLevel() * 0.08;
+  // 10ばんめまでは ゆるめ。11ばんめから すこし きびしく する。
+  const base = (RG.st && RG.st.easy) ? 0.45 : 0.58;
+  return base - assistLevel() * 0.08;
 }
 
 const RG = {
@@ -232,10 +242,12 @@ function totalNotes() {
 function finishStage() {
   songStop();
   const tot = Math.max(1, totalNotes());
-  let sc = (RG.perfect + RG.good * 0.5) / tot - Math.min(0.15, RG.extra * 0.01);
+  // あわてて たたいた ぶんの ひきざんは 小さく。
+  // こどもは うれしくて つい たたく ので、そこで つぶさない。
+  let sc = (RG.perfect + RG.good * GOOD_SCORE) / tot - Math.min(0.10, RG.extra * 0.006);
   sc = Math.max(0, sc);
   RG.score = sc;
-  RG.rank = sc >= 0.88 ? 2 : sc >= clearLine() ? 1 : 0;
+  RG.rank = sc >= ((RG.st && RG.st.easy) ? 0.92 : 0.88) ? 2 : sc >= clearLine() ? 1 : 0;
   if (RG.rank >= 1) failStreak = 0; else failStreak++;
   RG.justOpened = 0;
   if (RG.rank < 1 && failStreak >= 3 && !save.skip[RG.st.key]) {

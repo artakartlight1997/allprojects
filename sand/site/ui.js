@@ -570,6 +570,11 @@ function drawTitle(t) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
   fitFont('音が 出ないときは スマホの よこの スイッチ（消音）を たしかめてね', VW * 0.66, 14);
   ctx.fillText('音が 出ないときは スマホの よこの スイッチ（消音）を たしかめてね', VW / 2, VH - 6);
+  // 版ばんごう。ふるい ものが スマホに のこっていないか、ここで 見わけられる。
+  ctx.fillStyle = 'rgba(90,58,32,0.65)';
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 13px system-ui, sans-serif';
+  ctx.fillText('v' + GAME_VER, VW - 12, VH - 6);
   ctx.textAlign = 'left';
 }
 

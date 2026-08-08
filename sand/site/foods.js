@@ -7,6 +7,11 @@
 
 const VH = 450;
 
+// 版ばんごう。index.html の ?v= と 同じ 数字に する。
+// タイトル画面の 右下に 出るので、ふるい ものが スマホに のこっていても
+// ひと目で わかる。
+const GAME_VER = 2;
+
 // h … サンドイッチに つんだ ときの あつさ
 const FOODS = {
   bread:   { name: 'パン',        col: '#E8B870', h: 22, kind: 'bread' },

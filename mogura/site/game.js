@@ -11,13 +11,14 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 2;
+const GAME_VER = 3;
 
 const VH = 450;
 
 const SAVE_KEY = 'mogura.v1';
 
-const save = { clear: [], best: {}, fails: {}, plays: 0 };
+// seen … 一度でも会ったボス。会うまでは選ぶ画面で出さない。
+const save = { clear: [], best: {}, fails: {}, plays: 0, seen: {} };
 
 function loadSave() {
   try {
@@ -25,6 +26,7 @@ function loadSave() {
     if (Array.isArray(o.clear)) save.clear = o.clear.map((x) => !!x);
     if (o.best && typeof o.best === 'object') save.best = o.best;
     if (o.fails && typeof o.fails === 'object') save.fails = o.fails;
+    if (o.seen && typeof o.seen === 'object') save.seen = o.seen;
     if (Number.isFinite(o.plays)) save.plays = o.plays;
   } catch (e) {}
 }
@@ -44,26 +46,26 @@ function goalMul() { return [1, 0.88, 0.78, 0.66][assistLevel(G.stage)]; }
 
 // 出てくる もの
 const KINDS = {
-  mole:  { name: 'もぐら',   pt: 100, bad: false, hp: 1, col: '#A87A50' },
-  gold:  { name: 'きんもぐら', pt: 300, bad: false, hp: 1, col: '#FFD166' },
+  mole:  { name: 'モグラ',   pt: 100, bad: false, hp: 1, col: '#A87A50' },
+  gold:  { name: '金モグラ', pt: 300, bad: false, hp: 1, col: '#FFD166' },
   fast:  { name: 'すばやい',  pt: 180, bad: false, hp: 1, col: '#8FD6FF' },
-  bomb:  { name: 'ばくだん',  pt: -250, bad: true, hp: 1, col: '#4A4458' },
+  bomb:  { name: '爆弾',     pt: -250, bad: true, hp: 1, col: '#4A4458' },
   cake:  { name: 'ケーキ',   pt: -150, bad: true, hp: 1, col: '#FFB8D8' },
   papa:  { name: 'リナパパ',  pt: 900, bad: false, hp: 4, col: '#5A8A6A' },
 };
 
 // 10めん。だんだん 早く なり、だめな ものが ふえ、パパも 出る。
 const STAGES = [
-  { name: '1. はじめての モグラたたき', holes: 6, len: 30, goal: 2400, up: 0.85, down: 1.30, bad: 0.00, papa: 0 },
-  { name: '2. きんもぐら が 出た',      holes: 6, len: 30, goal: 3600, up: 0.78, down: 1.20, bad: 0.00, papa: 0, gold: 0.12 },
-  { name: '3. ばくだん に ちゅうい',    holes: 6, len: 35, goal: 4800, up: 0.74, down: 1.15, bad: 0.16, papa: 0, gold: 0.12 },
-  { name: '4. パパ とうじょう！',       holes: 6, len: 35, goal: 6900, up: 0.70, down: 1.10, bad: 0.16, papa: 0.05, gold: 0.12 },
-  { name: '5. あなが ふえた',           holes: 9, len: 40, goal: 8100, up: 0.66, down: 1.05, bad: 0.18, papa: 0.05, gold: 0.12 },
-  { name: '6. すばやい もぐら',         holes: 9, len: 40, goal: 10000, up: 0.60, down: 0.95, bad: 0.20, papa: 0.06, gold: 0.12, fast: 0.25 },
-  { name: '7. ケーキも まぜて',         holes: 9, len: 40, goal: 11200, up: 0.56, down: 0.90, bad: 0.24, papa: 0.06, gold: 0.12, fast: 0.25 },
-  { name: '8. パパが よく 出る',        holes: 9, len: 45, goal: 15800, up: 0.52, down: 0.85, bad: 0.24, papa: 0.10, gold: 0.14, fast: 0.28 },
-  { name: '9. どんどん 出る',           holes: 12, len: 45, goal: 18700, up: 0.48, down: 0.78, bad: 0.26, papa: 0.10, gold: 0.14, fast: 0.30 },
-  { name: '10. パパ まつり',            holes: 12, len: 50, goal: 23800, up: 0.42, down: 0.72, bad: 0.28, papa: 0.16, gold: 0.16, fast: 0.32 },
+  { name: '1. はじめてのモグラたたき',  holes: 6, len: 30, goal: 2400, up: 0.85, down: 1.30, bad: 0.00, papa: 0 },
+  { name: '2. 金モグラ登場',            holes: 6, len: 30, goal: 3600, up: 0.78, down: 1.20, bad: 0.00, papa: 0, gold: 0.12 },
+  { name: '3. 爆弾に注意',              holes: 6, len: 35, goal: 4800, up: 0.74, down: 1.15, bad: 0.16, papa: 0, gold: 0.12 },
+  { name: '4. 何かが出た',              holes: 6, len: 35, goal: 6900, up: 0.70, down: 1.10, bad: 0.16, papa: 0.05, gold: 0.12 },
+  { name: '5. 穴が増えた',              holes: 9, len: 40, goal: 8100, up: 0.66, down: 1.05, bad: 0.18, papa: 0.05, gold: 0.12 },
+  { name: '6. すばやいモグラ',          holes: 9, len: 40, goal: 10000, up: 0.60, down: 0.95, bad: 0.20, papa: 0.06, gold: 0.12, fast: 0.25 },
+  { name: '7. ケーキも混ざる',          holes: 9, len: 40, goal: 11200, up: 0.56, down: 0.90, bad: 0.24, papa: 0.06, gold: 0.12, fast: 0.25 },
+  { name: '8. どんどん来る',            holes: 9, len: 45, goal: 15800, up: 0.52, down: 0.85, bad: 0.24, papa: 0.10, gold: 0.14, fast: 0.28 },
+  { name: '9. 穴が12こ',                holes: 12, len: 45, goal: 18700, up: 0.48, down: 0.78, bad: 0.26, papa: 0.10, gold: 0.14, fast: 0.30 },
+  { name: '10. 最後の祭り',             holes: 12, len: 50, goal: 23800, up: 0.42, down: 0.72, bad: 0.28, papa: 0.16, gold: 0.16, fast: 0.32 },
 ];
 
 const G = {
@@ -82,6 +84,7 @@ const G = {
   papaOn: false,
   shake: 0,
   hurried: false,
+  papaIn: 0,        // ボス登場の おしらせの 残り時間
 };
 
 function startStage(i) {
@@ -103,6 +106,7 @@ function startStage(i) {
   G.papaOn = false;
   G.shake = 0;
   G.hurried = false;
+  G.papaIn = 0;
   G.screen = 'play';
   save.plays++;
   storeSave();
@@ -132,7 +136,15 @@ function spawn() {
   const base = 0.9 + Math.random() * 0.7;
   h.life = k === 'fast' ? base * 0.55 : k === 'papa' ? 5.0 : base;
   h.up = 0;
-  if (k === 'papa') { G.papaOn = true; sfxPapa(); }
+  if (k === 'papa') {
+    G.papaOn = true;
+    // ★ ボスは とつぜん 出るのでは なく、帯と 音で 知らせる。
+    G.papaIn = 1.6;
+    G.shake = 0.6;
+    save.seen.papa = true;
+    storeSave();
+    sfxPapa();
+  }
   else sfxPop();
 }
 
@@ -178,6 +190,7 @@ function update(dt) {
   if (G.screen !== 'play') return;
   bgmPump();
   G.shake = Math.max(0, G.shake - dt * 3);
+  G.papaIn = Math.max(0, G.papaIn - dt);
   for (const p of G.pops) p.t += dt;
   G.pops = G.pops.filter((p) => p.t < 0.9);
 

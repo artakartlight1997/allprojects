@@ -14,7 +14,8 @@
 
 const SAVE_KEY = 'block.v1';
 
-const save = { clear: [], best: {}, fails: {}, plays: 0 };
+// seen … 一度でも会ったボス。会うまでは選ぶ画面で「？」にする。
+const save = { clear: [], best: {}, fails: {}, plays: 0, seen: {} };
 
 function loadSave() {
   try {
@@ -22,6 +23,7 @@ function loadSave() {
     if (Array.isArray(o.clear)) save.clear = o.clear.map((x) => !!x);
     if (o.best && typeof o.best === 'object') save.best = o.best;
     if (o.fails && typeof o.fails === 'object') save.fails = o.fails;
+    if (o.seen && typeof o.seen === 'object') save.seen = o.seen;
     if (Number.isFinite(o.plays)) save.plays = o.plays;
   } catch (e) {}
 }
@@ -72,6 +74,8 @@ const G = {
   items: [],        // { k, x, y }
   shots: [],        // レーザー
   papa: null,
+  papaPend: 0,      // まだ出ていないボスの体力（0なら出ない面）
+  intro: 0,         // ボス登場のえんしゅつの残り時間
   cakes: [],
   puffs: [],
   px: 0, padW: 86, padT: 0,   // padT … 小さく なって いる のこり時間
@@ -118,14 +122,29 @@ function startStage(i) {
   G.over = false; G.win = false; G.endT = 0;
   G.shake = 0;
   G.msg = ''; G.msgT = 0;
-  G.papa = G.S.papa ? { x: (F.x0 + F.x1) / 2, y: VH * 0.56, vx: 105, r: 26, hp: G.S.papa,
-                        max: G.S.papa, cd: 2.2, hit: 0, t: 0 } : null;
+  // ★ ボスは **はじめから 出さない**。ブロックが 半分 こわれた ころに
+  //   えんしゅつ付きで 出てくる。はじめから いると おどろきが ない。
+  G.papa = null;
+  G.papaPend = G.S.papa || 0;
+  G.intro = 0;
+  G.half = Math.ceil(breakable() * 0.5);
   newBall();
   G.screen = 'play';
   save.plays++;
   storeSave();
   bgmStart(G.stage);
-  if (G.papa) { say('リナパパ が 出てきた！'); sfxPapa(); }
+}
+
+function spawnPapa() {
+  const F = fld();
+  G.papa = { x: (F.x0 + F.x1) / 2, y: VH * 0.56, vx: 105, r: 34,
+             hp: G.papaPend, max: G.papaPend, cd: 2.6, hit: 0, t: 0 };
+  G.papaPend = 0;
+  G.intro = 2.4;
+  save.seen.papa = true;
+  storeSave();
+  sfxPapa();
+  bgmHeat(1);
 }
 
 function newBall() {
@@ -159,11 +178,11 @@ function setPad(x) {
 // --- アイテム -------------------------------------------------------------------------
 
 const ITEMS = {
-  wide:  { col: '#8FD6FF', txt: 'W', name: 'ラケットが 広く' },
-  multi: { col: '#FFD166', txt: 'M', name: 'たまが 3つ' },
-  slow:  { col: '#A8F0B0', txt: 'S', name: 'たまが ゆっくり' },
+  wide:  { col: '#8FD6FF', txt: 'W', name: 'ラケットが広く' },
+  multi: { col: '#FFD166', txt: 'M', name: '玉が3つ' },
+  slow:  { col: '#A8F0B0', txt: 'S', name: '玉がゆっくり' },
   laser: { col: '#FF8FA0', txt: 'L', name: 'レーザー' },
-  life:  { col: '#FF6B7A', txt: '♥', name: 'たまが 1つ ふえる' },
+  life:  { col: '#FF6B7A', txt: '♥', name: '玉が1つ増える' },
 };
 const ITEM_KEYS = ['wide', 'multi', 'slow', 'laser', 'life'];
 
@@ -239,7 +258,7 @@ function dropBricks() {
   for (const b of G.bricks) low = Math.max(low, b.r);
   if (BRICK_TOP + (low + 2) * BRICK_H <= PAD_Y - 70) {
     for (const b of G.bricks) b.r++;
-    say('ブロックが 下がってきた！');
+    say('ブロックが下がってきた！');
     sfxHard();
     return;
   }
@@ -248,7 +267,7 @@ function dropBricks() {
   //   当たらない、で 終わらなく なるのを ふせぐ ため。
   const cand = G.bricks.filter((b) => b.k !== 's' && b.r === low);
   const t = cand.length ? cand[0] : G.bricks.find((b) => b.k !== 's');
-  if (t) { killBrick(t, false); say('ブロックが ひとりでに くずれた'); }
+  if (t) { killBrick(t, false); say('ブロックがひとりでに くずれた'); }
 }
 
 function hitBrick(b) {
@@ -310,6 +329,15 @@ function update(dt) {
     if (G.papa && Math.hypot(s.x - G.papa.x, s.y - G.papa.y) < G.papa.r) { hurtPapa(1); return false; }
     return true;
   });
+
+  // ★ ボス登場。ブロックが半分こわれたら出てくる。
+  if (G.papaPend && !G.papa && breakable() <= G.half) spawnPapa();
+  // えんしゅつ中は たまも止まって、名前が出るのを待つ
+  if (G.intro > 0) {
+    G.intro -= dt;
+    if (G.intro <= 0) say('リナパパ が あらわれた！');
+    return;
+  }
 
   if (G.stuck) {
     G.balls[0].x = G.px; G.balls[0].y = PAD_Y - 12;
@@ -482,7 +510,7 @@ function updatePapa(dt) {
       G.cakes.splice(i, 1);
       G.padT = 5;
       G.shake = 1;
-      say('ケーキ！ ラケットが 小さく なった');
+      say('ケーキ！ ラケットが小さくなった');
       sfxLose();
     }
   }
@@ -496,7 +524,7 @@ function loseBall() {
   sfxLose();
   if (G.life <= 0) { finish(false); return; }
   newBall();
-  say('のこり ' + G.life);
+  say('残り ' + G.life);
 }
 
 function finish(win) {

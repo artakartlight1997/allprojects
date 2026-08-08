@@ -358,7 +358,7 @@ function drawPlay(t) {
     ctx.beginPath(); ctx.ellipse(b.cx, b.cy, b.rx, b.ry, 0, 0, 7); ctx.fill();
 
     if (h.state !== 'idle' && h.k) {
-      const r = b.rx * 0.62;
+      const r = b.rx * 0.78;   // ★ 小さいと 見分けにくいので 大きめ
       const rise = b.tall * 0.52;
       ctx.save();
       // ★ あなの 口より 下は かくす（せり上がって 見えるように）
@@ -396,6 +396,42 @@ function drawPlay(t) {
 
   drawTop();
 
+  // ★ ボス登場の おしらせ（たたくゲームなので 止めずに 帯だけ 出す）
+  if (G.papaIn > 0) {
+    const p = 1 - G.papaIn / 1.6;
+    const band = Math.min(1, p * 6) * Math.min(1, (1 - p) * 4);
+    const h = 62 * band;
+    if (h > 1) {
+      const cy = VH * 0.30, off = (t * 60) % 44;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, cy - h / 2, VW, h); ctx.clip();
+      ctx.fillStyle = 'rgba(24,12,30,0.86)';
+      ctx.fillRect(0, cy - h / 2, VW, h);
+      ctx.fillStyle = 'rgba(255,209,102,0.28)';
+      for (let x = -h - 44; x < VW + h; x += 44) {
+        ctx.beginPath();
+        ctx.moveTo(x - off, cy + h / 2);
+        ctx.lineTo(x + h - off, cy - h / 2);
+        ctx.lineTo(x + h + 16 - off, cy - h / 2);
+        ctx.lineTo(x + 16 - off, cy + h / 2);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+      ctx.strokeStyle = '#FFD166'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, cy - h / 2); ctx.lineTo(VW, cy - h / 2);
+      ctx.moveTo(0, cy + h / 2); ctx.lineTo(VW, cy + h / 2);
+      ctx.stroke();
+      if (band > 0.8) {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#FFFFFF';
+        fitFont('リナパパ 登場！', VW * 0.6, 26, 'bold ');
+        ctx.fillText('リナパパ 登場！', VW / 2, cy);
+        ctx.textAlign = 'left';
+      }
+    }
+  }
+
   if (G.over) {
     ctx.fillStyle = 'rgba(10,20,34,0.5)';
     ctx.fillRect(0, 0, VW, VH);
@@ -432,7 +468,7 @@ function drawTop() {
   if (G.combo > 1) {
     ctx.fillStyle = '#FFE066';
     ctx.font = 'bold 20px system-ui, sans-serif';
-    ctx.fillText(G.combo + ' れんぞく！', VW * 0.66, 26);
+    ctx.fillText(G.combo + ' 連続！', VW * 0.66, 26);
   }
 
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -441,11 +477,11 @@ function drawTop() {
   ctx.fillText(Math.ceil(G.left) + '', VW - 104, 27);
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.font = 'bold 11px system-ui, sans-serif';
-  ctx.fillText('びょう', VW - 104, 44);
+  ctx.fillText('秒', VW - 104, 44);
   ctx.textAlign = 'left';
 
   drawButton(button(VW - 94, 12, 84, 28, () => { bgmStop(); G.screen = 'title'; }),
-             'めんを えらぶ', 'rgba(255,255,255,0.85)');
+             '面をえらぶ', 'rgba(255,255,255,0.85)');
 }
 
 // --- タイトル -------------------------------------------------------------------
@@ -463,20 +499,35 @@ function drawTitle(t) {
   const fs = fitFont('りなのモグラたたき', VW * 0.44, 38, 'bold ');
   ctx.fillText('りなのモグラたたき', 24, 16);
   ctx.fillStyle = '#FFD9A8';
-  fitFont('たたく もの と たたいちゃ だめな もの が あるよ', VW * 0.48, 15);
-  ctx.fillText('たたく もの と たたいちゃ だめな もの が あるよ', 26, 20 + fs + 4);
+  fitFont('たたく物と たたいちゃだめな物が あるよ', VW * 0.48, 15);
+  ctx.fillText('たたく物と たたいちゃだめな物が あるよ', 26, 20 + fs + 4);
 
-  // 見本（もぐら と パパ）
+  // 見本（モグラ と ボス）
+  // ★ まだ会っていないうちはボスを出さない。先に分かるとつまらない。
   {
     const x = VW - 150, y = 140;
-    drawMole(x - 66, y, 30, KINDS.mole.col, false);
-    drawPapa(x + 44, y - 4, 36, false, 0, t);
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    drawMole(x - 66, y, 32, KINDS.mole.col, false);
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.font = 'bold 13px system-ui, sans-serif';
-    ctx.fillText('もぐら', x - 66, y + 64);
-    ctx.fillStyle = '#FFE066';
-    ctx.fillText('ボス リナパパ', x + 44, y + 72);
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.fillText('モグラ', x - 66, y + 68);
+    if (save.seen.papa) {
+      drawPapa(x + 44, y - 4, 40, false, 0, t);
+      ctx.fillStyle = '#FFE066';
+      ctx.fillText('ボス リナパパ', x + 44, y + 78);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.09)';
+      ctx.beginPath(); ctx.ellipse(x + 44, y + 2, 42, 42, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold 42px system-ui, sans-serif';
+      ctx.fillText('？', x + 44, y + 2);
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.fillText('ボスは……？', x + 44, y + 78);
+    }
     ctx.textAlign = 'left';
   }
 
@@ -527,7 +578,7 @@ function drawTitle(t) {
       ctx.fillText(String(i + 1), cxp + (cw - 8) / 2, cyp + 5);
       ctx.fillStyle = 'rgba(255,255,255,0.72)';
       ctx.font = 'bold 10px system-ui, sans-serif';
-      ctx.fillText('あな ' + STAGES[i].holes, cxp + (cw - 8) / 2, cyp + 24);
+      ctx.fillText('穴 ' + STAGES[i].holes, cxp + (cw - 8) / 2, cyp + 24);
       ctx.fillStyle = cl ? '#FFE066' : 'rgba(255,255,255,0.5)';
       ctx.font = 'bold 11px system-ui, sans-serif';
       ctx.fillText(best ? String(best) : (cl ? 'クリア' : '—'), cxp + (cw - 8) / 2, cyp + 40);
@@ -543,12 +594,12 @@ function drawTitle(t) {
 
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = '13px system-ui, sans-serif';
-  ctx.fillText('★ 3回 だめだと 目ひょうが さがって、つぎの めんも ひらくよ', 24, 112 + 2 * (chh + 10) + 8);
+  ctx.fillText('★ 3回だめだと目標が下がって、次の面も開くよ', 24, 112 + 2 * (chh + 10) + 8);
 
   drawButton(button(VW - 150, 12, 138, 30, () => { location.href = '/allprojects/'; }),
              '≡ ゲームをえらぶ', 'rgba(255,255,255,0.9)', '#33304A');
   drawButton(button(24, VH - 42, 106, 30, () => { G.screen = 'howto'; }),
-             'あそびかた', '#E8D0F8');
+             '遊びかた', '#E8D0F8');
   drawButton(button(138, VH - 42, 96, 30, () => { sfxTest(); }),
              '♪ 音', 'rgba(255,255,255,0.85)');
 
@@ -564,17 +615,18 @@ function drawHowto(t) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#FFD9A8';
   ctx.font = 'bold 26px system-ui, sans-serif';
-  ctx.fillText('あそびかた', 24, 12);
+  ctx.fillText('遊びかた', 24, 12);
 
   // 出てくる ものの ひょう
   const items = [
-    ['mole', 'もぐら', '+100', true],
-    ['gold', 'きんもぐら', '+300', true],
+    ['mole', 'モグラ', '+100', true],
+    ['gold', '金モグラ', '+300', true],
     ['fast', 'すばやい', '+180', true],
-    ['bomb', 'ばくだん', '-250', false],
+    ['bomb', '爆弾', '-250', false],
     ['cake', 'ケーキ', '-150', false],
-    ['papa', 'リナパパ', '+900', true],
   ];
+  // ★ ボスは 会ってから 出す
+  if (save.seen.papa) items.push(['papa', 'リナパパ', '+900', true]);
   const cw = Math.min(126, (VW - 48) / 6);
   for (let i = 0; i < items.length; i++) {
     const [k, name, pt, good] = items[i];
@@ -597,13 +649,13 @@ function drawHowto(t) {
   ctx.textAlign = 'left';
 
   const lines = [
-    '① 出てきた ものを タップ（たたく）',
-    '② ばくだん と ケーキは たたくと 点が へる。よく 見て！',
-    '③ つづけて たたくと れんぞく ボーナスで 点が ふえる',
-    '④ ボスの リナパパは 何回か たたかないと ひっこまない',
+    '① 出てきた物をタップ（たたく）',
+    '② 爆弾とケーキは たたくと点が減る。よく見て！',
+    '③ 続けてたたくと連続ボーナスで点が増える',
+    '④ ときどきボスが出る。何回かたたかないと引っこまない',
     '',
-    '時間内に 目ひょうの 点を こえたら クリア。',
-    '3回 だめだと 目ひょうが さがって、つぎの めんも ひらくよ。',
+    '時間内に目標の点をこえたらクリア。',
+    '3回だめだと目標が下がって、次の面も開くよ。',
   ];
   ctx.fillStyle = '#F0E4F0';
   lines.forEach((s, i) => {
@@ -628,20 +680,20 @@ function drawResult(t) {
   ctx.fillText(String(G.score), VW / 2, 106);
   ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.font = 'bold 14px system-ui, sans-serif';
-  ctx.fillText('目ひょう ' + G.goal, VW / 2, 152);
+  ctx.fillText('目標 ' + G.goal, VW / 2, 152);
 
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.font = 'bold 15px system-ui, sans-serif';
   ctx.fillText('たたいた ' + G.hits + ' こ ／ にがした ' + G.lets +
                ' こ ／ まちがえて たたいた ' + G.miss + ' こ', VW / 2, 182);
-  ctx.fillText('さいこう れんぞく ' + G.bestCombo, VW / 2, 206);
+  ctx.fillText('最高連続 ' + G.bestCombo, VW / 2, 206);
 
   if (!G.win) {
     const lv = assistLevel(G.stage);
     if (lv > 0) {
       ctx.fillStyle = '#A8F0B0';
       ctx.font = 'bold 14px system-ui, sans-serif';
-      ctx.fillText('※ 目ひょうを さげて あるよ（' + lv + 'だんかい）', VW / 2, 232);
+      ctx.fillText('※ 目標を下げてあるよ（' + lv + '段階）', VW / 2, 232);
     }
   }
   ctx.textAlign = 'left';
@@ -652,10 +704,10 @@ function drawResult(t) {
              'もう一度', '#E8D0F8');
   if (nxt < STAGES.length && opened(nxt)) {
     drawButton(button(VW / 2 - bw / 2, VH - 56, bw, 38, () => startStage(nxt)),
-               'つぎの めん', '#FFD166');
+               '次の面', '#FFD166');
   }
   drawButton(button(VW / 2 + 100, VH - 56, bw, 38, () => { G.screen = 'title'; }),
-             'めんを えらぶ', 'rgba(255,255,255,0.85)');
+             '面をえらぶ', 'rgba(255,255,255,0.85)');
 }
 
 // --- そうさ ---------------------------------------------------------------------
@@ -721,10 +773,10 @@ function drawRotate() {
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = 'bold ' + Math.round(W * 0.07) + 'px system-ui, sans-serif';
-  ctx.fillText('よこ向きにしてね', W / 2, H * 0.45);
+  ctx.fillText('横向きにしてね', W / 2, H * 0.45);
   ctx.font = Math.round(W * 0.045) + 'px system-ui, sans-serif';
   ctx.fillStyle = '#FFD9A8';
-  ctx.fillText('あなが よこに ならぶよ', W / 2, H * 0.56);
+  ctx.fillText('穴が横にならぶよ', W / 2, H * 0.56);
   ctx.textAlign = 'left';
   ctx.setTransform(dpr * SC, 0, 0, dpr * SC, 0, 0);
 }

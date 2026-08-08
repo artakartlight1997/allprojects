@@ -13,13 +13,14 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 2;
+const GAME_VER = 3;
 
 const VH = 450;
 
 const SAVE_KEY = 'shooter.v1';
 
-const save = { clear: [], best: {}, fails: {}, plays: 0 };
+// seen … 一度でも 出会った ボス。会うまでは 選ぶ画面で「？」に する。
+const save = { clear: [], best: {}, fails: {}, plays: 0, seen: {} };
 
 function loadSave() {
   try {
@@ -27,6 +28,7 @@ function loadSave() {
     if (Array.isArray(o.clear)) save.clear = o.clear.map((x) => !!x);
     if (o.best && typeof o.best === 'object') save.best = o.best;
     if (o.fails && typeof o.fails === 'object') save.fails = o.fails;
+    if (o.seen && typeof o.seen === 'object') save.seen = o.seen;
     if (Number.isFinite(o.plays)) save.plays = o.plays;
   } catch (e) {}
 }
@@ -97,10 +99,13 @@ function makeWaves(st) {
   return w;
 }
 
+// ★ めんの 名前に ボスの 名前を 出さない。
+//   選ぶ画面で ラスボスが 分かって しまうと、出てきた ときの
+//   おどろきが なくなる（「ドン引き」と 言われた）。
 const S_NAMES = [
-  '1. とびたとう', '2. うねうね たいぐん', '3. うってくる やつ', '4. パパ、うちゅうへ',
-  '5. いわの たい', '6. まというち ちゅうい', '7. パパ ふたたび', '8. たまの あめ',
-  '9. とっしん ラッシュ', '10. さいごの リナパパ',
+  '1. 出発', '2. 大群', '3. 反撃の砲台', '4. 未知の影',
+  '5. 岩の帯', '6. 狙撃注意', '7. 再びあの影', '8. 弾の雨',
+  '9. 突進ラッシュ', '10. 最後の影',
 ];
 const S_BOSS = ['ufo', 'ufo', 'core', 'papa', 'ufo', 'core', 'papa', 'core', 'ufo', 'papa'];
 
@@ -125,6 +130,7 @@ const G = {
   shots: [], ebul: [], foes: [], items: [], puffs: [],
   trail: [], opts: [],   // ★ オプション（船の とおった みちを ついてくる 玉）
   boss: null, bossIn: 0,
+  intro: 0,          // ボス とうじょうの えんしゅつ の のこり時間
   wi: 0, pend: [],     // つぎに 出す なみ
   t: 0, score: 0,
   over: false, win: false, endT: 0,
@@ -148,6 +154,7 @@ function startStage(i) {
   G.shots = []; G.ebul = []; G.foes = []; G.items = []; G.puffs = [];
   G.trail = []; G.opts = [];
   G.boss = null; G.bossIn = 0;
+  G.intro = 0;
   G.wi = 0; G.pend = [];
   G.t = 0; G.score = 0;
   G.over = false; G.win = false; G.endT = 0;
@@ -199,7 +206,12 @@ function spawnBoss() {
     t: 0, cd: 1.4, ph: 0, hit: 0,
   };
   G.bossIn = 1;
-  say(b.name + ' あらわれた！');
+  // ★ とうじょう の えんしゅつ。ここの あいだは たまも 出ないし
+  //   ボスも 動かない。名前が 出て、それから 戦いが 始まる。
+  G.intro = 2.6;
+  G.ebul = [];
+  save.seen[G.S.boss] = true;
+  storeSave();
   if (G.S.boss === 'papa') sfxPapa(); else sfxBossIn();
   bgmHeat(1);
 }
@@ -288,6 +300,19 @@ function update(dt) {
   if (G.over) {
     G.endT += dt;
     if (G.endT > 1.8) { bgmStop(); G.screen = 'result'; }
+    return;
+  }
+
+  // ★ とうじょう の えんしゅつ中。船だけ 動かせる。
+  if (G.intro > 0) {
+    G.intro -= dt;
+    G.inv = Math.max(G.inv, 0.4);
+    const W3 = fieldW();
+    G.tx = Math.max(24, Math.min(W3 - 24, G.tx));
+    G.ty = Math.max(44, Math.min(VH - 20, G.ty));
+    G.px += (G.tx - G.px) * Math.min(1, dt * 22);
+    G.py += (G.ty - G.py) * Math.min(1, dt * 22);
+    if (G.intro <= 0) say(BOSSES[G.S.boss].name + ' あらわれた！');
     return;
   }
 

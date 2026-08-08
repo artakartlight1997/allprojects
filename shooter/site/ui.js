@@ -128,44 +128,182 @@ function drawShip(x, y, r, blink) {
   ctx.restore();
 }
 
+// てきの え。しゅるいごとに かたちを 変える。
+// ★ ぜんぶ 同じ 三角だと 何が 出ているか 分からないので、
+//   1つずつ 別の かたちに して、色でも 見分けられる ように した。
+//   進む むきは **左**。
+
+function foeShade(col, dark) {
+  // かんたんな 影の 色（#RRGGBB を 暗く する）
+  const n = parseInt(col.slice(1), 16);
+  const f = dark;
+  const r = Math.round(((n >> 16) & 255) * f);
+  const g = Math.round(((n >> 8) & 255) * f);
+  const b = Math.round((n & 255) * f);
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+function foeEye(r, look) {
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.ellipse(-r * 0.28, 0, r * 0.24, r * 0.28, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2A2440';
+  ctx.beginPath(); ctx.arc(-r * 0.36, 0, r * 0.13, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath(); ctx.arc(-r * 0.40, -r * 0.05, r * 0.05, 0, 7); ctx.fill();
+}
+
 function drawFoe(f, t) {
   const F = FOES[f.k];
-  const col = f.hit > 0.3 ? '#FFFFFF' : F.col;
+  const white = f.hit > 0.3;
+  const col = white ? '#FFFFFF' : F.col;
+  const dk = white ? '#DDDDDD' : foeShade(F.col, 0.66);
+  const r = f.r;
   ctx.save();
   ctx.translate(f.x, f.y);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(18,12,28,0.55)';
+
   if (f.k === 'rock') {
+    // いわ。でこぼこ＋クレーター
     ctx.fillStyle = col;
     ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const a = i * 0.785 + f.t * 0.3;
-      const rr2 = f.r * (0.82 + ((i * 37) % 10) / 40);
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + f.t * 0.25;
+      const rr2 = r * (0.80 + ((i * 37) % 11) / 42);
       ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr2, Math.sin(a) * rr2);
     }
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(20,20,30,0.5)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath(); ctx.arc(-f.r * 0.2, -f.r * 0.15, f.r * 0.25, 0, 7); ctx.fill();
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.20)';
+    for (const [cx, cy, cr] of [[-0.28, -0.20, 0.24], [0.24, 0.18, 0.18], [0.02, -0.42, 0.13]]) {
+      ctx.beginPath(); ctx.arc(cx * r, cy * r, cr * r, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.36, -r * 0.44, r * 0.30, r * 0.14, -0.6, 0, 7); ctx.fill();
     ctx.restore(); return;
   }
-  // むきは 左
+
+  if (f.k === 'wave') {
+    // くらげ。うしろに ひらひらが なびく
+    for (let i = 0; i < 5; i++) {
+      ctx.strokeStyle = dk; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.5, (i - 2) * r * 0.26);
+      ctx.quadraticCurveTo(r * 1.0, (i - 2) * r * 0.26 + Math.sin(f.t * 5 + i) * r * 0.30,
+                           r * 1.45, (i - 2) * r * 0.26 + Math.sin(f.t * 5 + i + 1) * r * 0.35);
+      ctx.stroke();
+    }
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.95, r * 0.85, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(18,12,28,0.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.20, -r * 0.34, r * 0.42, r * 0.22, -0.4, 0, 7); ctx.fill();
+    foeEye(r);
+    ctx.restore(); return;
+  }
+
+  if (f.k === 'dive') {
+    // つっこんで くる やり。うしろに 火
+    ctx.fillStyle = 'rgba(255,150,60,' + (0.55 + Math.random() * 0.35) + ')';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.7, -r * 0.30);
+    ctx.lineTo(r * (1.5 + Math.random() * 0.5), 0);
+    ctx.lineTo(r * 0.7, r * 0.30);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.30, 0);
+    ctx.lineTo(-r * 0.10, -r * 0.52);
+    ctx.lineTo(r * 0.85, -r * 0.34);
+    ctx.lineTo(r * 0.85, r * 0.34);
+    ctx.lineTo(-r * 0.10, r * 0.52);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // つばさ
+    ctx.fillStyle = dk;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, -r * 0.44); ctx.lineTo(r * 0.9, -r * 1.05);
+    ctx.lineTo(r * 0.95, -r * 0.34); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, r * 0.44); ctx.lineTo(r * 0.9, r * 1.05);
+    ctx.lineTo(r * 0.95, r * 0.34); ctx.closePath(); ctx.fill();
+    foeEye(r);
+    ctx.restore(); return;
+  }
+
+  if (f.k === 'turret') {
+    // 砲台。まえに 太い 砲身、上に アンテナ
+    ctx.fillStyle = dk;
+    rr(ctx, -r * 1.45, -r * 0.20, r * 0.75, r * 0.40, 3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col;
+    rr(ctx, -r * 0.80, -r * 0.78, r * 1.70, r * 1.56, r * 0.30); ctx.fill(); ctx.stroke();
+    // アンテナ
+    ctx.strokeStyle = dk; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(r * 0.2, -r * 0.78); ctx.lineTo(r * 0.45, -r * 1.30); ctx.stroke();
+    ctx.fillStyle = '#FF6B7A';
+    ctx.beginPath(); ctx.arc(r * 0.45, -r * 1.36, r * 0.14 * (1 + 0.3 * Math.sin(t * 8)), 0, 7); ctx.fill();
+    // そうこうの すじ
+    ctx.strokeStyle = 'rgba(18,12,28,0.30)'; ctx.lineWidth = 2;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.55, i * r * 0.40 - r * 0.10);
+      ctx.lineTo(r * 0.85, i * r * 0.40 - r * 0.10);
+      ctx.stroke();
+    }
+    foeEye(r);
+    ctx.restore(); return;
+  }
+
+  if (f.k === 'gunner') {
+    // かに型。左右に 2つの 砲
+    ctx.fillStyle = dk;
+    rr(ctx, -r * 1.35, -r * 0.95, r * 0.6, r * 0.34, 3); ctx.fill(); ctx.stroke();
+    rr(ctx, -r * 1.35, r * 0.61, r * 0.6, r * 0.34, 3); ctx.fill(); ctx.stroke();
+    // あし
+    ctx.strokeStyle = dk; ctx.lineWidth = 4;
+    for (const sgn of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.3, sgn * r * 0.5);
+      ctx.lineTo(r * 0.9, sgn * (r * 0.95 + Math.sin(f.t * 6) * r * 0.12));
+      ctx.stroke();
+    }
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 1.02, r * 0.80, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(18,12,28,0.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.16, -r * 0.32, r * 0.45, r * 0.20, -0.3, 0, 7); ctx.fill();
+    foeEye(r);
+    ctx.restore(); return;
+  }
+
+  // zako … 小さな せんとうき
+  ctx.fillStyle = 'rgba(255,180,90,' + (0.45 + Math.random() * 0.35) + ')';
+  ctx.beginPath();
+  ctx.moveTo(r * 0.75, -r * 0.22);
+  ctx.lineTo(r * (1.25 + Math.random() * 0.35), 0);
+  ctx.lineTo(r * 0.75, r * 0.22);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = dk;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.15, -r * 0.30); ctx.lineTo(r * 1.0, -r * 0.95);
+  ctx.lineTo(r * 1.0, -r * 0.25); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.15, r * 0.30); ctx.lineTo(r * 1.0, r * 0.95);
+  ctx.lineTo(r * 1.0, r * 0.25); ctx.closePath(); ctx.fill();
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.moveTo(-f.r * 1.25, 0);
-  ctx.lineTo(f.r * 0.55, -f.r * 0.78);
-  ctx.lineTo(f.r * 1.05, 0);
-  ctx.lineTo(f.r * 0.55, f.r * 0.78);
+  ctx.moveTo(-r * 1.20, 0);
+  ctx.lineTo(-r * 0.30, -r * 0.62);
+  ctx.lineTo(r * 0.80, -r * 0.42);
+  ctx.lineTo(r * 0.80, r * 0.42);
+  ctx.lineTo(-r * 0.30, r * 0.62);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.beginPath();
+  ctx.moveTo(-r * 1.10, -r * 0.06);
+  ctx.lineTo(-r * 0.30, -r * 0.52);
+  ctx.lineTo(r * 0.60, -r * 0.34);
+  ctx.lineTo(r * 0.60, -r * 0.14);
   ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(20,14,30,0.5)'; ctx.lineWidth = 2; ctx.stroke();
-  // 目
-  ctx.fillStyle = '#2A2440';
-  ctx.beginPath(); ctx.ellipse(-f.r * 0.25, 0, f.r * 0.26, f.r * 0.34, 0, 0, 7); ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath(); ctx.arc(-f.r * 0.34, -f.r * 0.10, f.r * 0.11, 0, 7); ctx.fill();
-  if (FOES[f.k].shoot) {
-    // ほうだい
-    ctx.fillStyle = 'rgba(30,24,40,0.85)';
-    rr(ctx, -f.r * 1.5, -f.r * 0.16, f.r * 0.5, f.r * 0.32, 2); ctx.fill();
-  }
+  foeEye(r);
   ctx.restore();
 }
 
@@ -298,7 +436,8 @@ function drawPlay(t) {
   for (const f of G.foes) drawFoe(f, t);
   if (G.boss) {
     drawBoss(G.boss, t);
-    drawBossBar();
+    // ★ えんしゅつ中は 名前バーを 出さない（先に 名前が ばれる）
+    if (G.intro <= 0) drawBossBar();
   }
 
   // てきの たま
@@ -334,7 +473,7 @@ function drawPlay(t) {
       ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.4 * Math.sin(t * 8 + i)) + ')';
       ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, 7); ctx.fill();
     }
-    drawShip(G.px, G.py, 16, G.inv > 0 && Math.floor(t * 14) % 2 === 0);
+    drawShip(G.px, G.py, 20, G.inv > 0 && Math.floor(t * 14) % 2 === 0);
   }
   // ★ いま つかんで いる ところ（ゆびは 船から はなれて いても いい）
   if (G.fingerX != null && !G.over) {
@@ -362,12 +501,55 @@ function drawPlay(t) {
     ctx.globalAlpha = 1;
   }
 
+  if (G.intro > 0) drawBossIntro(t);
+
   if (G.over) {
     ctx.fillStyle = 'rgba(10,8,24,0.5)'; ctx.fillRect(0, 0, VW, VH);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = G.win ? '#FFE066' : '#FFAFAF';
     ctx.font = 'bold 54px system-ui, sans-serif';
     ctx.fillText(G.win ? 'クリア！' : 'やられた…', VW / 2, VH * 0.45);
+    ctx.textAlign = 'left';
+  }
+}
+
+// ★ ボス登場の えんしゅつ。名前は 会って から 出す（選ぶ画面では 出さない）。
+function drawBossIntro(t) {
+  const p = 1 - G.intro / 2.6;        // 0 → 1
+  const band = Math.min(1, p * 4) * Math.min(1, (1 - p) * 6);
+  const h = 84 * band;
+  if (h <= 1) return;
+  const cy = VH * 0.42;
+  const off = (t * 60) % 46;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, cy - h / 2, VW, h); ctx.clip();
+  ctx.fillStyle = 'rgba(20,10,30,0.86)';
+  ctx.fillRect(0, cy - h / 2, VW, h);
+  ctx.fillStyle = 'rgba(255,107,122,0.30)';
+  for (let x = -h - 46; x < VW + h; x += 46) {
+    ctx.beginPath();
+    ctx.moveTo(x - off, cy + h / 2);
+    ctx.lineTo(x + h - off, cy - h / 2);
+    ctx.lineTo(x + h + 18 - off, cy - h / 2);
+    ctx.lineTo(x + 18 - off, cy + h / 2);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#FF6B7A'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, cy - h / 2); ctx.lineTo(VW, cy - h / 2);
+  ctx.moveTo(0, cy + h / 2); ctx.lineTo(VW, cy + h / 2);
+  ctx.stroke();
+
+  if (band > 0.85) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = Math.floor(t * 8) % 2 === 0 ? '#FF6B7A' : '#FFE066';
+    fitFont('！ 警 報 ！', VW * 0.5, 24, 'bold ');
+    ctx.fillText('！ 警 報 ！', VW / 2, cy - 18);
+    ctx.fillStyle = '#FFFFFF';
+    const nm = BOSSES[G.S.boss].name + ' 接近';
+    fitFont(nm, VW * 0.7, 30, 'bold ');
+    ctx.fillText(nm, VW / 2, cy + 18);
     ctx.textAlign = 'left';
   }
 }
@@ -414,7 +596,7 @@ function drawTop() {
   // たまの つよさ
   ctx.fillStyle = '#FFD166';
   ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText('たま ' + G.pw, hx + G.maxhp * 20 + 12, 20);
+  ctx.fillText('弾 ' + G.pw, hx + G.maxhp * 20 + 12, 20);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = '#FFFFFF';
@@ -422,7 +604,7 @@ function drawTop() {
   ctx.fillText(String(G.score), VW - 104, 20);
   ctx.textAlign = 'left';
   drawButton(button(VW - 94, 8, 84, 24, () => { bgmStop(); G.screen = 'title'; }),
-             'めんを えらぶ', 'rgba(255,255,255,0.85)');
+             '面をえらぶ', 'rgba(255,255,255,0.85)');
 }
 
 // --- タイトル -----------------------------------------------------------------------
@@ -432,25 +614,39 @@ function drawTitle(t) {
   drawStars(t);
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#FFFFFF';
-  const fs = fitFont('まさきのうちゅうシューティング', VW * 0.50, 34, 'bold ');
-  ctx.fillText('まさきのうちゅうシューティング', 24, 14);
+  const TITLE = 'まさきの宇宙シューティング';
+  const fs = fitFont(TITLE, VW * 0.50, 34, 'bold ');
+  ctx.fillText(TITLE, 24, 14);
   ctx.fillStyle = '#8FD6FF';
-  const sub = '画面を ひっぱると その ぶんだけ 船が うごく。たまは じどう';
+  const sub = '画面を引っぱるとその分だけ船が動く。弾は自動で出るよ';
   fitFont(sub, VW * 0.46, 14);
   ctx.fillText(sub, 26, 18 + fs + 4);
 
   // 見本
   {
     // ★ めんの ふだ（左はし から VW*0.56 くらい）に かさならない ように 右へ よせる。
+    // ★ ここに ラスボスを かくと、選ぶ前に ばれて しまう。
+    //   まだ 会って いない うちは「？」の かげ に する。
     const x = VW - 116, y = 156;
-    drawShip(x - 62, y, 18, false);
-    drawPapaBoss({ x: x + 30, y: y, r: 36, hit: 0 }, t);
+    drawShip(x - 62, y, 22, false);
+    if (save.seen.papa) {
+      drawPapaBoss({ x: x + 30, y: y, r: 40, hit: 0 }, t);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.09)';
+      ctx.beginPath(); ctx.ellipse(x + 30, y + 6, 48, 42, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold 46px system-ui, sans-serif';
+      ctx.fillText('？', x + 30, y + 6);
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.fillText('じぶんの 船', x - 62, y + 32);
-    ctx.fillStyle = '#FFE066';
-    ctx.fillText('ボス リナパパ', x + 30, y + 56);
+    ctx.fillText('自分の船', x - 62, y + 38);
+    ctx.fillStyle = save.seen.papa ? '#FFE066' : 'rgba(255,255,255,0.55)';
+    ctx.fillText(save.seen.papa ? 'ボス リナパパ' : '最後のボスは……？', x + 30, y + 62);
     ctx.textAlign = 'left';
   }
 
@@ -469,9 +665,12 @@ function drawTitle(t) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.font = 'bold 15px system-ui, sans-serif';
       ctx.fillText(String(i + 1), cxp + (cw - 8) / 2, cyp + 4);
-      ctx.fillStyle = STAGES[i].boss === 'papa' ? '#FFE066' : 'rgba(255,255,255,0.7)';
+      // ★ ボスの 名前は **会ってから** 出す。ここで 出すと ラスボスが ばれる。
+      const met = !!save.seen[STAGES[i].boss];
+      ctx.fillStyle = met ? (STAGES[i].boss === 'papa' ? '#FFE066' : 'rgba(255,255,255,0.7)')
+                          : 'rgba(255,255,255,0.35)';
       ctx.font = 'bold 10px system-ui, sans-serif';
-      ctx.fillText(BOSSES[STAGES[i].boss].name, cxp + (cw - 8) / 2, cyp + 24);
+      ctx.fillText(met ? BOSSES[STAGES[i].boss].name : '？？？', cxp + (cw - 8) / 2, cyp + 24);
       ctx.fillStyle = cl ? '#FFE066' : 'rgba(255,255,255,0.5)';
       ctx.font = 'bold 11px system-ui, sans-serif';
       ctx.fillText(save.best['s' + i] ? String(save.best['s' + i]) : (cl ? 'クリア' : '—'),
@@ -487,11 +686,11 @@ function drawTitle(t) {
   }
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
   ctx.font = '13px system-ui, sans-serif';
-  ctx.fillText('★ 3回 やられると ライフが ふえて、つぎの めんも ひらくよ', 24, 112 + 2 * (chh + 10) + 8);
+  ctx.fillText('★ 3回やられるとライフが増えて、次の面も開くよ', 24, 112 + 2 * (chh + 10) + 8);
 
   drawButton(button(VW - 150, 12, 138, 30, () => { location.href = '/allprojects/'; }),
              '≡ ゲームをえらぶ', 'rgba(255,255,255,0.9)', '#33304A');
-  drawButton(button(24, VH - 42, 106, 30, () => { G.screen = 'howto'; }), 'あそびかた', '#E8D0F8');
+  drawButton(button(24, VH - 42, 106, 30, () => { G.screen = 'howto'; }), '遊びかた', '#E8D0F8');
   drawButton(button(138, VH - 42, 96, 30, () => { sfxTest(); }), '♪ 音', 'rgba(255,255,255,0.85)');
 
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
@@ -506,11 +705,11 @@ function drawHowto(t) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#8FD6FF';
   ctx.font = 'bold 26px system-ui, sans-serif';
-  ctx.fillText('あそびかた', 24, 12);
+  ctx.fillText('遊びかた', 24, 12);
 
   // アイテムの せつめい
-  const its = [['pw', 'たまが つよくなる（さいだい 4）'], ['hp', 'ライフが 1つ もどる'],
-               ['sh', 'バリア。1回 だけ まもってくれる']];
+  const its = [['pw', '弾が強くなる（最大4。3からオプションも付く）'], ['hp', 'ライフが1つ回復'],
+               ['sh', 'バリア。1回だけ守ってくれる']];
   its.forEach(([k, s], i) => {
     const x = 40, y = 62 + i * 34;
     ctx.fillStyle = ITEM_COL[k];
@@ -527,14 +726,14 @@ function drawHowto(t) {
 
   ctx.textBaseline = 'top';
   const lines = [
-    '① 画面を ひっぱると、ひっぱった ぶんだけ 船が うごく',
-    '　 （どこを さわっても いい。下のほうを さわると ゆびで 船が かくれない）',
-    '② たまは じどうで 出る。ボタンは おさなくて いい',
-    '③ P を 3つ とると「オプション」（金の 玉）が ついてくる。いっしょに うつ',
-    '④ 赤い たまと てきに ぶつかると ライフが 1つ へる',
-    '⑤ てきを ぜんぶ たおすと ボス。ボスを たおしたら クリア',
+    '① 画面を引っぱると、引っぱった分だけ船が動く',
+    '　 （どこを触ってもいい。下の方を触ると指で船がかくれない）',
+    '② 弾は自動で出る。ボタンは押さなくていい',
+    '③ P を 3つ取ると「オプション」（金の玉）が付いてくる。一緒に撃つ',
+    '④ 赤い弾と敵にぶつかるとライフが1つ減る',
+    '⑤ 敵を全部たおすとボスが出る。ボスをたおしたらクリア',
     '',
-    '4・7・10 めんの ボスは リナパパ。メガネの ちょいぽちゃ が ケーキを なげてくる。',
+    'どの面のボスが誰なのかは、会ってからのお楽しみ。',
   ];
   ctx.fillStyle = '#F0E4F0';
   lines.forEach((s, i) => {
@@ -559,13 +758,13 @@ function drawResult(t) {
   ctx.fillText(String(G.score), VW / 2, 110);
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillText('さいこう ' + (save.best['s' + G.stage] || 0), VW / 2, 156);
+  ctx.fillText('最高 ' + (save.best['s' + G.stage] || 0), VW / 2, 156);
   if (!G.win) {
     const lv = assistLevel(G.stage);
     ctx.fillStyle = '#A8F0B0';
     ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillText(lv > 0 ? 'ライフを ' + lv + 'つ ふやして あるよ' :
-                 'あと ' + (3 - ((save.fails['s' + G.stage] || 0) % 3)) + '回 やられると やさしく なるよ',
+    ctx.fillText(lv > 0 ? 'ライフを' + lv + 'つ増やしてあるよ' :
+                 'あと' + (3 - ((save.fails['s' + G.stage] || 0) % 3)) + '回やられると易しくなるよ',
                  VW / 2, 186);
   }
   ctx.textAlign = 'left';
@@ -574,10 +773,10 @@ function drawResult(t) {
   const bw = Math.min(160, VW * 0.22);
   drawButton(button(VW / 2 - bw - 100, VH - 56, bw, 38, () => startStage(G.stage)), 'もう一度', '#E8D0F8');
   if (nxt < STAGES.length && opened(nxt)) {
-    drawButton(button(VW / 2 - bw / 2, VH - 56, bw, 38, () => startStage(nxt)), 'つぎの めん', '#FFD166');
+    drawButton(button(VW / 2 - bw / 2, VH - 56, bw, 38, () => startStage(nxt)), '次の面', '#FFD166');
   }
   drawButton(button(VW / 2 + 100, VH - 56, bw, 38, () => { G.screen = 'title'; }),
-             'めんを えらぶ', 'rgba(255,255,255,0.85)');
+             '面をえらぶ', 'rgba(255,255,255,0.85)');
 }
 
 // --- そうさ ---------------------------------------------------------------------------
@@ -685,10 +884,10 @@ function drawRotate() {
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = 'bold ' + Math.round(W * 0.07) + 'px system-ui, sans-serif';
-  ctx.fillText('よこ向きにしてね', W / 2, H * 0.45);
+  ctx.fillText('横向きにしてね', W / 2, H * 0.45);
   ctx.font = Math.round(W * 0.045) + 'px system-ui, sans-serif';
   ctx.fillStyle = '#8FD6FF';
-  ctx.fillText('左から 右へ すすむ ゲームだよ', W / 2, H * 0.56);
+  ctx.fillText('左から右へ進むゲームだよ', W / 2, H * 0.56);
   ctx.textAlign = 'left';
   ctx.setTransform(dpr * SC, 0, 0, dpr * SC, 0, 0);
 }

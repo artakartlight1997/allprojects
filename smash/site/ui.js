@@ -162,6 +162,56 @@ function drawStage(t) {
     ctx.globalAlpha = 1;
   }
 
+  // ゆかの とげ。ずっと 見えているので、2かい目からは よけられる。
+  if (st.spikes) {
+    for (const sp of st.spikes) {
+      const p = G.plats.find((q) => !q.thru && q.on && sp.x >= q.x - 1 && sp.x <= q.x + q.w);
+      if (!p) continue;
+      const y = p.y;
+      ctx.fillStyle = '#C8CEDA';
+      const n = Math.max(2, Math.round(sp.w / 13));
+      for (let i = 0; i < n; i++) {
+        const bx = cx + sp.x + (sp.w * i) / n;
+        const bw = sp.w / n;
+        ctx.beginPath();
+        ctx.moveTo(bx, y); ctx.lineTo(bx + bw / 2, y - 15); ctx.lineTo(bx + bw, y);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      for (let i = 0; i < n; i++) {
+        const bx = cx + sp.x + (sp.w * i) / n + sp.w / n * 0.32;
+        ctx.beginPath();
+        ctx.moveTo(bx, y - 2); ctx.lineTo(bx + 2.4, y - 12); ctx.lineTo(bx + 3.6, y - 2);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = '#8A94A8';
+      ctx.fillRect(cx + sp.x, y - 2, sp.w, 4);
+    }
+  }
+
+  // とげボール。くさりで ゆれる。
+  if (G.balls) {
+    for (const b of G.balls) {
+      ctx.strokeStyle = 'rgba(220,226,238,0.75)'; ctx.lineWidth = 3;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(cx + b.x, b.y); ctx.lineTo(cx + b.bx, b.by); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#7A8698';
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * 6.283;
+        ctx.beginPath();
+        ctx.moveTo(cx + b.bx + Math.cos(a) * b.r * 1.75, b.by + Math.sin(a) * b.r * 1.75);
+        ctx.lineTo(cx + b.bx + Math.cos(a + 0.32) * b.r * 0.9, b.by + Math.sin(a + 0.32) * b.r * 0.9);
+        ctx.lineTo(cx + b.bx + Math.cos(a - 0.32) * b.r * 0.9, b.by + Math.sin(a - 0.32) * b.r * 0.9);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = '#4A5464';
+      ctx.beginPath(); ctx.arc(cx + b.bx, b.by, b.r, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.beginPath(); ctx.arc(cx + b.bx - b.r * 0.32, b.by - b.r * 0.32, b.r * 0.36, 0, 7); ctx.fill();
+    }
+  }
+
   // きり。こくなると あしばも きえる。
   if (st.gim === 'fog') {
     const dense = g.phase === 'act'
@@ -225,6 +275,65 @@ function warnText(s, t) {
   ctx.textAlign = 'left';
 }
 
+
+// とくべつアイテムの 絵。ぜんぶ コードで かく（画像ファイルは つかわない）。
+function drawItemIcon(c2, kind, x, y, r) {
+  const I = ITEMS[kind];
+  c2.save();
+  c2.translate(x, y);
+  if (kind === 'star') {
+    c2.fillStyle = I.col;
+    c2.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const rr2 = i % 2 ? r * 0.45 : r;
+      c2.lineTo(Math.cos(a) * rr2, Math.sin(a) * rr2);
+    }
+    c2.closePath(); c2.fill();
+    c2.fillStyle = 'rgba(255,255,255,0.8)';
+    c2.beginPath(); c2.arc(-r * 0.22, -r * 0.18, r * 0.16, 0, 7); c2.fill();
+  } else if (kind === 'hammer') {
+    c2.fillStyle = '#8A5A32';
+    c2.fillRect(-r * 0.13, -r * 0.1, r * 0.26, r * 1.15);
+    c2.fillStyle = I.col;
+    rr(c2, -r * 0.75, -r * 0.85, r * 1.5, r * 0.8, r * 0.2); c2.fill();
+    c2.fillStyle = 'rgba(255,255,255,0.45)';
+    rr(c2, -r * 0.66, -r * 0.78, r * 1.3, r * 0.2, r * 0.1); c2.fill();
+  } else if (kind === 'heart') {
+    c2.fillStyle = I.col;
+    c2.beginPath();
+    c2.moveTo(0, r * 0.85);
+    c2.bezierCurveTo(-r * 1.35, -r * 0.1, -r * 0.55, -r * 1.05, 0, -r * 0.3);
+    c2.bezierCurveTo(r * 0.55, -r * 1.05, r * 1.35, -r * 0.1, 0, r * 0.85);
+    c2.fill();
+    c2.fillStyle = 'rgba(255,255,255,0.6)';
+    c2.beginPath(); c2.arc(-r * 0.34, -r * 0.3, r * 0.18, 0, 7); c2.fill();
+  } else if (kind === 'shoes') {
+    c2.fillStyle = I.col;
+    rr(c2, -r * 0.9, -r * 0.1, r * 1.8, r * 0.75, r * 0.25); c2.fill();
+    rr(c2, -r * 0.9, -r * 0.75, r * 0.8, r * 0.8, r * 0.2); c2.fill();
+    c2.fillStyle = '#FFFFFF';
+    for (let i = 0; i < 3; i++) {
+      c2.beginPath();
+      c2.moveTo(r * 0.95, -r * 0.5 + i * r * 0.4);
+      c2.lineTo(r * 1.6, -r * 0.5 + i * r * 0.4);
+      c2.lineWidth = 2; c2.strokeStyle = '#FFFFFF'; c2.stroke();
+    }
+  } else {
+    // ばくだん
+    c2.fillStyle = '#3A4050';
+    c2.beginPath(); c2.arc(0, r * 0.16, r * 0.8, 0, 7); c2.fill();
+    c2.fillStyle = 'rgba(255,255,255,0.3)';
+    c2.beginPath(); c2.arc(-r * 0.28, -r * 0.1, r * 0.2, 0, 7); c2.fill();
+    c2.strokeStyle = '#C8A060'; c2.lineWidth = Math.max(2, r * 0.14);
+    c2.beginPath(); c2.moveTo(r * 0.2, -r * 0.5);
+    c2.quadraticCurveTo(r * 0.75, -r * 0.95, r * 0.5, -r * 1.25); c2.stroke();
+    c2.fillStyle = '#FF9A40';
+    c2.beginPath(); c2.arc(r * 0.5, -r * 1.32, r * 0.22, 0, 7); c2.fill();
+  }
+  c2.restore();
+}
+
 // --- あそんでいる 画面 ----------------------------------------------------------
 
 function drawPlay(t) {
@@ -240,6 +349,22 @@ function drawPlay(t) {
     ctx.beginPath(); ctx.arc(cx + s.x, s.y, s.r, 0, 7); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.beginPath(); ctx.arc(cx + s.x - 3, s.y - 3, 3.4, 0, 7); ctx.fill();
+  }
+
+  // とくべつアイテム
+  for (const it of G.items) {
+    const I = ITEMS[it.kind];
+    const bob = it.on ? Math.sin(t * 4) * 3 : 0;
+    const iy = it.y - ITEM_R - 2 + bob;
+    const blink = it.life < 3 && Math.floor(it.life * 8) % 2 === 0;
+    ctx.globalAlpha = blink ? 0.35 : 1;
+    // ひかり
+    ctx.fillStyle = I.col;
+    ctx.globalAlpha *= 0.30;
+    ctx.beginPath(); ctx.arc(cx + it.x, iy, ITEM_R + 8 + Math.sin(t * 5) * 2, 0, 7); ctx.fill();
+    ctx.globalAlpha = blink ? 0.35 : 1;
+    drawItemIcon(ctx, it.kind, cx + it.x, iy, ITEM_R);
+    ctx.globalAlpha = 1;
   }
 
   // ファイター
@@ -266,6 +391,26 @@ function drawPlay(t) {
       ctx.arc(cx + f.x, f.y - charH(c) * 0.6, 26 + f.chargeT * 10,
               -1.5, -1.5 + f.chargeT * 6.283);
       ctx.stroke();
+    }
+    // もっている アイテム。のこり時間が わかる わっかつき。
+    if (f.item && f.itemT > 0) {
+      const I = ITEMS[f.item];
+      const iy = f.y - charH(c) - 34;
+      if (f.item === 'star') {
+        ctx.strokeStyle = 'rgba(255,224,102,' + (0.5 + 0.4 * Math.abs(Math.sin(t * 9))) + ')';
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(cx + f.x, f.y - charH(c) * 0.5, charH(c) * 0.72, 0, 7); ctx.stroke();
+      }
+      drawItemIcon(ctx, f.item, cx + f.x, iy, 11);
+      ctx.strokeStyle = I.col; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx + f.x, iy, 15, -1.5, -1.5 + (f.itemT / I.dur) * 6.283);
+      ctx.stroke();
+    }
+    // ばくだんの カウントダウン
+    if (f.bombT > 0) {
+      ctx.fillStyle = Math.floor(f.bombT * 12) % 2 ? '#FF5A5A' : '#FFF0A0';
+      ctx.beginPath(); ctx.arc(cx + f.x, f.y - charH(c) - 34, 10, 0, 7); ctx.fill();
     }
     // だれか わかる ように 上に しるし
     if (f.player) {
@@ -517,13 +662,16 @@ function drawHowto() {
     '⑤ たいりょくは ない。**ダメージ％** が たまるほど 遠くへ ふっとぶ',
     '⑥ 画面の 外に 出たら 1ストック へる。さきに 0 に なった ほうの まけ',
     '⑦ ステージには しかけが ある。赤い しるしが 出たら にげる',
+    '　 ゆかの **とげ** と、ゆれる **とげボール** も さわると いたい',
     '⑧ 90びょうで 時間切れ。そのときは ストックの おおい ほうの かち',
+    '⑨ そらから **とくべつアイテム** が おちてくる。ふれると 手に入る',
+    '　 ★むてき ／ 🔨つよい こうげき ／ ♥ダメージが へる ／ 👟はやい ／ 💣ドカン',
     'パソコン: ←→ うごく / ↑ か スペース ジャンプ / Z こうげき / X ひっさつ',
   ];
   ctx.fillStyle = '#D8E4F4';
   lines.forEach((s, i) => {
     fitFont(s.replace(/\*\*/g, ''), VW * 0.94, 18);
-    ctx.fillText(s.replace(/\*\*/g, ''), 24, 70 + i * 36);
+    ctx.fillText(s.replace(/\*\*/g, ''), 24, 56 + i * 32);
   });
   drawButton(button(VW - 124, 18, 104, 38, () => { G.screen = 'title'; }), 'もどる', '#FFD166');
 }
@@ -621,7 +769,7 @@ function drawRule(t) {
     : foe.name + '：' + foe.about;
   fitFont(line, pw * 0.92, 19, 'bold ');
   ctx.fillText(line, VW / 2, 226);
-  const gt = GIM_TEXT[st.gim];
+  const gt = stageHazard(G.pending);
   ctx.fillStyle = gt ? '#FFB0B0' : 'rgba(220,235,250,0.8)';
   fitFont(gt || 'しかけは なし。まずは たたかいかたに なれよう', pw * 0.92, 19);
   ctx.fillText(gt || 'しかけは なし。まずは たたかいかたに なれよう', VW / 2, 256);

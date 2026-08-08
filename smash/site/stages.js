@@ -4,6 +4,12 @@
 // かわっても まん中に そろう。
 //   thru … 下から すりぬけられる あしば（下キーで おりられる）
 //   spikes … ゆかの とげ [{x, w}]。ずっと 見えているので 2かい目からは よけられる
+//   mild   … 5面までの「やさしい」しかけ（うごきが ゆっくり・力が よわい）
+//
+// ★ ゆかに すきま（あな）は 作らない。
+//   すきまは 下の ダメージひょうじに かくれて「見えない あな」に なる。
+//   おどろかせるのは とげ・うごく あしば・落ちる あしば の ように
+//   **目で 見えるもの** だけに する。
 //   balls  … くさりで ゆれる とげボール [{x, y, len, r, sp, sw}]
 
 'use strict';
@@ -14,13 +20,13 @@
 const GIM_TEXT = {
   none:  '',
   move:  'あしばが 左右に うごく',
-  fall:  'あしばに のると すこしで 落ちる！ すぐ つぎへ',
+  fall:  'あしばに のると しばらくで 落ちる。落ちた あとは 点線に なる',
   wind:  'ときどき つよい かぜ。あおむけの やじるしが 出たら 気をつけて',
   lava:  '下から ようがんが 上がってくる！ 赤い しるしが 出たら 上へ にげろ',
   elec:  'ゆかの 一部が ビリビリする。光ったら はなれる',
   lowg:  'うちゅうなので ふわふわ。ジャンプが とんでもなく とぶ',
-  belt:  'ゆかが 流れる。ときどき むきが かわる。じっとしてると 落ちる',
-  fog:   'きりで 見えにくい。あしばも 出たり きえたり する',
+  belt:  'ゆかが 流れる。ときどき むきが かわる。おされて いちが ずれる',
+  fog:   'きりで 見えにくい。あしばが きえると 点線に なる',
   king:  'ぜんぶ 入り。かみなりも 落ちてくる！',
 };
 
@@ -34,39 +40,37 @@ function shelf(x, y, w) { return { x, y, w, h: 12, thru: true }; }
 const STAGES = [
   {
     name: 'こうていの ステージ', sky: ['#8ED6FF', '#DCF2FF'], gim: 'none',
-    foes: ['kouta'], foeStocks: 2, ai: 0.45,
+    foes: ['kouta'], foeStocks: 2, ai: 0.32,
     plats: [ground(-250, 350, 500), shelf(-200, 252, 130), shelf(70, 252, 130),
              shelf(-65, 168, 130)],
   },
   {
     name: 'うごく あしば', sky: ['#7FC0F0', '#E8F4FF'], gim: 'move',
-    foes: ['misaki'], foeStocks: 2, ai: 0.5,
+    foes: ['misaki'], foeStocks: 2, ai: 0.36,
     plats: [ground(-210, 350, 420), shelf(-230, 250, 120), shelf(110, 250, 120),
              shelf(-60, 160, 120)],
   },
   {
-    name: 'おちる あしば', sky: ['#F5A65B', '#FFE6C0'], gim: 'fall',
-    foes: ['pyon'], foeStocks: 2, ai: 0.55,
-    plats: [ground(-140, 350, 280), shelf(-330, 262, 130), shelf(200, 262, 130),
+    name: 'おちる あしば', sky: ['#F5A65B', '#FFE6C0'], gim: 'fall', mild: true,
+    foes: ['pyon'], foeStocks: 2, ai: 0.40,
+    plats: [ground(-180, 350, 360), shelf(-330, 262, 130), shelf(200, 262, 130),
              shelf(-70, 176, 140)],
-    spikes: [{ x: -140, w: 46 }, { x: 94, w: 46 }],
   },
   {
-    name: 'かぜの こうじょう', sky: ['#6A7A96', '#C8D6E8'], gim: 'wind',
-    foes: ['gantetsu'], foeStocks: 2, ai: 0.55,
+    name: 'かぜの こうじょう', sky: ['#6A7A96', '#C8D6E8'], gim: 'wind', mild: true,
+    foes: ['gantetsu'], foeStocks: 2, ai: 0.44,
     plats: [ground(-240, 350, 480), shelf(-260, 244, 140), shelf(120, 244, 140)],
   },
   {
-    name: 'ようがんの やま', sky: ['#8A3020', '#E8A060'], gim: 'lava',
-    foes: ['doctor'], foeStocks: 2, ai: 0.6,
+    name: 'ようがんの やま', sky: ['#8A3020', '#E8A060'], gim: 'lava', mild: true,
+    foes: ['doctor'], foeStocks: 2, ai: 0.48,
     plats: [ground(-230, 336, 460), shelf(-250, 236, 130), shelf(120, 236, 130),
              shelf(-65, 152, 130)],
-    spikes: [{ x: -40, w: 80 }],
   },
   {
     name: 'でんきの ゆか', sky: ['#2A2A4A', '#5A5A8A'], gim: 'elec',
     foes: ['ninja'], foeStocks: 2, ai: 0.65,
-    plats: [ground(-260, 350, 170), ground(-45, 350, 90), ground(90, 350, 170),
+    plats: [ground(-260, 350, 520),
             shelf(-190, 248, 130), shelf(60, 248, 130)],
   },
   {

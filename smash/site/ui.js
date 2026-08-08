@@ -121,25 +121,31 @@ function drawStage(t) {
 
   // あしば
   for (const p of G.plats) {
-    if (!p.on) {
-      ctx.globalAlpha = 0.25;
-    }
     const x = cx + p.x, y = p.y;
-    const sh = (p.thru && p.fall > 0.5 && p.on) ? Math.sin(t * 40) * 2.5 : 0;
+    // きえている あしばは **点線の わく だけ** に する。
+    // うすく そのまま かくと「見えるのに 通りぬける」＝ 見えない あな に
+    // なって しまう。ここに 今は 何も ない、と ひと目で わかる ように。
+    if (!p.on) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 6]);
+      rr(ctx, x, y, p.w, p.h, 4); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      continue;
+    }
+    const sh = (p.thru && p.fall > 0.5) ? Math.sin(t * 40) * 2.5 : 0;
     if (p.thru) {
       ctx.fillStyle = st.gim === 'lowg' ? '#7A8AC0' : '#B07A4A';
       rr(ctx, x + sh, y, p.w, p.h, 4); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       rr(ctx, x + sh, y, p.w, 4, 2); ctx.fill();
     } else {
-      // でんきの ゆか は 光る
-      const idx = G.plats.filter((q) => !q.thru).indexOf(p);
-      const zap = st.gim === 'elec' && idx === g.val &&
-                  (g.phase === 'act' || (g.phase === 'warn' && Math.floor(t * 12) % 2 === 0));
-      ctx.fillStyle = zap ? '#FFE066' : (st.gim === 'lowg' ? '#5A6A9A' : '#6A5A46');
+      ctx.fillStyle = st.gim === 'lowg' ? '#5A6A9A' : '#6A5A46';
       rr(ctx, x, y, p.w, p.h + 34, 5); ctx.fill();
-      ctx.fillStyle = zap ? '#FFF6C0' : (st.gim === 'lava' ? '#8A5030'
-                    : st.gim === 'lowg' ? '#8FA0D0' : '#5FA84A');
+      ctx.fillStyle = st.gim === 'lava' ? '#8A5030'
+                    : st.gim === 'lowg' ? '#8FA0D0' : '#5FA84A';
       rr(ctx, x, y, p.w, 9, 4); ctx.fill();
       if (st.gim === 'belt') {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -148,18 +154,38 @@ function drawStage(t) {
           ctx.fillRect(bx, y + 2, 12, 5);
         }
       }
-      if (zap) {
-        ctx.strokeStyle = '#FFF'; ctx.lineWidth = 3;
-        for (let k = 0; k < 5; k++) {
-          const bx = x + p.w * (k + 0.5) / 5;
-          ctx.beginPath();
-          ctx.moveTo(bx, y - 2);
-          ctx.lineTo(bx + 7, y - 16); ctx.lineTo(bx - 4, y - 14); ctx.lineTo(bx + 4, y - 30);
-          ctx.stroke();
-        }
-      }
     }
-    ctx.globalAlpha = 1;
+  }
+
+  // ビリビリする ところ。ゆかは 1まいの まま、その 一部だけ 光らせる。
+  if (st.gim === 'elec') {
+    const zap = g.phase === 'act' ||
+                (g.phase === 'warn' && Math.floor(t * 12) % 2 === 0);
+    const z = elecZone(g.val);
+    if (zap && z) {
+      const zx = cx + z.x;
+      ctx.fillStyle = '#FFE066';
+      rr(ctx, zx, z.y, z.w, 26 + 34, 5); ctx.fill();
+      ctx.fillStyle = '#FFF6C0';
+      rr(ctx, zx, z.y, z.w, 9, 4); ctx.fill();
+      ctx.strokeStyle = '#FFF'; ctx.lineWidth = 3;
+      for (let k = 0; k < 5; k++) {
+        const bx = zx + z.w * (k + 0.5) / 5;
+        ctx.beginPath();
+        ctx.moveTo(bx, z.y - 2);
+        ctx.lineTo(bx + 7, z.y - 16); ctx.lineTo(bx - 4, z.y - 14);
+        ctx.lineTo(bx + 4, z.y - 30);
+        ctx.stroke();
+      }
+    } else if (z) {
+      // 光っていない ときも「ここが ビリビリする ところ」と わかるように
+      ctx.strokeStyle = 'rgba(255,224,102,0.5)'; ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(cx + z.x + 2, z.y + 5); ctx.lineTo(cx + z.x + z.w - 2, z.y + 5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
 
   // ゆかの とげ。ずっと 見えているので、2かい目からは よけられる。

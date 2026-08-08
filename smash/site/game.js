@@ -713,7 +713,7 @@ function updateGimmick(dt) {
       if (!p.on) {
         p.fall -= dt;
         if (p.fall <= 0) { p.on = true; p.fall = 0; p.y = p.by; }
-      } else if (p.fall > 1.2) {
+      } else if (p.fall > (st.mild ? 2.0 : 1.2)) {
         p.on = false; p.fall = 3.0;
         puff(p.x + p.w / 2, p.y, '#C0A080', 8, 150);
       }
@@ -726,14 +726,14 @@ function updateGimmick(dt) {
   } else if (kind === 'lava') {
     if (g.phase === 'idle' && g.t > 7.5) { g.phase = 'warn'; g.t = 0; sfxGimmick(); }
     else if (g.phase === 'warn' && g.t > 1.4) { g.phase = 'act'; g.t = 0; }
-    else if (g.phase === 'act' && g.t > 2.6) { g.phase = 'idle'; g.t = 0; }
+    else if (g.phase === 'act' && g.t > (st.mild ? 2.0 : 2.6)) { g.phase = 'idle'; g.t = 0; }
     // ゆかの 上まで 来る。だから 上の あしばへ にげる ひつようが ある。
     const tgt = g.phase === 'act' ? VH - 172 : VH + 200;
     g.lava += (tgt - g.lava) * Math.min(1, dt * 3.2);
     if (g.phase === 'act') {
       for (const f of G.fighters) {
         if (f.stocks <= 0 || f.respawnT > 0 || f.inv > 0) continue;
-        if (f.y > g.lava) gimHit(f, 12, 330 + f.dmg * 8, 1.35);
+        if (f.y > g.lava) gimHit(f, st.mild ? 8 : 12, (st.mild ? 250 : 330) + f.dmg * 8, 1.35);
       }
     }
   } else if (kind === 'elec') {
@@ -741,10 +741,10 @@ function updateGimmick(dt) {
     else if (g.phase === 'warn' && g.t > 1.0) { g.phase = 'act'; g.t = 0; sfxGimmick(); }
     else if (g.phase === 'act' && g.t > 1.1) { g.phase = 'idle'; g.t = 0; }
     if (g.phase === 'act') {
-      const p = G.plats.filter((q) => !q.thru)[g.val];
-      if (p) for (const f of G.fighters) {
+      const z = elecZone(g.val);
+      if (z) for (const f of G.fighters) {
         if (f.stocks <= 0 || f.respawnT > 0 || f.inv > 0 || !f.onGround) continue;
-        if (f.x > p.x - 6 && f.x < p.x + p.w + 6 && Math.abs(f.y - p.y) < 6) {
+        if (f.x > z.x && f.x < z.x + z.w && Math.abs(f.y - z.y) < 6) {
           gimHit(f, 9, 235 + f.dmg * 6.0, 1.25);
         }
       }
@@ -783,6 +783,16 @@ function gimHit(f, dmg, kb, ang, dir) {
   applyHit(f, f, dmg, kb, ang, dir || Math.sign(f.vx) || 1);
   f.inv = 0.85;
   G.shake = Math.max(G.shake, 0.16);
+}
+
+// ビリビリする ゆかの ばしょ。ゆかを 3つに わけただけで、
+// **あなは あけない**。あなは 下の ダメージひょうじに かくれて
+// 「見えない あな」に なって しまうから。
+function elecZone(i) {
+  const p = G.plats.find((q) => !q.thru && q.on);
+  if (!p) return null;
+  const w = p.w / 3;
+  return { x: p.x + w * i, w, y: p.y };
 }
 
 function applyGimForce(f, dt) {

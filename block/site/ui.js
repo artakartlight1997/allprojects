@@ -369,8 +369,9 @@ function drawTitle(t) {
   const fs = fitFont('あおいのブロックくずし', VW * 0.44, 36, 'bold ');
   ctx.fillText('あおいのブロックくずし', 24, 14);
   ctx.fillStyle = '#FFC8E0';
-  fitFont('ばくだん と アイテムで どんどん くずそう', VW * 0.44, 14);
-  ctx.fillText('ばくだん と アイテムで どんどん くずそう', 26, 18 + fs + 4);
+  const sub = '画面を ひっぱると その ぶんだけ ラケットが うごくよ';
+  fitFont(sub, VW * 0.44, 14);
+  ctx.fillText(sub, 26, 18 + fs + 4);
 
   // 見本
   {
@@ -475,7 +476,8 @@ function drawHowto(t) {
 
   ctx.textBaseline = 'top';
   const lines = [
-    '① 画面を よこに なぞると ラケットが うごく（どこを さわっても いい）',
+    '① 画面を よこに ひっぱると、ひっぱった ぶんだけ ラケットが うごく',
+    '　 （どこを さわっても いい。さわった ところに ラケットは とばないよ）',
     '② さわると たまが とびだす。ラケットの はしで うけると ななめに とぶ',
     '③ ばくだん ブロックは まわりも いっしょに こわれる',
     '④ 4・8・12めんの リナパパは、たまを ぶつけると たおせる。',
@@ -528,7 +530,12 @@ function drawResult(t) {
 
 // --- そうさ ---------------------------------------------------------------------------
 
-let dragging = false;
+// ★ もとは「さわった ところへ ラケットが とぶ」だったが、
+//   ゆびの 下に ラケットが 来て しまい、こまかく あわせにくい。
+//   いまは **ひっぱった ぶんだけ** ラケットが うごく（あいたい そうさ）。
+//   さわった しゅんかんに ラケットが とばないので、ねらいが くるわない。
+let dragging = false, lastX = 0;
+const DRAG_GAIN = 1.8;   // ゆびの うごきの 何ばい ラケットが うごくか（よこに 早く 動きたい ので 大きめ）
 
 function down(px, py) {
   audioStart();
@@ -537,7 +544,7 @@ function down(px, py) {
     const b = hitBtn(px, py);
     if (b && b.on) { b.on(); return; }
     dragging = true;
-    setPad(x);
+    lastX = x;        // おぼえる だけ。ラケットは とばない。
     launch();
     return;
   }
@@ -546,7 +553,9 @@ function down(px, py) {
 }
 function move(px) {
   if (!dragging) return;
-  setPad(px / SC);
+  const x = px / SC;
+  setPad(G.px + (x - lastX) * DRAG_GAIN);
+  lastX = x;
 }
 function up() { dragging = false; }
 

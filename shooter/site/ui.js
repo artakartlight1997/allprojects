@@ -96,6 +96,9 @@ function drawShip(x, y, r, blink) {
   ctx.save();
   ctx.translate(x, y);
   if (blink) ctx.globalAlpha = 0.45;
+  // ★ くらい うちゅうで 見うしなわない ように、うすい ひかりを しく
+  ctx.fillStyle = 'rgba(143,214,255,0.16)';
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.9, 0, 7); ctx.fill();
   // ふんしゃ
   ctx.fillStyle = 'rgba(255,180,90,' + (0.5 + Math.random() * 0.4) + ')';
   ctx.beginPath();
@@ -320,8 +323,29 @@ function drawPlay(t) {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(G.px, G.py, 24, 0, 7); ctx.stroke();
     }
-    drawShip(G.px, G.py, 13, G.inv > 0 && Math.floor(t * 14) % 2 === 0);
+    // オプション（グラディウスの あれ）
+    for (let i = 0; i < G.opts.length; i++) {
+      const o = G.opts[i];
+      // ★ 画面の 外に 出ないように 止める（左はしで 見えなく なる）
+      o.x = Math.max(14, o.x);
+      ctx.fillStyle = 'rgba(255,209,102,0.85)';
+      ctx.beginPath(); ctx.arc(o.x, o.y, 9, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.4 * Math.sin(t * 8 + i)) + ')';
+      ctx.beginPath(); ctx.arc(o.x, o.y, 4, 0, 7); ctx.fill();
+    }
+    drawShip(G.px, G.py, 16, G.inv > 0 && Math.floor(t * 14) % 2 === 0);
   }
+  // ★ いま つかんで いる ところ（ゆびは 船から はなれて いても いい）
+  if (G.fingerX != null && !G.over) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(G.fingerX, G.fingerY, 18, 0, 7); ctx.stroke();
+    ctx.setLineDash([4, 5]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.beginPath(); ctx.moveTo(G.fingerX, G.fingerY); ctx.lineTo(G.px, G.py); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   ctx.restore();
 
   drawTop();
@@ -411,14 +435,15 @@ function drawTitle(t) {
   const fs = fitFont('まさきのうちゅうシューティング', VW * 0.50, 34, 'bold ');
   ctx.fillText('まさきのうちゅうシューティング', 24, 14);
   ctx.fillStyle = '#8FD6FF';
-  fitFont('ゆびで なぞる だけ。たまは じどうで 出るよ', VW * 0.46, 14);
-  ctx.fillText('ゆびで なぞる だけ。たまは じどうで 出るよ', 26, 18 + fs + 4);
+  const sub = '画面を ひっぱると その ぶんだけ 船が うごく。たまは じどう';
+  fitFont(sub, VW * 0.46, 14);
+  ctx.fillText(sub, 26, 18 + fs + 4);
 
   // 見本
   {
     // ★ めんの ふだ（左はし から VW*0.56 くらい）に かさならない ように 右へ よせる。
     const x = VW - 116, y = 156;
-    drawShip(x - 62, y, 16, false);
+    drawShip(x - 62, y, 18, false);
     drawPapaBoss({ x: x + 30, y: y, r: 36, hit: 0 }, t);
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -502,13 +527,14 @@ function drawHowto(t) {
 
   ctx.textBaseline = 'top';
   const lines = [
-    '① ゆびで なぞると、船が ゆびの ところへ とんでいく',
+    '① 画面を ひっぱると、ひっぱった ぶんだけ 船が うごく',
+    '　 （どこを さわっても いい。下のほうを さわると ゆびで 船が かくれない）',
     '② たまは じどうで 出る。ボタンは おさなくて いい',
-    '③ 赤い たまと てきに ぶつかると ライフが 1つ へる',
-    '④ てきを ぜんぶ たおすと ボスが 出てくる。ボスを たおしたら クリア',
+    '③ P を 3つ とると「オプション」（金の 玉）が ついてくる。いっしょに うつ',
+    '④ 赤い たまと てきに ぶつかると ライフが 1つ へる',
+    '⑤ てきを ぜんぶ たおすと ボス。ボスを たおしたら クリア',
     '',
-    '4・7・10 めんの ボスは **リナパパ**。メガネの ちょいぽちゃ が',
-    '円ばんで ケーキを なげてくる。',
+    '4・7・10 めんの ボスは リナパパ。メガネの ちょいぽちゃ が ケーキを なげてくる。',
   ];
   ctx.fillStyle = '#F0E4F0';
   lines.forEach((s, i) => {
@@ -556,7 +582,13 @@ function drawResult(t) {
 
 // --- そうさ ---------------------------------------------------------------------------
 
-let dragging = false;
+// ★ もとは「ゆびの ばしょへ 船が とんでいく」だったが、
+//   ゆびの 下に 船が 入って **自分の 船が 見えない**。
+//   いまは **ひっぱった ぶんだけ 船が うごく**（あいたい そうさ）。
+//   画面の どこを さわっても いいので、下のほうを さわれば
+//   船に ゆびが かからない。
+let dragging = false, lastX = 0, lastY = 0;
+const DRAG_GAIN = 1.35;   // ゆびの うごきの 何ばい 船が うごくか
 
 function down(px, py) {
   audioStart();
@@ -565,7 +597,8 @@ function down(px, py) {
     const b = hitBtn(px, py);
     if (b && b.on) { b.on(); return; }
     dragging = true;
-    G.tx = x; G.ty = y;
+    lastX = x; lastY = y;      // おぼえる だけ。船は とばない。
+    G.fingerX = x; G.fingerY = y;
     return;
   }
   const b = hitBtn(px, py);
@@ -573,9 +606,13 @@ function down(px, py) {
 }
 function move(px, py) {
   if (!dragging) return;
-  G.tx = px / SC; G.ty = py / SC;
+  const x = px / SC, y = py / SC;
+  G.tx += (x - lastX) * DRAG_GAIN;
+  G.ty += (y - lastY) * DRAG_GAIN;
+  lastX = x; lastY = y;
+  G.fingerX = x; G.fingerY = y;
 }
-function up() { dragging = false; }
+function up() { dragging = false; G.fingerX = null; }
 
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();

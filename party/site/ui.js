@@ -264,8 +264,16 @@ function drawZone(z, i, t) {
     // 光っている ときは 下じきが その色に なるので、字は こい色に する
     ctx.fillStyle = lit ? 'rgba(26,16,44,0.92)' : '#FFFFFF';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    fitFont(PEOPLE[key].name, w * 0.3, 17, 'bold ');
-    ctx.fillText(PEOPLE[key].name, 66, fy - 10);
+    const nm = G.names[i];
+    const nw = fitFont(nm, w * 0.3, 17, 'bold ');
+    ctx.fillText(nm, 66, fy - 10);
+    // CPU は ひと目で わかるように ふだを つける
+    if (G.cpu[i]) {
+      const tx = 70 + ctx.measureText(nm).width;
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      ctx.fillStyle = lit ? 'rgba(26,16,44,0.55)' : 'rgba(255,255,255,0.55)';
+      ctx.fillText('CPU', tx, fy - 10 + (nw > 14 ? 1 : 0));
+    }
     ctx.fillStyle = lit ? 'rgba(26,16,44,0.75)' : col;
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.fillText(G.pts[i] + 'てん', 66, fy + 12);
@@ -417,25 +425,65 @@ function drawTitle(t) {
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 
-  // だれで あそぶか
+  // だれで あそぶか。1れつ ずつ「かお → 名前 → 人／CPU」。
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillText('だれで あそぶ？（おすと かわる）', 30, 262);
+  ctx.fillText('だれで あそぶ？', 30, 258);
+  // ボタンの ぶんの よこはばを のこして、人数で わける
+  const leftW = VW - Math.min(VW * 0.3, 260) - 64;
+  const cw = Math.min(84, Math.max(58, leftW / save.n));
   for (let i = 0; i < save.n; i++) {
-    const bx = 28 + i * 84;
-    const b = button(bx, 284, 76, 76, () => {
+    const bx = 28 + i * cw, w = cw - 8;
+
+    // かお（おすと キャラが かわる）
+    const b = button(bx, 276, w, 58, () => {
       save.who[i] = (save.who[i] + 1) % PICKS.length;
       storeSave();
     });
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     rr(ctx, b.x, b.y, b.w, b.h, 12); ctx.fill();
     ctx.strokeStyle = PCOL[i]; ctx.lineWidth = 4; ctx.stroke();
-    drawFace(ctx, PICKS[save.who[i]], b.x + b.w / 2, b.y + 30, 20);
+    drawFace(ctx, PICKS[save.who[i]], b.x + b.w / 2, b.y + 29, 19);
+
+    // 名前（おすと キーボードが 出る）
+    const nb = button(bx, 338, w, 22, () => openName(i, bx, 338, w, 22));
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    rr(ctx, nb.x, nb.y, nb.w, nb.h, 6); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = save.names[i] ? '#FFFFFF' : 'rgba(255,255,255,0.6)';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    fitFont(slotName(i), nb.w * 0.86, 13, 'bold ');
+    ctx.fillText(slotName(i), nb.x + nb.w / 2, nb.y + nb.h / 2);
+
+    // 人／CPU
+    const isC = !!save.cpu[i];
+    const cb = button(bx, 364, w, 22, () => { save.cpu[i] = !save.cpu[i]; storeSave(); });
+    ctx.fillStyle = isC ? 'rgba(255,209,102,0.85)' : 'rgba(143,214,255,0.85)';
+    rr(ctx, cb.x, cb.y, cb.w, cb.h, 6); ctx.fill();
+    ctx.fillStyle = '#2A2440';
+    fitFont(isC ? 'CPU' : '人', cb.w * 0.8, 13, 'bold ');
+    ctx.fillText(isC ? 'CPU' : '人', cb.x + cb.w / 2, cb.y + cb.h / 2);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  }
+
+  // CPU の つよさ（CPU が 1人でも いる ときだけ）
+  if (save.cpu.slice(0, save.n).some((x) => x)) {
     ctx.fillStyle = '#FFFFFF';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    fitFont(PEOPLE[PICKS[save.who[i]]].name, b.w * 0.9, 13, 'bold ');
-    ctx.fillText(PEOPLE[PICKS[save.who[i]]].name, b.x + b.w / 2, b.y + 54);
-    ctx.textAlign = 'left';
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.fillText('CPUの つよさ', 30, 392);
+    for (let k = 0; k < 3; k++) {
+      const on = save.cpuLv === k;
+      const b = button(112 + k * 62, 388, 58, 22, () => { save.cpuLv = k; storeSave(); });
+      ctx.fillStyle = on ? '#FFD166' : 'rgba(255,255,255,0.16)';
+      rr(ctx, b.x, b.y, b.w, b.h, 6); ctx.fill();
+      ctx.strokeStyle = on ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = on ? 2 : 1.5; ctx.stroke();
+      ctx.fillStyle = on ? '#3A2A08' : '#FFFFFF';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      fitFont(CPU_LV[k].name, b.w * 0.86, 13, 'bold ');
+      ctx.fillText(CPU_LV[k].name, b.x + b.w / 2, b.y + b.h / 2);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    }
   }
 
   const bw = Math.min(VW * 0.3, 260);
@@ -449,7 +497,7 @@ function drawTitle(t) {
              '≡ ゲームをえらぶ', 'rgba(255,255,255,0.9)', '#33304A');
 
   // したの ほうが あいていたら（たて向きなど）、あそびかたの 絵を おく
-  drawAroundPic(372, VH - 140);
+  drawAroundPic(420, VH - 140);
 
   drawTurnHint();
 
@@ -497,8 +545,8 @@ function drawOver(t) {
   if (G.winner >= 0) {
     drawFace(ctx, G.who[G.winner], VW / 2, 116, 38);
     ctx.fillStyle = PCOL[G.winner];
-    fitFont(PEOPLE[G.who[G.winner]].name, VW * 0.4, 30, 'bold ');
-    ctx.fillText(PEOPLE[G.who[G.winner]].name, VW / 2, 158);
+    fitFont(G.names[G.winner], VW * 0.4, 30, 'bold ');
+    ctx.fillText(G.names[G.winner], VW / 2, 158);
     // かんむり
     ctx.fillStyle = '#FFD166';
     ctx.beginPath();
@@ -519,8 +567,8 @@ function drawOver(t) {
     drawFace(ctx, G.who[i], x, y + 30, 20);
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    fitFont(PEOPLE[G.who[i]].name, cw * 0.8, 14, 'bold ');
-    ctx.fillText(PEOPLE[G.who[i]].name, x, y + 54);
+    fitFont(G.names[i] + (G.cpu[i] ? '(CPU)' : ''), cw * 0.8, 14, 'bold ');
+    ctx.fillText(G.names[i] + (G.cpu[i] ? '(CPU)' : ''), x, y + 54);
     ctx.fillStyle = PCOL[i];
     ctx.font = 'bold 22px system-ui, sans-serif';
     ctx.fillText(G.pts[i] + 'てん', x, y + 72);
@@ -536,6 +584,47 @@ function drawOver(t) {
   drawButton(button(VW / 2 + 8, VH - 52, bw, 42, () => { G.screen = 'title'; }),
              'さいしょへ', '#E8D0F8');
 }
+
+// --- 名前を 入れる --------------------------------------------------------------
+//
+// キャンバスに じぶんで 字を 打つ しくみを 作ると、日本語の 入力（かな漢字）が
+// つかえない。ブラウザの input を その ばしょに かさねて 出す ほうが かくじつ。
+
+const nameIn = document.getElementById('nameIn');
+let nameFor = -1;
+
+function openName(i, x, y, w, h) {
+  // べつの 名前を 入れている とちゅうなら、さきに それを しまう。
+  // （キャンバスを おしても blur は おきない ように して あるため）
+  if (nameFor >= 0 && nameFor !== i) closeName();
+  nameFor = i;
+  const r = canvas.getBoundingClientRect();
+  nameIn.style.display = 'block';
+  nameIn.style.left = (r.left + x * SC) + 'px';
+  nameIn.style.top = (r.top + y * SC) + 'px';
+  nameIn.style.width = (w * SC) + 'px';
+  nameIn.style.height = (h * SC) + 'px';
+  nameIn.style.fontSize = Math.max(11, Math.round(h * SC * 0.6)) + 'px';
+  nameIn.value = save.names[i] || '';
+  nameIn.placeholder = slotName(i);
+  nameIn.focus();
+  nameIn.select();
+}
+
+function closeName() {
+  if (nameFor < 0) return;
+  save.names[nameFor] = nameIn.value.trim().slice(0, 6);
+  storeSave();
+  nameFor = -1;
+  nameIn.style.display = 'none';
+  nameIn.blur();
+}
+
+nameIn.addEventListener('blur', closeName);
+nameIn.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter' || e.key === 'Escape') closeName();
+});
 
 // --- そうさ（4本の ゆびを どうじに 見る）-----------------------------------------
 
@@ -579,6 +668,10 @@ canvas.addEventListener('touchcancel', (e) => {
   for (const t of e.changedTouches) up(t.identifier);
 });
 canvas.addEventListener('mousedown', (e) => {
+  // ★ preventDefault を しないと、この あと ブラウザが キャンバスに
+  //   フォーカスを うつして、いま ひらいた 名前の はこが すぐ blur して
+  //   とじて しまう（名前が 入れられない）。
+  e.preventDefault();
   const r = canvas.getBoundingClientRect();
   down('m', e.clientX - r.left, e.clientY - r.top);
 });
@@ -587,7 +680,7 @@ window.addEventListener('mouseup', () => up('m'));
 // パソコンで ためす とき用。1P=Z 2P=X 3P=N 4P=M
 const KEYP = { KeyZ: 0, KeyX: 1, KeyN: 2, KeyM: 3 };
 window.addEventListener('keydown', (e) => {
-  if (e.repeat) return;
+  if (e.repeat || nameFor >= 0) return;
   if (KEYP[e.code] !== undefined) { e.preventDefault(); audioStart(); playerDown(KEYP[e.code]); }
 });
 window.addEventListener('keyup', (e) => {

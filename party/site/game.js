@@ -11,17 +11,34 @@
 
 const SAVE_KEY = 'party.v1';
 
-const save = { n: 4, who: [0, 1, 2, 3], rounds: 5, plays: 0, best: {} };
+const save = {
+  n: 4,
+  who: [0, 1, 2, 3],
+  names: ['', '', '', ''],      // からっぽ なら キャラの 名前を つかう
+  cpu: [false, false, false, true],
+  cpuLv: 1,                     // 0 よわい / 1 ふつう / 2 つよい
+  rounds: 5, plays: 0, best: {},
+};
 
 function loadSave() {
   try {
     const o = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
     if (Number.isFinite(o.n)) save.n = Math.max(2, Math.min(4, o.n));
     if (Array.isArray(o.who) && o.who.length === 4) save.who = o.who.map((x) => x | 0);
+    if (Array.isArray(o.names) && o.names.length === 4) {
+      save.names = o.names.map((s) => String(s || '').slice(0, 6));
+    }
+    if (Array.isArray(o.cpu) && o.cpu.length === 4) save.cpu = o.cpu.map((x) => !!x);
+    if (Number.isFinite(o.cpuLv)) save.cpuLv = Math.max(0, Math.min(2, o.cpuLv | 0));
     if (Number.isFinite(o.rounds)) save.rounds = Math.max(3, Math.min(9, o.rounds));
     if (Number.isFinite(o.plays)) save.plays = o.plays;
     if (o.best && typeof o.best === 'object') save.best = o.best;
   } catch (e) {}
+}
+
+// その ばしょの 名前。入れて なければ キャラの 名前。
+function slotName(i) {
+  return save.names[i] || PEOPLE[PICKS[Math.max(0, Math.min(PICKS.length - 1, save.who[i]))]].name;
 }
 function storeSave() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {}
@@ -40,6 +57,9 @@ const G = {
   pts: [],          // ごうけい てんすう
   round: 0,
   order: [],        // ミニゲームの じゅんばん
+  names: [],        // 人ごとの 名前
+  cpu: [],          // その ばしょは CPU か
+  cz: [],           // CPU の かんがえ（ミニゲームごとに つかう）
   mini: null,
   m: null,          // ミニゲームの 中身（games.js が つかう）
   t: 0,             // ミニゲームが はじまってからの 時間
@@ -54,6 +74,9 @@ function startMatch() {
   audioStart();
   G.n = save.n;
   G.who = save.who.slice(0, G.n).map((i) => PICKS[Math.max(0, Math.min(PICKS.length - 1, i))]);
+  G.names = [];
+  for (let i = 0; i < G.n; i++) G.names.push(slotName(i));
+  G.cpu = save.cpu.slice(0, G.n).map((x) => !!x);
   G.pts = new Array(G.n).fill(0);
   G.down = new Array(G.n).fill(false);
   G.round = 0;
@@ -92,6 +115,9 @@ function beginPlay() {
   G.ph = 0;
   G.t = 0;
   G.mini.start(G);
+  // CPU の「これくらいで おそう」を きめる
+  G.cz = [];
+  for (let i = 0; i < G.n; i++) G.cz.push(G.cpu[i] ? cpuPlan(G, i) : null);
 }
 
 function endRound() {
@@ -132,6 +158,7 @@ function update(dt) {
 
   if (G.phase === 'how') {
     // あそびかたを 見せる。だれかが おしたら すすむ。
+    // ぜんいん CPU の ときは まって いても すすむ ように 6びょうで きりあげる。
     if (G.ph > 6) startCount();
     return;
   }
@@ -144,6 +171,9 @@ function update(dt) {
   }
   if (G.phase === 'play') {
     G.t += dt;
+    // CPU は 人と 同じ playerDown / playerUp を つかって おす。
+    // 「じつは 中で こっそり 点を 足している」ように しない ため。
+    for (let i = 0; i < G.n; i++) if (G.cpu[i]) cpuThink(G, i, dt);
     const over = G.mini.step(G, dt);
     if (over || (G.mini.len > 0 && G.t >= G.mini.len)) endRound();
     return;

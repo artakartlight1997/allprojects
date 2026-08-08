@@ -10,6 +10,7 @@ const SAVE_KEY = 'rhythm.v1';
 
 const save = {
   rank: {},          // 面ごとの さいこう（0=もういちど 1=クリア 2=ハイレベル）
+  skip: {},          // 何回も だめだった 面（つぎに すすませて あげる）
   lat: -1,           // 音が 耳に とどくまでの ずれ（びょう）。-1 は まだ 決めてない
   plays: 0,
 };
@@ -18,6 +19,7 @@ function loadSave() {
   try {
     const o = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
     if (o.rank && typeof o.rank === 'object') save.rank = o.rank;
+    if (o.skip && typeof o.skip === 'object') save.skip = o.skip;
     if (typeof o.lat === 'number' && o.lat > -0.5 && o.lat < 0.5) save.lat = o.lat;
     if (Number.isFinite(o.plays)) save.plays = o.plays;
   } catch (e) {}
@@ -37,14 +39,28 @@ function clearedCount() {
 }
 function stageOpen(i) {
   if (i === 0) return true;
-  // 1つ 前を クリアしていれば あく
-  return (save.rank[STAGES[i - 1].key] || -1) >= 1;
+  const k = STAGES[i - 1].key;
+  // 1つ 前を クリアしていれば あく。
+  // クリアできなくても 3回 やったら あける —— 1つの 面で 止まって
+  // ほかを ぜんぶ 見られない のが いちばん もったいない。
+  return (save.rank[k] || -1) >= 1 || !!save.skip[k];
 }
 
 // --- はんていの まど（びょう）-----------------------------------------------------
+//
+// 同じ ミニゲームで 何回も クリアできないと、まどを すこしずつ ひろげる。
+// 「ぜんぜん できない」まま おわるのが いちばん つらいので。
 
 const WIN_PERFECT = 0.070;
 const WIN_GOOD = 0.150;
+
+let failStage = -1, failStreak = 0;
+function assistLevel() { return Math.min(2, Math.floor(failStreak / 2)); }
+function assistMul() { return [1, 1.4, 1.8][assistLevel()]; }
+function winP() { return WIN_PERFECT * assistMul(); }
+function winG() { return WIN_GOOD * assistMul(); }
+// クリアの line も すこし さげる
+function clearLine() { return 0.65 - assistLevel() * 0.08; }
 
 const RG = {
   screen: 'title',
@@ -64,6 +80,9 @@ const RG = {
   rank: 0,
   cal: null,          // ずれ合わせ の とちゅうの データ
   pending: 0,         // 「あそびかた」を 出している ミニゲーム
+  errs: [],           // さいきん の ずれ（＋は おそい）。じどうで 合わせる ため
+  autoFixed: 0,
+  assist: 0,
 };
 
 // ミニゲームを はじめる まえに 遊びかたを 見せる。
@@ -76,7 +95,12 @@ function showRule(i) {
 
 function startStage(i) {
   audioStart();
-  const st = STAGES[Math.max(0, Math.min(STAGES.length - 1, i))];
+  i = Math.max(0, Math.min(STAGES.length - 1, i));
+  const st = STAGES[i];
+  if (failStage !== i) { failStage = i; failStreak = 0; }
+  RG.assist = assistLevel();
+  RG.errs = [];
+  RG.autoFixed = 0;
   RG.st = st;
   RG.notes = makeNotes(st);
   if (st.fixNotes) st.fixNotes(RG.notes);
@@ -152,7 +176,7 @@ function updatePlay() {
   songPump();
   pumpNotes();
   const b = beatNow();
-  const missB = (WIN_GOOD * S.bpm) / 60;
+  const missB = (winG() * S.bpm) / 60;
 
   for (const n of RG.notes) {
     if (n.k === 'call') {
@@ -190,7 +214,13 @@ function finishStage() {
   let sc = (RG.perfect + RG.good * 0.5) / tot - Math.min(0.15, RG.extra * 0.01);
   sc = Math.max(0, sc);
   RG.score = sc;
-  RG.rank = sc >= 0.88 ? 2 : sc >= 0.65 ? 1 : 0;
+  RG.rank = sc >= 0.88 ? 2 : sc >= clearLine() ? 1 : 0;
+  if (RG.rank >= 1) failStreak = 0; else failStreak++;
+  RG.justOpened = 0;
+  if (RG.rank < 1 && failStreak >= 3 && !save.skip[RG.st.key]) {
+    save.skip[RG.st.key] = 1;
+    RG.justOpened = 1;
+  }
   const k = RG.st.key;
   if ((save.rank[k] === undefined) || RG.rank > save.rank[k]) save.rank[k] = RG.rank;
   storeSave();
@@ -232,8 +262,9 @@ function rTap() {
   const sec = bd * 60 / S.bpm;
   const kind = (best && best.hit) || RG.st.hit;
 
-  if (best && sec <= WIN_GOOD) {
-    const perfect = sec <= WIN_PERFECT;
+  if (best && sec <= winG()) {
+    autoFixLatency((b - best.b) * 60 / S.bpm);
+    const perfect = sec <= winP();
     best.res = perfect ? 'perfect' : 'good';
     if (perfect) { RG.perfect++; pop('ピッタリ！', '#FFE066'); }
     else { RG.good++; pop(b < best.b ? 'はやい' : 'おそい', '#A8E0FF'); }
@@ -248,8 +279,11 @@ function rTap() {
   }
   // 近いけれど ずれすぎ。その 音符は しっぱい あつかいに して、
   // 「あわてた」と ミス の 二重どり には しない。
-  const near = Math.min(0.30, 60 / S.bpm * 0.55);
+  const near = Math.max(winG() + 0.06, Math.min(0.34, 60 / S.bpm * 0.62));
   if (best && sec <= near) {
+    // ここも ずれの 手がかりに する。ずれが 大きい 子ほど こっちに 来るので、
+    // 当たった ときだけ 見ていると いちばん 直したい 人が 直らない。
+    autoFixLatency((b - best.b) * 60 / S.bpm);
     best.res = 'miss';
     RG.miss++;
     RG.combo = 0;
@@ -272,6 +306,28 @@ function rTap() {
   }
 }
 
+// ずっと 同じだけ ずれている とき（スマホの 音の おくれが 合っていない）は
+// だまって 直す。子どもは「ずれ合わせ」を じぶんでは やらないので、
+// これが 無いと「合ってるのに ミス」が つづいて 投げ出してしまう。
+function autoFixLatency(err) {
+  RG.errs.push(err);
+  // はじめの 1回は 5こで 直す。ずれたまま 何回も ミスさせない ため。
+  const need = RG.autoFixed ? 8 : 5;
+  if (RG.errs.length < need) return;
+  const a = RG.errs.slice().sort((x, y) => x - y);
+  const med = a[a.length >> 1];
+  const same = RG.errs.filter((e) => (e > 0) === (med > 0)).length;
+  RG.errs = [];
+  if (Math.abs(med) < 0.035 || same < Math.ceil(need * 0.75)) return;
+  const base = save.lat >= 0 ? save.lat : outLatency();
+  save.lat = Math.max(0, Math.min(0.40, base + med));
+  storeSave();
+  if (!RG.autoFixed) {
+    RG.autoFixed = 1;
+    pop('タイミングを 合わせたよ！', '#A8E0FF');
+  }
+}
+
 // ゆびを はなした（ながおし の しんぱん）
 function rRelease() {
   const n = RG.holding;
@@ -281,8 +337,9 @@ function rRelease() {
   const sec = Math.abs(n.b - b) * 60 / S.bpm;
   RG.hitB = beatNow();
   RG.poseI++;
-  if (sec <= WIN_GOOD) {
-    const perfect = sec <= WIN_PERFECT;
+  if (sec <= winG()) {
+    autoFixLatency((b - n.b) * 60 / S.bpm);
+    const perfect = sec <= winP();
     n.res = perfect ? 'perfect' : 'good';
     if (perfect) { RG.perfect++; pop('ピッタリ！', '#FFE066'); }
     else { RG.good++; pop(b < n.b ? 'はやい' : 'おそい', '#A8E0FF'); }
@@ -336,7 +393,7 @@ function calTap() {
   if (c.taps.length >= 8) {
     const s = c.taps.slice().sort((a, b) => a - b);
     const med = s[Math.floor(s.length / 2)];
-    save.lat = Math.max(0, Math.min(0.3, med));
+    save.lat = Math.max(0, Math.min(0.40, med));
     storeSave();
     c.doneB = anow();
   }

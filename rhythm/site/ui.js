@@ -125,6 +125,14 @@ function drawPlay() {
   drawButton(button(H * 0.03, H - H * 0.10, H * 0.26, H * 0.075, () => {
     stopStage(); RG.screen = 'select';
   }), 'やめる', 'rgba(255,255,255,0.8)');
+
+  if (RG.assist > 0) {
+    ctx.fillStyle = 'rgba(255,224,138,0.85)';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    fitFont('やさしく してるよ', W * 0.24, H * 0.038);
+    ctx.fillText('やさしく してるよ', W - H * 0.03, H - H * 0.06);
+    ctx.textAlign = 'left';
+  }
 }
 
 // --- タイトル -----------------------------------------------------------------
@@ -352,16 +360,19 @@ function drawResult() {
     ctx.fillText(String(r[1]), W * 0.5 + H * 0.02, ry + i * rh);
   });
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#9C94B8';
-  fitFont(RG.rank >= 1 ? 'つぎの ミニゲームが あいたよ' : 'あと すこし！ もう一度 やってみよう',
-          W * 0.6, H * 0.042);
-  ctx.fillText(RG.rank >= 1 ? 'つぎの ミニゲームが あいたよ' : 'あと すこし！ もう一度 やってみよう',
-               W / 2, H * 0.75);
+  let note = 'あと すこし！ もう一度 やってみよう';
+  let ncol = '#9C94B8';
+  if (RG.rank >= 1) note = 'つぎの ミニゲームが あいたよ';
+  else if (RG.justOpened) { note = 'つぎの ミニゲームも あけたよ。とばしても いいよ'; ncol = '#7FE0A0'; }
+  else if (assistLevel() > 0) { note = 'つぎは すこし やさしくするね'; ncol = '#FFE08A'; }
+  ctx.fillStyle = ncol;
+  fitFont(note, W * 0.7, H * 0.042);
+  ctx.fillText(note, W / 2, H * 0.75);
   ctx.textAlign = 'left';
 
   const bw = Math.min(W * 0.26, H * 0.55), bh = H * 0.12;
   const nx = RG.st.gi + 1;
-  const canNext = RG.rank >= 1 && nx < STAGES.length;
+  const canNext = nx < STAGES.length && (RG.rank >= 1 || stageOpen(nx));
   drawButton(button(W / 2 - bw * 1.55, H * 0.83, bw, bh,
                     () => { startStage(RG.st.gi); }), 'もう一度', '#FFD166');
   drawButton(button(W / 2 - bw * 0.5, H * 0.83, bw, bh,

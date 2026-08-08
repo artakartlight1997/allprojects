@@ -17,21 +17,88 @@ const A = {
   ready: false,
 };
 
+// iPhone・iPad は 横の スイッチが 消音（マナーモード）に なっていると、
+// WebAudio の 音を まるごと 消してしまう。動画や 音楽アプリは 鳴るのに
+// ゲームだけ 無音、という いちばん つらい やつ。
+//
+// 「無音の音楽を 1つ 流しっぱなしに する」と、ページの 音が
+// 動画あつかい（playback）に かわって、スイッチを 切っていても 出る。
+function silentWav(sec) {
+  const sr = 8000, n = Math.floor(sr * sec);
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  const b = new Uint8Array(buf);
+  let str = '';
+  for (let i = 0; i < b.length; i++) str += String.fromCharCode(b[i]);
+  return 'data:audio/wav;base64,' + btoa(str);
+}
+
+function unmuteIOS() {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  } catch (e) {}
+  if (A.keepAlive) { const p = A.keepAlive.play(); if (p && p.catch) p.catch(() => {}); return; }
+  try {
+    const el = document.createElement('audio');
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
+    el.loop = true;
+    el.volume = 0.02;
+    el.src = silentWav(1);
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+    A.keepAlive = el;
+  } catch (e) {}
+}
+
 function audioStart() {
+  unmuteIOS();
   if (A.ctx) {
-    if (A.ctx.state === 'suspended') A.ctx.resume();
+    if (A.ctx.state !== 'running') {
+      const p = A.ctx.resume();
+      if (p && p.catch) p.catch(() => {});
+    }
     return;
   }
   const C = window.AudioContext || window.webkitAudioContext;
   if (!C) return;
   A.ctx = new C({ latencyHint: 'interactive' });
   A.music = A.ctx.createGain();
-  A.music.gain.value = 0.32;
+  A.music.gain.value = 0.34;
   A.sfx = A.ctx.createGain();
-  A.sfx.gain.value = 0.5;
+  A.sfx.gain.value = 0.52;
   A.music.connect(A.ctx.destination);
   A.sfx.connect(A.ctx.destination);
+  if (A.ctx.state !== 'running') {
+    const p = A.ctx.resume();
+    if (p && p.catch) p.catch(() => {});
+  }
   A.ready = true;
+}
+
+// 音が ほんとうに 出せる じょうたいか
+function soundOK() { return !!(A.ctx && A.ctx.state === 'running'); }
+
+// 「音を ためす」ボタン用の みじかい フレーズ
+function sfxTest() {
+  audioStart();
+  if (!A.ctx) return;
+  const t = anow() + 0.05;
+  const mel = [0, 4, 7, 12];
+  for (let i = 0; i < 4; i++) {
+    kick(t + i * 0.22, 0.9);
+    hat(t + i * 0.22 + 0.11, 0.25);
+    pluck(t + i * 0.22, 72 + mel[i], 0.3, 0.34, A.sfx);
+  }
+  snare(t + 0.44, 0.5);
+  snare(t + 0.88, 0.5);
+  chord(t, [60, 64, 67], 1.0, 0.16);
 }
 
 function anow() { return A.ctx ? A.ctx.currentTime : 0; }
@@ -141,8 +208,12 @@ function pluck(t, m, dur, v, dst) {
   lp.type = 'lowpass';
   lp.frequency.setValueAtTime(f * 8, t);
   lp.frequency.exponentialRampToValueAtTime(Math.max(400, f * 2), t + dur);
+  // 一気に 消えると「ポツポツ」した すきまだらけの 曲に なる。
+  // 2だんかいで 減らして、つぎの 音まで うっすら のこす。
+  const vv = v || 0.3;
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(v || 0.3, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(vv, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(vv * 0.32, t + dur * 0.45);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   for (const [type, det, amp] of [['triangle', 0, 1], ['square', 7, 0.35]]) {
     const o = A.ctx.createOscillator();
@@ -168,25 +239,49 @@ function bass(t, m, dur, v) {
   lp.frequency.value = 420;
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(v || 0.28, t + 0.01);
-  g.gain.setValueAtTime(v || 0.28, t + dur * 0.7);
+  g.gain.setValueAtTime(v || 0.28, t + dur * 0.85);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(lp); lp.connect(g); g.connect(A.music);
   o.start(t); o.stop(t + dur + 0.05);
 }
 
+// うしろで ずっと 鳴っている わおん。のばして おかないと 曲が すきまだらけに なる。
 function chord(t, ms, dur, v) {
   if (!A.ctx) return;
   t = safeT(t);
+  const lv = (v || 0.1) / ms.length;
   for (const m of ms) {
     const o = A.ctx.createOscillator(), g = A.ctx.createGain();
     o.type = 'triangle';
     o.frequency.value = mid2f(m);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime((v || 0.1) / ms.length, t + 0.04);
+    g.gain.linearRampToValueAtTime(lv, t + 0.05);
+    g.gain.setValueAtTime(lv, t + dur * 0.82);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(A.music);
     o.start(t); o.stop(t + dur + 0.05);
   }
+}
+
+// ながおし の あいだ 鳴る 音。だんだん 高くなって、はなす ところで てっぺん。
+// 「いつ はなすか」が 耳で わかる ように するのが ねらい。
+function riser(t, dur, m0, m1, v) {
+  if (!A.ctx) return;
+  t = safeT(t);
+  const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(mid2f(m0), t);
+  o.frequency.exponentialRampToValueAtTime(mid2f(m1), t + dur);
+  const lp = A.ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(700, t);
+  lp.frequency.exponentialRampToValueAtTime(2600, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(v || 0.14, t + 0.05);
+  g.gain.setValueAtTime(v || 0.14, t + dur * 0.92);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(lp); lp.connect(g); g.connect(A.music);
+  o.start(t); o.stop(t + dur + 0.05);
 }
 
 // --- たたいた ときの 音 ---------------------------------------------------------
@@ -210,6 +305,28 @@ function sfxHit(kind, good) {
   } else if (kind === 'pop') {
     nzHit(t, 0.05, 0.4, 1200, 4000, A.sfx);
     pluck(t, 84, 0.12, 0.28, A.sfx);
+  } else if (kind === 'screw') {
+    nzHit(t, 0.14, 0.34, 900, 5000, A.sfx);
+    pluck(t, 88, 0.24, 0.3, A.sfx);
+    pluck(t + 0.05, 95, 0.2, 0.2, A.sfx);
+  } else if (kind === 'ball') {
+    nzHit(t, 0.04, 0.42, 1500, 6000, A.sfx);
+    pluck(t, 90, 0.09, 0.26, A.sfx);
+  } else if (kind === 'clap') {
+    nzHit(t, 0.05, 0.5, 1200, 5500, A.sfx);
+    nzHit(t + 0.012, 0.06, 0.35, 900, 4000, A.sfx);
+  } else if (kind === 'shout') {
+    const o2 = A.ctx.createOscillator(), g2 = A.ctx.createGain();
+    o2.type = 'sawtooth';
+    o2.frequency.setValueAtTime(520, t);
+    o2.frequency.exponentialRampToValueAtTime(1150, t + 0.22);
+    const lp2 = A.ctx.createBiquadFilter();
+    lp2.type = 'bandpass'; lp2.frequency.value = 1400; lp2.Q.value = 3;
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.exponentialRampToValueAtTime(0.32, t + 0.02);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    o2.connect(lp2); lp2.connect(g2); g2.connect(A.sfx);
+    o2.start(t); o2.stop(t + 0.32);
   } else if (kind === 'taiko') {
     tom(t, 165, 0.7, A.sfx);
     nzHit(t, 0.05, 0.3, 500, 3000, A.sfx);
@@ -317,10 +434,18 @@ function schedBar(bar) {
   // ベースと わおん
   const ci = (bar - intro) % sp.prog.length;
   const r = sp.root + sp.prog[ci];
-  bass(t0, r - 12, spb * 0.9, 0.3);
-  bass(t0 + spb * 2, r - 12, spb * 0.45, 0.26);
-  bass(t0 + spb * 3, r - 12 + 7, spb * 0.45, 0.22);
-  chord(t0, [r, r + (sp.min && sp.min.indexOf(ci) >= 0 ? 3 : 4), r + 7], spb * 3.4, 0.09);
+  const third = (sp.min && sp.min.indexOf(ci) >= 0) ? 3 : 4;
+  bass(t0, r - 24, spb * 0.9, 0.3);
+  bass(t0 + spb * 2, r - 24, spb * 0.45, 0.26);
+  bass(t0 + spb * 3, r - 24 + 7, spb * 0.45, 0.22);
+  chord(t0, [r - 12, r - 12 + third, r - 12 + 7], spb * 3.7, 0.14);
+
+  // うしろで ずっと 鳴っている きらきら（アルペジオ）。
+  // これが 無いと ドラムと ベースだけで、たたかない あいだが さびしい。
+  const arp = [0, third, 7, 12, 7, third, 12, 7];
+  for (let i = 0; i < 8; i++) {
+    pluck(t0 + i * (spb / 2), r - 12 + arp[i], spb * 0.46, 0.10, A.music);
+  }
 }
 
 function stickAt(t, v) { nzHit(t, 0.03, v || 0.4, 1800, 5000, A.music); }

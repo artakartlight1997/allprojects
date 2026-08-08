@@ -128,12 +128,20 @@ function chibi(x, y, s, o) {
 
 // --- リズムの ならびを 作る -----------------------------------------------------
 
+// 'o' たたく / 'c' お手本 / 's' さけぶ（見ためだけ ちがう たたく）
+// 'h' 1拍 ながおしして ここで はなす / 'H' 2拍 ながおし
 function barNotes(bar, s, g) {
   const out = [];
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    if (ch !== 'o' && ch !== 'c') continue;
-    out.push({ b: bar * 4 + i * 0.5, i, k: ch === 'c' ? 'call' : 'tap', g });
+    if ('ocsh H'.indexOf(ch) < 0 || ch === ' ') continue;
+    const b = bar * 4 + i * 0.5;
+    const n = { b, i, g, k: 'tap' };
+    if (ch === 'c') n.k = 'call';
+    else if (ch === 's') n.kk = 'shout';
+    else if (ch === 'h') { n.k = 'hold'; n.hb = b - 1; }
+    else if (ch === 'H') { n.k = 'hold'; n.hb = b - 2; }
+    out.push(n);
   }
   return out;
 }
@@ -153,6 +161,7 @@ function decorate(notes, st) {
     n.p = g.root + g.pitch[n.i % g.pitch.length];
     n.pre = !!g.pre && n.k === 'tap';
     n.gd = g.guide !== false && n.k === 'tap';
+    if (n.kk === 'shout') n.hit = 'shout';
     n.lane = (n3++) % 3;
     n.res = '';
   }
@@ -517,11 +526,277 @@ STAGES.push({
   },
 });
 
-// ===== 6 リミックス =============================================================
+// ===== 6 ねじまき ロボ ==========================================================
 //
-// 4小節ずつ 前の 面が つぎつぎ 出てくる。リズム天国 の おたのしみ。
+// リズム天国の「ロボット工場」みたいな ながおし。
+// おして、上がっていく 音が てっぺんに ついたら はなす。
 
-const REMIX_SEG = [
+STAGES.push({
+  gi: 5,
+  key: 'neji',
+  name: 'ねじまき ロボ',
+  desc: 'おして、音が 上がりきったら はなす',
+  col: '#59A8C8',
+  bpm: 108, intro: 2, root: 74,
+  pitch: [0, 0, 5, 5, 7, 7, 9, 9],
+  drum: 'march', prog: [0, 5, 7, 5], min: [],
+  hit: 'screw',
+  pre: false,
+  pats: [
+    '..h.....', '..h.....', '..h...h.', '..h...h.',
+    '....H...', '..h...h.', '..h...h.', '....H...',
+    '..h...h.', '..h...h.', '....H...', '..h...h.',
+    '..h...h.', '....H...', '..h...h.', '..h.....',
+  ],
+  draw(v) {
+    bg('#DCE8F0', '#7E97AE');
+    const by = H * 0.62;                       // ベルトの 上の 面
+    const cx = W * 0.56;                       // ここで はなす
+    ctx.fillStyle = '#4A5468';
+    ctx.fillRect(0, by, W, H * 0.10);
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    for (let i = 0; i < 16; i++) {
+      const x = ((i * 76 - v.beat * 70) % (W + 76) + W + 76) % (W + 76) - 38;
+      ctx.fillRect(x, by, 24, H * 0.10);
+    }
+    floor(by + H * 0.10, '#39415A');
+
+    // 「ここで はなす」の しるし
+    ctx.strokeStyle = 'rgba(255,209,102,0.9)';
+    ctx.lineWidth = Math.max(3, H * 0.009);
+    ctx.setLineDash([H * 0.03, H * 0.022]);
+    ctx.beginPath(); ctx.moveTo(cx, H * 0.20); ctx.lineTo(cx, by); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const hr = H * 0.075;
+    for (const n of v.notes) {
+      if (n.g !== 5) continue;
+      const len = n.b - n.hb;
+      const d = n.b - v.beat;
+      if (d > len + 2.5 || d < -0.9) continue;
+      const x = cx + (d / (len + 2.5)) * (W - cx + H * 0.2);
+      const y = by - hr;
+      if (n.res && d < 0) {
+        if (n.res !== 'miss') burst(cx, y, hr * 1.5, (-d) * 1.5, '#FFF0A0');
+        continue;
+      }
+      // ロボの あたま
+      ctx.fillStyle = n.res === 'miss' ? '#9AA0AA' : '#EEF3FA';
+      rr(ctx, x - hr, y - hr, hr * 2, hr * 2, hr * 0.32); ctx.fill();
+      ctx.fillStyle = '#B6C2D2';
+      rr(ctx, x - hr, y + hr * 0.5, hr * 2, hr * 0.5, hr * 0.16); ctx.fill();
+      ctx.fillStyle = '#2A3242';
+      ctx.beginPath(); ctx.arc(x - hr * 0.34, y - hr * 0.1, hr * 0.15, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + hr * 0.34, y - hr * 0.1, hr * 0.15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#7A8698';
+      rr(ctx, x - hr * 0.3, y + hr * 0.24, hr * 0.6, hr * 0.12, hr * 0.06); ctx.fill();
+
+      // ねじ。おしている あいだ まわって、しまり ぐあいが 輪で わかる
+      const t = Math.max(0, Math.min(1, (v.beat - n.hb) / len));
+      const sy = y - hr * 1.35;
+      ctx.save();
+      ctx.translate(x, sy);
+      ctx.rotate(n.held ? t * 26 : 0);
+      ctx.fillStyle = '#AEB8C8';
+      rr(ctx, -hr * 0.42, -hr * 0.14, hr * 0.84, hr * 0.28, hr * 0.07); ctx.fill();
+      rr(ctx, -hr * 0.14, -hr * 0.42, hr * 0.28, hr * 0.84, hr * 0.07); ctx.fill();
+      ctx.restore();
+      if (t > 0 && t < 1.02 && d > -0.2) {
+        ctx.strokeStyle = n.held ? '#FFD166' : 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = Math.max(3, H * 0.012);
+        ctx.beginPath();
+        ctx.arc(x, sy, hr * 0.75, -Math.PI / 2, -Math.PI / 2 + Math.min(1, t) * 6.283);
+        ctx.stroke();
+      }
+    }
+
+    const sw = Math.max(0, Math.min(1, 1 - (v.beat - v.hitB) * 3));
+    chibi(W * 0.14, by + H * 0.10, H * 0.30, Object.assign({}, RINA, {
+      arm: v.holding ? 2.3 : 1.5 - sw * 0.4, arm2: v.holding ? 2.3 : 1.5,
+      face: v.missB > v.hitB && v.beat - v.missB < 0.8 ? 'x' : sw > 0.3 ? 'o' : 'h',
+      squash: v.holding ? 0.18 : 0,
+    }));
+    if (v.holding) {
+      ctx.fillStyle = 'rgba(255,209,102,0.95)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      fitFont('おしっぱなし！', W * 0.35, H * 0.055, 'bold ');
+      ctx.fillText('おしっぱなし！', W * 0.30, H * 0.20);
+      ctx.textAlign = 'left';
+    }
+  },
+});
+
+// ===== 7 ピンポン ラリー ========================================================
+//
+// リズム天国の「リズムラリー」みたいに、あいてが 打ったら 打ちかえす。
+
+STAGES.push({
+  gi: 6,
+  key: 'rally',
+  name: 'ピンポン ラリー',
+  desc: 'あいてが 打ったら 打ちかえす',
+  col: '#4FC08A',
+  bpm: 120, intro: 2, root: 76,
+  pitch: [0, 2, 4, 2, 5, 4, 2, 0],
+  drum: 'disco', prog: [0, 0, 5, 7], min: [],
+  hit: 'ball',
+  pre: false,
+  pats: [
+    'c...o...', 'c...o...', 'c.o.c.o.', 'c.o.c.o.',
+    'c...o...', 'c.o.c.o.', 'cocococo', 'c...o...',
+    'c.o.c.o.', 'c.o.c.o.', 'cocococo', 'c...o...',
+    'c.o.c.o.', 'cocococo', 'cocococo', 'c...o...',
+  ],
+  draw(v) {
+    bg('#CFF0E0', '#3E9A7A');
+    const gy = H * 0.92;                       // ゆか
+    const ty = H * 0.60;                       // だいの 上の 面
+    floor(gy, '#2A6A52');
+
+    const px = W * 0.14, mx = W * 0.86;
+    // たっきゅうだい
+    ctx.fillStyle = '#2E7A5A';
+    rr(ctx, W * 0.20, ty, W * 0.60, H * 0.035, 6); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(W * 0.20, ty + H * 0.014, W * 0.60, 3);
+    ctx.fillStyle = '#1E5A3E';
+    ctx.fillRect(W * 0.26, ty + H * 0.035, H * 0.018, gy - ty - H * 0.035);
+    ctx.fillRect(W * 0.74 - H * 0.018, ty + H * 0.035, H * 0.018, gy - ty - H * 0.035);
+    // ネット
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillRect(W / 2 - 1.5, ty - H * 0.055, 3, H * 0.055);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    rr(ctx, W / 2 - W * 0.05, ty - H * 0.05, W * 0.10, H * 0.05, 3); ctx.fill();
+
+    // 玉。1つ前の 音符から つぎの 音符へ とぶ
+    let prev = null, next = null;
+    for (const n of v.notes) {
+      if (n.g !== 6) continue;
+      if (n.b <= v.beat && (!prev || n.b > prev.b)) prev = n;
+      if (n.b > v.beat && (!next || n.b < next.b)) next = n;
+    }
+    if (next) {
+      const from = prev ? (prev.k === 'call' ? mx : px) : mx;
+      const to = next.k === 'call' ? mx : px;
+      const b0 = prev ? prev.b : next.b - 2;
+      const u = Math.max(0, Math.min(1, (v.beat - b0) / (next.b - b0)));
+      const bx = from + (to - from) * u;
+      const byy = ty - H * 0.05 - Math.sin(u * Math.PI) * H * 0.20;
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath(); ctx.ellipse(bx, ty + H * 0.01, H * 0.026, H * 0.008, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#FFD166';
+      ctx.beginPath(); ctx.arc(bx, byy, H * 0.030, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath(); ctx.arc(bx - H * 0.010, byy - H * 0.010, H * 0.010, 0, 7); ctx.fill();
+    }
+
+    const s2 = H * 0.34;
+    const swA = Math.max(0, Math.min(1, 1 - (v.beat - v.callB) * 4));
+    const swR = Math.max(0, Math.min(1, 1 - (v.beat - v.hitB) * 4));
+    // ラケットを 持つ うでを だいの ほうへ ふる
+    chibi(mx, gy, s2, Object.assign({}, PAPA, {
+      arm: 0.4, arm2: -0.6 - swA * 1.0, face: swA > 0.3 ? 'o' : 'n',
+    }));
+    chibi(px, gy, s2, Object.assign({}, RINA, {
+      arm: -0.6 - swR * 1.0, arm2: 0.4,
+      face: v.missB > v.hitB && v.beat - v.missB < 0.8 ? 'x' : swR > 0.3 ? 'o' : 'h',
+    }));
+    // ラケット
+    for (const [x, sw, col, dir] of [[px, swR, '#E8465C', 1], [mx, swA, '#3E7ACF', -1]]) {
+      ctx.save();
+      ctx.translate(x + dir * s2 * 0.52, gy - s2 * 0.82);
+      ctx.rotate(dir * (0.9 - sw * 1.5));
+      ctx.strokeStyle = '#7A5030'; ctx.lineWidth = Math.max(3, H * 0.011);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, H * 0.045); ctx.stroke();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.ellipse(0, -H * 0.022, H * 0.030, H * 0.040, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+  },
+});
+
+// ===== 8 りなアイドル ===========================================================
+//
+// リズム天国の「ファンクラブ」みたいに、手びょうしと かけ声。
+
+STAGES.push({
+  gi: 7,
+  key: 'idol',
+  name: 'りなアイドル',
+  desc: '手びょうし と「キャー！」',
+  col: '#F06AB0',
+  bpm: 128, intro: 2, root: 79,
+  pitch: [0, 0, 3, 3, 5, 5, 7, 7],
+  drum: 'disco', prog: [0, 9, 5, 7], min: [1],
+  hit: 'clap',
+  pre: false,
+  pats: [
+    '..o...o.', '..o...s.', '..o...o.', '..o.o.s.',
+    '..o...o.', '..o...s.', 'o.o.o.o.', '..o.o.s.',
+    '..o...o.', 'o.o.o.s.', '..o.o.o.', '..o.o.s.',
+    'o.o.o.o.', '..o.o.s.', 'o.o.o.oo', '......s.',
+  ],
+  draw(v) {
+    bg('#3A1E4E', '#B0407A');
+    const gy = H * 0.86;
+    // ステージの あかり
+    for (let i = 0; i < 5; i++) {
+      const on = (Math.floor(v.beat * 2) + i) % 4 < 2;
+      const x = W * (0.1 + i * 0.2);
+      const g2 = ctx.createRadialGradient(x, 0, 10, x, 0, H * 0.9);
+      g2.addColorStop(0, on ? 'rgba(255,200,120,0.30)' : 'rgba(160,140,255,0.14)');
+      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g2; ctx.fillRect(x - W * 0.16, 0, W * 0.32, H);
+    }
+    floor(gy, '#2A1030');
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillRect(0, gy, W, H * 0.01);
+
+    // ファン（3人）。たたくと 手が 上がる
+    const sw = Math.max(0, Math.min(1, 1 - (v.beat - v.hitB) * 4));
+    for (let i = 0; i < 3; i++) {
+      chibi(W * (0.16 + i * 0.13), gy + H * 0.10, H * 0.17,
+            Object.assign({}, PAPA, { body: ['#E0A040', '#40A0C0', '#A060D0'][i],
+                                      arm: 1.4 + sw * 1.1, face: sw > 0.3 ? 'o' : 'h' }));
+    }
+    // りな（アイドル）
+    const shout = v.shoutB !== undefined && v.beat - v.shoutB < 0.7 && v.beat >= v.shoutB;
+    const jump = shout ? Math.sin(Math.max(0, (v.beat - v.shoutB)) / 0.7 * Math.PI) * H * 0.12 : 0;
+    chibi(W * 0.72, gy - jump, H * 0.34, Object.assign({}, RINA, {
+      arm: 1.5 + sw * 1.2, arm2: 2.5,
+      face: v.missB > v.hitB && v.beat - v.missB < 0.8 ? 'x' : sw > 0.3 ? 'o' : 'h',
+    }));
+
+    // つぎに 来るのは 手びょうし？ かけ声？
+    for (const n of v.notes) {
+      if (n.g !== 7 || n.res) continue;
+      const d = n.b - v.beat;
+      if (d < 0 || d > 2) continue;
+      const a = Math.max(0, 1 - d / 2);
+      ctx.globalAlpha = a * 0.9;
+      ctx.fillStyle = n.kk === 'shout' ? '#FF7ABF' : '#FFE066';
+      const x = W / 2 + (d / 2) * W * 0.4;
+      ctx.beginPath(); ctx.arc(x, H * 0.30, H * 0.028, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = Math.max(3, H * 0.008);
+    ctx.beginPath();
+    ctx.moveTo(W / 2, H * 0.24); ctx.lineTo(W / 2, H * 0.36); ctx.stroke();
+    if (shout) {
+      ctx.fillStyle = '#FFB0D8';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      fitFont('キャー！', W * 0.3, H * 0.09, 'bold ');
+      ctx.fillText('キャー！', W * 0.72, gy - jump - H * 0.42);
+      ctx.textAlign = 'left';
+    }
+  },
+});
+
+// ===== 9・10 リミックス ==========================================================
+//
+// リズム天国の おたのしみ。4小節ずつ 前の ミニゲームが つぎつぎ 出てくる。
+
+const REMIX1_SEG = [
   { g: 0, pats: ['o...o...', 'o.o.o.o.', 'o...oo..', 'o.o.o...'] },
   { g: 1, pats: ['o.o.o.o.', 'o.o.o.o.', 'o.o.oo..', 'o.o.o.o.'] },
   { g: 2, pats: ['o...o...', 'o.o.o...', 'o..o..o.', 'o.o.o.o.'] },
@@ -530,54 +805,63 @@ const REMIX_SEG = [
   { g: 0, pats: ['oo..oo..', 'o.o.o.o.', 'o..oo...', 'o.......'] },
 ];
 
-STAGES.push({
-  gi: 5,
-  key: 'remix',
-  name: 'リミックス',
-  desc: 'ぜんぶが つぎつぎ 出てくる さいごの 面',
-  col: '#F0C020',
-  bpm: 124, intro: 2, root: 72,
-  pitch: [0, 2, 4, 7, 9, 7, 4, 2],
-  drum: 'funk', prog: [0, 5, 3, 7], min: [2],
-  hit: 'pop',
-  pre: true,
-  remix: true,
-  pats: (function () {
-    const out = [];
-    for (const s of REMIX_SEG) for (const p of s.pats) out.push(p);
-    return out;
-  })(),
-  segAt(bar) {
-    const i = Math.floor((bar - 2) / 4);
-    return REMIX_SEG[Math.max(0, Math.min(REMIX_SEG.length - 1, i))].g;
-  },
-  draw(v) {
-    const g = this.segAt(Math.floor(v.beat / 4));
-    // その 面の 絵を そのまま つかう。音符だけ 付けかえる。
-    const sub = STAGES[g];
-    const saved = [];
-    for (const n of v.notes) { saved.push(n.g); n.g = g; }
-    sub.draw.call(sub, v);
-    let i = 0;
-    for (const n of v.notes) n.g = saved[i++];
-    // どの ミニゲームか 出す
-    ctx.fillStyle = 'rgba(20,14,34,0.55)';
-    const bw = W * 0.3, bh = H * 0.085;
-    rr(ctx, W - bw - H * 0.03, H * 0.14, bw, bh, 10); ctx.fill();
-    ctx.fillStyle = sub.col;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    fitFont(sub.name, bw * 0.88, bh * 0.6, 'bold ');
-    ctx.fillText(sub.name, W - bw / 2 - H * 0.03, H * 0.14 + bh / 2);
-    ctx.textAlign = 'left';
-  },
-});
+const REMIX2_SEG = [
+  { g: 7, pats: ['..o...o.', '..o...s.', '..o.o.o.', '..o.o.s.'] },
+  { g: 6, pats: ['c...o...', 'c.o.c.o.', 'c.o.c.o.', 'c...o...'] },
+  { g: 5, pats: ['..h...h.', '..h...h.', '....H...', '..h.....'] },
+  { g: 0, pats: ['o...o...', 'o.o.o.o.', 'o...oo..', 'o.......'] },
+  { g: 2, pats: ['o...o...', 'o.o.o...', 'o..o..o.', 'o.......'] },
+  { g: 6, pats: ['c.o.c.o.', 'cocococo', 'c.o.c.o.', 'c...o...'] },
+  { g: 7, pats: ['..o...o.', 'o.o.o.s.', '..o.o.o.', '......s.'] },
+];
 
-// リミックスの 音符は、その ときの ミニゲームの ものに する
-STAGES[5].fixNotes = function (notes) {
-  for (const n of notes) {
-    const g = this.segAt(Math.floor(n.b / 4));
-    n.hit = STAGES[g].hit;
-    n.pre = !!STAGES[g].pre;
-  }
-  return notes;
-};
+function mkRemix(gi, key, name, desc, col, bpm, root, segs) {
+  const pats = [];
+  for (const sg of segs) for (const p of sg.pats) pats.push(p);
+  return {
+    gi, key, name, desc, col,
+    bpm, intro: 2, root,
+    pitch: [0, 2, 4, 7, 9, 7, 4, 2],
+    drum: 'funk', prog: [0, 5, 3, 7], min: [2],
+    hit: 'pop', pre: true, remix: true,
+    segs, pats,
+    segAt(bar) {
+      const i = Math.floor((bar - 2) / 4);
+      return this.segs[Math.max(0, Math.min(this.segs.length - 1, i))].g;
+    },
+    // 音符は その ときの ミニゲームの ものに する
+    fixNotes(notes) {
+      for (const n of notes) {
+        const g = this.segAt(Math.floor(n.b / 4));
+        const sub = STAGES[g];
+        n.hit = n.kk === 'shout' ? 'shout' : sub.hit;
+        n.pre = !!sub.pre && n.k === 'tap';
+      }
+      return notes;
+    },
+    draw(v) {
+      const g = this.segAt(Math.floor(v.beat / 4));
+      const sub = STAGES[g];
+      // その ミニゲームの 絵を そのまま つかう。音符だけ 付けかえる。
+      const saved = [];
+      for (const n of v.notes) { saved.push(n.g); n.g = g; }
+      sub.draw.call(sub, v);
+      let i = 0;
+      for (const n of v.notes) n.g = saved[i++];
+      // どの ミニゲームか 出す
+      ctx.fillStyle = 'rgba(20,14,34,0.6)';
+      const bw = W * 0.28, bh = H * 0.08;
+      rr(ctx, W - bw - H * 0.03, H * 0.115, bw, bh, 10); ctx.fill();
+      ctx.fillStyle = sub.col;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      fitFont(sub.name, bw * 0.88, bh * 0.58, 'bold ');
+      ctx.fillText(sub.name, W - bw / 2 - H * 0.03, H * 0.115 + bh / 2);
+      ctx.textAlign = 'left';
+    },
+  };
+}
+
+STAGES.push(mkRemix(8, 'remix', 'リミックス 1',
+  'はじめの 5つが つぎつぎ 出てくる', '#F0C020', 124, 72, REMIX1_SEG));
+STAGES.push(mkRemix(9, 'remix2', 'リミックス 2',
+  'ぜんぶ 出てくる さいごの 面', '#FF7A5A', 128, 74, REMIX2_SEG));

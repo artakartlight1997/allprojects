@@ -1,0 +1,10 @@
+{
+  "name": "りなのふしぎダンジョン",
+  "short_name": "ふしぎダンジョン",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1E1430",
+  "theme_color": "#1E1430",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

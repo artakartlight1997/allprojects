@@ -24,6 +24,7 @@ on:
       - 'craft/site/**'
       - 'escape/site/**'
       - 'rhythm/site/**'
+      - 'fuwa/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -60,12 +61,13 @@ jobs:
       #   /craft/      りなクラフト（3D のブロックの世界）
       #   /escape/     りな逃走中（めいろで パパから にげる）
       #   /rhythm/     りなりなリズム（ビートに合わせてタップ）
+      #   /fuwa/       ふわふわふわりな（そらを とんで たたかう）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -73,6 +75,7 @@ jobs:
           cp -r craft/site/. public/craft/
           cp -r escape/site/. public/escape/
           cp -r rhythm/site/. public/rhythm/
+          cp -r fuwa/site/. public/fuwa/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

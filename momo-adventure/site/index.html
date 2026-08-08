@@ -134,6 +134,9 @@
   @media (max-height: 430px) {
     body { padding-top: 8px; }
     header { margin-bottom: 8px; }
+    /* ゲームが 9つに なった。よこ長の 画面では 3れつに して
+       ぜんぶ スクロールなしで 見えるようにする。 */
+    .games { grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); }
     h1 { font-size: clamp(1.1rem, 5vh, 1.5rem); margin-bottom: 2px; }
     .sub { font-size: .72rem; }
     .games { gap: 8px; }
@@ -156,6 +159,16 @@
 
   <!-- あたらしく 作ったものから 順に ならべている -->
   <div class="games">
+
+    <a class="game" href="/allprojects/fuwa/" style="--accent:#7FC8F8">
+      <span class="badge">あたらしい</span>
+      <img src="fuwa/icon.png" alt="" width="72" height="72" loading="lazy">
+      <span class="txt">
+        <span class="name">ふわふわふわりな</span>
+        <span class="desc">タップで ふわっと とんで、そらの てきと たたかう・全10面</span>
+      </span>
+      <span class="go">›</span>
+    </a>
 
     <a class="game" href="/allprojects/rhythm/" style="--accent:#F0C020">
       <span class="badge">あたらしい</span>

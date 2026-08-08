@@ -97,13 +97,14 @@ function drawPlay() {
     }
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
-    if (b > st.intro * 4 - 4) {
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.textAlign = 'center';
-      fitFont('画面を どこでも タップ！', W * 0.6, H * 0.055, 'bold ');
-      ctx.fillText('画面を どこでも タップ！', W / 2, H * 0.82);
-      ctx.textAlign = 'left';
-    }
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(12,8,24,0.55)';
+    const pw = W * 0.8, ph = H * 0.10;
+    rr(ctx, W / 2 - pw / 2, H * 0.80, pw, ph, 12); ctx.fill();
+    ctx.fillStyle = '#FFF3C4';
+    fitFont(st.rule || st.desc, pw * 0.92, H * 0.05, 'bold ');
+    ctx.fillText(st.rule || st.desc, W / 2, H * 0.80 + ph / 2);
+    ctx.textAlign = 'left';
   }
 
   // 出てくる 文字
@@ -163,7 +164,7 @@ function drawTitle(t) {
   const x = H * 0.06;
   let y = H * 0.4;
   const nx = Math.min(STAGES.length - 1, done);
-  drawButton(button(x, y, bw, bh, () => { enterFullscreen(); startStage(nx); }),
+  drawButton(button(x, y, bw, bh, () => { enterFullscreen(); showRule(nx); }),
              done > 0 ? STAGES[nx].name + ' から' : 'はじめる', '#FFD166');
   y += bh * 1.14;
   drawButton(button(x, y, bw * 0.48, bh * 0.82, () => { RG.screen = 'select'; }),
@@ -216,6 +217,61 @@ function drawHowto() {
                     () => { RG.screen = 'title'; }), 'もどる', '#FFD166');
 }
 
+// --- はじめる まえの「あそびかた」---------------------------------------------
+
+function drawRule(t) {
+  const st = STAGES[RG.pending];
+  ctx.fillStyle = '#1A1430'; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W / 2, H * 0.30, 10, W / 2, H * 0.30, H * 1.1);
+  g.addColorStop(0, st.col + 'AA');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  fitFont('あそびかた', W * 0.3, H * 0.045, 'bold ');
+  ctx.fillText('あそびかた', W / 2, H * 0.07);
+  ctx.fillStyle = '#FFFFFF';
+  fitFont(st.name, W * 0.7, H * 0.115, 'bold ');
+  ctx.fillText(st.name, W / 2, H * 0.14);
+
+  // ルールの ふだ
+  const pw = W * 0.82, ph = H * 0.20;
+  ctx.fillStyle = 'rgba(12,8,24,0.62)';
+  rr(ctx, W / 2 - pw / 2, H * 0.31, pw, ph, 16); ctx.fill();
+  ctx.strokeStyle = st.col; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#FFF3C4';
+  ctx.textBaseline = 'middle';
+  fitFont(st.rule || st.desc, pw * 0.9, H * 0.058, 'bold ');
+  ctx.fillText(st.rule || st.desc, W / 2, H * 0.31 + ph * 0.38);
+  ctx.fillStyle = 'rgba(220,214,240,0.85)';
+  const sub = st.key === 'neji' ? 'ゆびを はなす ところで てんすうが つくよ'
+            : 'たたく ところは かならず 曲の 音に なっている。耳で おぼえよう';
+  fitFont(sub, pw * 0.9, H * 0.042);
+  ctx.fillText(sub, W / 2, H * 0.31 + ph * 0.75);
+
+  // ビートに 合わせて はずむ まる（1・2・3・4 の かんじを 見せる）
+  const bt = (t * 2) % 1;
+  for (let i = 0; i < 4; i++) {
+    const on = Math.floor(t * 2) % 4 === i;
+    const r = H * (on ? 0.028 + (1 - bt) * 0.012 : 0.020);
+    ctx.fillStyle = on ? st.col : 'rgba(255,255,255,0.25)';
+    ctx.beginPath(); ctx.arc(W / 2 + (i - 1.5) * H * 0.09, H * 0.60, r, 0, 7); ctx.fill();
+  }
+
+  ctx.textAlign = 'left';
+  const bw2 = Math.min(W * 0.34, H * 0.7), bh2 = H * 0.13;
+  drawButton(button(W / 2 - bw2 / 2, H * 0.70, bw2, bh2,
+                    () => { startStage(RG.pending); }), 'はじめる！', '#FFD166');
+  drawButton(button(H * 0.04, H * 0.04, H * 0.32, H * 0.09,
+                    () => { RG.screen = 'select'; }), 'もどる', '#D8D4F0');
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  fitFont('画面を さわっても はじまるよ', W * 0.5, H * 0.04);
+  ctx.fillText('画面を さわっても はじまるよ', W / 2, H * 0.87);
+  ctx.textAlign = 'left';
+}
+
 // --- ミニゲームえらび -----------------------------------------------------------
 
 function drawSelect() {
@@ -250,7 +306,7 @@ function drawSelect() {
         fitFont(RANK_NAME[rk], cw * 0.8, chh * 0.17, 'bold ');
         ctx.fillText(RANK_NAME[rk], x + cw / 2, y + chh * 0.78);
       }
-      button(x, y, cw, chh, ((k) => () => { enterFullscreen(); startStage(k); })(i));
+      button(x, y, cw, chh, ((k) => () => { enterFullscreen(); showRule(k); })(i));
     } else {
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       fitFont('前を クリアすると あくよ', cw * 0.9, chh * 0.15);
@@ -312,7 +368,7 @@ function drawResult() {
                     () => { RG.screen = 'select'; }), 'えらぶ', '#D8D4F0');
   if (canNext) {
     drawButton(button(W / 2 + bw * 0.55, H * 0.83, bw, bh,
-                      () => { startStage(nx); }), 'つぎへ →', '#7FE0A0');
+                      () => { showRule(nx); }), 'つぎへ →', '#7FE0A0');
   }
 }
 
@@ -465,6 +521,7 @@ function frame(now) {
   } else if (RG.screen === 'result') drawResult();
   else if (RG.screen === 'select') drawSelect();
   else if (RG.screen === 'howto') drawHowto();
+  else if (RG.screen === 'rule') drawRule(tsec);
   else if (RG.screen === 'cal') drawCal();
   else drawTitle(tsec);
 }

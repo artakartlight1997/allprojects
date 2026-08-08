@@ -63,7 +63,16 @@ const RG = {
   done: false,
   rank: 0,
   cal: null,          // ずれ合わせ の とちゅうの データ
+  pending: 0,         // 「あそびかた」を 出している ミニゲーム
 };
+
+// ミニゲームを はじめる まえに 遊びかたを 見せる。
+// リズム天国と 同じで、なにを すれば いいか わからないまま 始まるのが いちばん つらい。
+function showRule(i) {
+  audioStart();
+  RG.pending = Math.max(0, Math.min(STAGES.length - 1, i));
+  RG.screen = 'rule';
+}
 
 function startStage(i) {
   audioStart();
@@ -101,11 +110,14 @@ function pop(text, col) {
 function schedNote(n) {
   const t = timeOfBeat(n.b);
   if (n.pre) {
-    // 「くるよ」の しらせ。1拍 まえ。
-    const tp = timeOfBeat(n.b - 1);
+    // 「くるよ」の しらせ。面に よって 1拍まえ か 半拍まえ。
+    const tp = timeOfBeat(n.b - (n.preAt === undefined ? 1 : n.preAt));
     if (tp > anow()) {
-      nzHit(tp, 0.12, 0.16, 500, 2200, A.music);
-      pluck(tp, n.p - 12, 0.16, 0.12, A.music);
+      if (n.preKind === 'swish') swish(tp, 0.24);
+      else {
+        nzHit(tp, 0.12, 0.16, 500, 2200, A.music);
+        pluck(tp, n.p - 12, 0.16, 0.12, A.music);
+      }
     }
   }
   if (n.k === 'hold') {

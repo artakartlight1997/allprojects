@@ -284,6 +284,24 @@ function riser(t, dur, m0, m1, v) {
   o.start(t); o.stop(t + dur + 0.05);
 }
 
+// なわが ふりおろされる「ひゅっ」。来るのが 耳でも わかるように。
+function swish(t, v) {
+  if (!A.ctx) return;
+  t = safeT(t);
+  const src = A.ctx.createBufferSource();
+  src.buffer = noiseBuf();
+  const f = A.ctx.createBiquadFilter();
+  f.type = 'bandpass'; f.Q.value = 1.1;
+  f.frequency.setValueAtTime(2800, t);
+  f.frequency.exponentialRampToValueAtTime(650, t + 0.20);
+  const g = A.ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(v || 0.2, t + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  src.connect(f); f.connect(g); g.connect(A.music);
+  src.start(t); src.stop(t + 0.24);
+}
+
 // --- たたいた ときの 音 ---------------------------------------------------------
 
 function sfxHit(kind, good) {

@@ -11,7 +11,7 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 1;
+const GAME_VER = 2;
 
 const VH = 450;
 
@@ -54,16 +54,16 @@ const KINDS = {
 
 // 10めん。だんだん 早く なり、だめな ものが ふえ、パパも 出る。
 const STAGES = [
-  { name: '1. はじめての モグラたたき', holes: 6, len: 45, goal: 3000, up: 1.05, down: 1.30, bad: 0.00, papa: 0 },
-  { name: '2. きんもぐら が 出た',      holes: 6, len: 45, goal: 4800, up: 0.95, down: 1.20, bad: 0.00, papa: 0, gold: 0.12 },
-  { name: '3. ばくだん に ちゅうい',    holes: 6, len: 50, goal: 5800, up: 0.90, down: 1.15, bad: 0.16, papa: 0, gold: 0.12 },
-  { name: '4. パパ とうじょう！',       holes: 6, len: 55, goal: 8800, up: 0.85, down: 1.10, bad: 0.16, papa: 0.05, gold: 0.12 },
-  { name: '5. あなが ふえた',           holes: 9, len: 55, goal: 9400, up: 0.80, down: 1.05, bad: 0.18, papa: 0.05, gold: 0.12 },
-  { name: '6. すばやい もぐら',         holes: 9, len: 60, goal: 12800, up: 0.72, down: 0.95, bad: 0.20, papa: 0.06, gold: 0.12, fast: 0.25 },
-  { name: '7. ケーキも まぜて',         holes: 9, len: 60, goal: 14500, up: 0.66, down: 0.90, bad: 0.24, papa: 0.06, gold: 0.12, fast: 0.25 },
-  { name: '8. パパが よく 出る',        holes: 9, len: 65, goal: 20500, up: 0.60, down: 0.85, bad: 0.24, papa: 0.10, gold: 0.14, fast: 0.28 },
-  { name: '9. どんどん 出る',           holes: 12, len: 65, goal: 24500, up: 0.54, down: 0.78, bad: 0.26, papa: 0.10, gold: 0.14, fast: 0.30 },
-  { name: '10. パパ まつり',            holes: 12, len: 70, goal: 33000, up: 0.48, down: 0.72, bad: 0.28, papa: 0.16, gold: 0.16, fast: 0.32 },
+  { name: '1. はじめての モグラたたき', holes: 6, len: 30, goal: 2400, up: 0.85, down: 1.30, bad: 0.00, papa: 0 },
+  { name: '2. きんもぐら が 出た',      holes: 6, len: 30, goal: 3600, up: 0.78, down: 1.20, bad: 0.00, papa: 0, gold: 0.12 },
+  { name: '3. ばくだん に ちゅうい',    holes: 6, len: 35, goal: 4800, up: 0.74, down: 1.15, bad: 0.16, papa: 0, gold: 0.12 },
+  { name: '4. パパ とうじょう！',       holes: 6, len: 35, goal: 6900, up: 0.70, down: 1.10, bad: 0.16, papa: 0.05, gold: 0.12 },
+  { name: '5. あなが ふえた',           holes: 9, len: 40, goal: 8100, up: 0.66, down: 1.05, bad: 0.18, papa: 0.05, gold: 0.12 },
+  { name: '6. すばやい もぐら',         holes: 9, len: 40, goal: 10000, up: 0.60, down: 0.95, bad: 0.20, papa: 0.06, gold: 0.12, fast: 0.25 },
+  { name: '7. ケーキも まぜて',         holes: 9, len: 40, goal: 11200, up: 0.56, down: 0.90, bad: 0.24, papa: 0.06, gold: 0.12, fast: 0.25 },
+  { name: '8. パパが よく 出る',        holes: 9, len: 45, goal: 15800, up: 0.52, down: 0.85, bad: 0.24, papa: 0.10, gold: 0.14, fast: 0.28 },
+  { name: '9. どんどん 出る',           holes: 12, len: 45, goal: 18700, up: 0.48, down: 0.78, bad: 0.26, papa: 0.10, gold: 0.14, fast: 0.30 },
+  { name: '10. パパ まつり',            holes: 12, len: 50, goal: 23800, up: 0.42, down: 0.72, bad: 0.28, papa: 0.16, gold: 0.16, fast: 0.32 },
 ];
 
 const G = {

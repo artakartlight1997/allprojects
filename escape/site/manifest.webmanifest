@@ -1,0 +1,10 @@
+{
+  "name": "りな逃走中",
+  "short_name": "逃走中",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1E1A32",
+  "theme_color": "#1E1A32",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

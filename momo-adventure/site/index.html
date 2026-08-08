@@ -128,6 +128,21 @@
     .game .name { font-size: .97rem; }
     .game .desc { font-size: .76rem; line-height: 1.4; }
   }
+  /* iPhone を よこ向きに したくらいの たかさ（375px）。
+     ゲームが ふえて 4 だんに なったので、もう ひとまわり 小さくして
+     ぜんぶが スクロールなしで 見えるようにする。 */
+  @media (max-height: 430px) {
+    body { padding-top: 8px; }
+    header { margin-bottom: 8px; }
+    h1 { font-size: clamp(1.1rem, 5vh, 1.5rem); margin-bottom: 2px; }
+    .sub { font-size: .72rem; }
+    .games { gap: 8px; }
+    .game { min-height: 62px; padding: 6px 12px 6px 8px; border-radius: 13px; }
+    .game img { width: 46px; height: 46px; flex-basis: 46px; border-radius: 10px; }
+    .game .name { font-size: .9rem; margin-bottom: 1px; }
+    .game .desc { font-size: .7rem; line-height: 1.32; }
+    .badge { top: -6px; font-size: .6rem; padding: 2px 7px; }
+  }
   a { color: var(--pink); }
 </style>
 </head>
@@ -141,6 +156,16 @@
 
   <!-- あたらしく 作ったものから 順に ならべている -->
   <div class="games">
+
+    <a class="game" href="/allprojects/escape/" style="--accent:#E86A9C">
+      <span class="badge">あたらしい</span>
+      <img src="escape/icon.png" alt="" width="72" height="72" loading="lazy">
+      <span class="txt">
+        <span class="name">りな逃走中</span>
+        <span class="desc">めいろで パパから にげきれ。ぜんぶで 30面</span>
+      </span>
+      <span class="go">›</span>
+    </a>
 
     <a class="game" href="/allprojects/craft/" style="--accent:#5C9E4A">
       <span class="badge">あたらしい</span>

@@ -134,7 +134,7 @@
   @media (max-height: 430px) {
     body { padding-top: 8px; }
     header { margin-bottom: 8px; }
-    /* ゲームが 10こに なった。よこ長の 画面では 3れつに して
+    /* ゲームが 11こに なった。よこ長の 画面では 3れつに して
        ぜんぶ スクロールなしで 見えるようにする。
        せつめいは 2行で 切る。行が のびると ふだが 高くなって はみ出すため。 */
     .games { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
@@ -174,6 +174,16 @@
 
   <!-- あたらしく 作ったものから 順に ならべている -->
   <div class="games">
+
+    <a class="game" href="/allprojects/tower/" style="--accent:#FF8FB8">
+      <span class="badge">あたらしい</span>
+      <img src="tower/icon.png" alt="" width="72" height="72" loading="lazy">
+      <span class="txt">
+        <span class="name">あおいのハッピータワー</span>
+        <span class="desc">ママから にげて タワーの てっぺんへ！ 全10かい</span>
+      </span>
+      <span class="go">›</span>
+    </a>
 
     <a class="game" href="/allprojects/smash/" style="--accent:#FFD166">
       <span class="badge">あたらしい</span>

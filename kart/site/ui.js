@@ -438,6 +438,34 @@ function drawHud(t) {
     ctx.closePath(); ctx.fill();
   }
 
+  // ★ 草に出たら「もどって！」と やじるしを 出す
+  if (Math.abs(me.px) > 1.02 && !G.over && G.started) {
+    const dir = me.px > 0 ? -1 : 1;      // もどる むき
+    const cx = VW / 2, cy = VH * 0.33;   // カートに かぶらない 高さ
+    ctx.save();
+    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 9);
+    ctx.fillStyle = '#FFE066';
+    ctx.beginPath();
+    ctx.moveTo(cx + dir * 54, cy);
+    ctx.lineTo(cx + dir * 16, cy - 30);
+    ctx.lineTo(cx + dir * 16, cy - 12);
+    ctx.lineTo(cx - dir * 30, cy - 12);
+    ctx.lineTo(cx - dir * 30, cy + 12);
+    ctx.lineTo(cx + dir * 16, cy + 12);
+    ctx.lineTo(cx + dir * 16, cy + 30);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(30,20,10,0.5)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(20,14,30,0.8)'; ctx.lineWidth = 5;
+    fitFont('道にもどって！', VW * 0.5, 24, 'bold ');
+    ctx.strokeText('道にもどって！', cx, cy - 50);
+    ctx.fillText('道にもどって！', cx, cy - 50);
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
+
   // ドリフトのたまり
   if (me.driftT > 0.2) {
     const p = Math.min(1, me.driftT / 1.6);

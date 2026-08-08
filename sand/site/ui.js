@@ -168,32 +168,111 @@ function drawPlay(t) {
 
   // つぎの 音符の めやす（近づく わっか）。
   // 「いつ たたくか」が 目でも わかると、はじめての 子でも 入りやすい。
-  drawCue(b);
+  drawLane(b);
 
   drawHUD(t, b);
 }
 
 // つぎの 音符までを あらわす わっか
-function drawCue(b) {
-  let next = null;
-  for (const n of RG.notes) {
-    if (n.k === 'call' || n.res) continue;
-    const nb = n.k === 'hold' ? n.hb : n.b;
-    if (nb >= b - 0.2) { next = { b: nb, hold: n.k === 'hold' }; break; }
+// --- 音符の みち（右から ながれてくる）-------------------------------------------
+//
+// 音符は **右から** すべってきて、まん中の わくに かさなった ときが
+// たたく とき。ちぢむ わっかより、いつ たたくかが 目で 追える。
+// わくは 手もと（まないた・フライパン）の まうえに おいて、
+// 見る ところを たて 1本に そろえる。
+
+const LANE_Y = 128;          // みちの まん中の 高さ
+const LANE_H = 52;           // みちの ふとさ
+const LEAD = 2.2;            // なんはく さきまで 見えるか
+
+function laneX(b, nb) {
+  // nb … 音符の ビート、b … いまの ビート
+  const mark = VW / 2;
+  const per = (mark - 24) / LEAD;      // 1はく ぶんの ながさ
+  return mark + (nb - b) * per;
+}
+
+function drawLane(b) {
+  const mark = VW / 2;
+  const per = (mark - 24) / LEAD;
+
+  // みち
+  ctx.fillStyle = 'rgba(70,44,26,0.30)';
+  rr(ctx, 0, LANE_Y - LANE_H / 2, VW, LANE_H, 0); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, LANE_Y - LANE_H / 2); ctx.lineTo(VW, LANE_Y - LANE_H / 2);
+  ctx.moveTo(0, LANE_Y + LANE_H / 2); ctx.lineTo(VW, LANE_Y + LANE_H / 2);
+  ctx.stroke();
+  // 1はく ごとの 目じるし
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  for (let i = 0; i <= LEAD + 1; i++) {
+    const bx = mark + (i - ((b % 1) + 1) % 1) * per;
+    if (bx < mark - 10 || bx > VW) continue;
+    ctx.fillRect(bx - 1, LANE_Y - LANE_H / 2 + 6, 2, LANE_H - 12);
   }
-  const cx = VW / 2, cy = 152;
-  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(cx, cy, 34, 0, 7); ctx.stroke();
-  if (!next) return;
-  const d = next.b - b;
-  if (d > 2 || d < -0.3) return;
-  const r = 34 + Math.max(0, d) * 46;
-  ctx.strokeStyle = next.hold ? '#8FD6FF' : '#FF8F5A';
-  ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
-  if (Math.abs(d) < 0.12) {
-    ctx.fillStyle = 'rgba(255,224,102,0.55)';
-    ctx.beginPath(); ctx.arc(cx, cy, 32, 0, 7); ctx.fill();
+
+  // たたく わく
+  const hitAgo = b - RG.hitB;
+  const flash = hitAgo >= 0 && hitAgo < 0.35 ? 1 - hitAgo / 0.35 : 0;
+  ctx.fillStyle = 'rgba(255,224,102,' + (0.12 + flash * 0.6) + ')';
+  ctx.beginPath(); ctx.arc(mark, LANE_Y, 26 + flash * 7, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(mark, LANE_Y, 26, 0, 7); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,143,90,0.9)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(mark, LANE_Y, 32, 0, 7); ctx.stroke();
+
+  // 音符。うしろの ものから かく。
+  const list = RG.notes.slice().sort((a, c) => c.b - a.b);
+  for (const n of list) {
+    const nb = n.k === 'hold' ? n.hb : n.b;
+    const d = nb - b;
+    if (d > LEAD + 0.6 || d < -1.2) continue;
+    const x = mark + d * per;
+    if (n.k === 'hold') {
+      // ながおし。おす ところ から はなす ところ までの ぼう。
+      const x2 = mark + (n.b - b) * per;
+      ctx.globalAlpha = n.res ? 0.3 : 1;
+      ctx.fillStyle = n.held && !n.res ? '#8FE0FF' : 'rgba(143,214,255,0.55)';
+      rr(ctx, Math.min(x, x2), LANE_Y - 13, Math.abs(x2 - x), 26, 13); ctx.fill();
+      ctx.strokeStyle = '#5AA8D8'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = n.res ? '#B0C4D4' : '#FFFFFF';
+      ctx.beginPath(); ctx.arc(x, LANE_Y, 15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#5AA8D8';
+      ctx.beginPath(); ctx.arc(x2, LANE_Y, 9, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    if (n.k === 'call') {
+      // コックさんの お手本。たたかない ので わく だけ。
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = '#C8C0B0'; ctx.lineWidth = 3;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.arc(x, LANE_Y, 16, 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    // ふつうの 音符
+    const done = !!n.res;
+    ctx.globalAlpha = done ? Math.max(0, 1 + d * 1.4) * 0.5 : 1;
+    const col = n.res === 'miss' ? '#B0A090' : '#FF8F5A';
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(x, LANE_Y, 19, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.arc(x - 5, LANE_Y - 5, 6, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,40,10,0.5)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, LANE_Y, 19, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // 「ここで たたく！」の やじるし（はじめの うちだけ）
+  if (b < RG.st.intro * 4 + 4) {
+    ctx.fillStyle = '#FFE066';
+    ctx.beginPath();
+    ctx.moveTo(mark, LANE_Y + 38);
+    ctx.lineTo(mark - 10, LANE_Y + 52); ctx.lineTo(mark + 10, LANE_Y + 52);
+    ctx.closePath(); ctx.fill();
   }
 }
 
@@ -262,19 +341,19 @@ function drawMini(kind, t, b) {
     // ほうちょう。え が 上、は が 下。おろすと 下がる。
     const swing = hit < 0.3 && hit >= 0 ? (1 - hit / 0.3) : 0;
     ctx.save();
-    ctx.translate(cx + 10, cy - 120 + swing * 74);
+    ctx.translate(cx + 10, cy - 96 + swing * 66);
     ctx.rotate(-0.35 + swing * 0.35);
     ctx.fillStyle = '#7A5230';
-    rr(ctx, -8, -46, 16, 44, 6); ctx.fill();
+    rr(ctx, -8, -34, 16, 32, 6); ctx.fill();
     ctx.fillStyle = '#5A3A20';
     rr(ctx, -8, -10, 16, 8, 3); ctx.fill();
     ctx.fillStyle = '#CFD6E2';
     ctx.beginPath();
-    ctx.moveTo(-9, -2); ctx.lineTo(9, -2); ctx.lineTo(9, 52); ctx.lineTo(-9, 40);
+    ctx.moveTo(-9, -2); ctx.lineTo(9, -2); ctx.lineTo(9, 46); ctx.lineTo(-9, 35);
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#F2F6FB';
     ctx.beginPath();
-    ctx.moveTo(-9, 30); ctx.lineTo(9, 42); ctx.lineTo(9, 52); ctx.lineTo(-9, 40);
+    ctx.moveTo(-9, 26); ctx.lineTo(9, 37); ctx.lineTo(9, 46); ctx.lineTo(-9, 35);
     ctx.closePath(); ctx.fill();
     ctx.restore();
     if (swing > 0.6) {
@@ -347,11 +426,11 @@ function drawMini(kind, t, b) {
       const nb = n.k === 'hold' ? n.hb : n.b;
       if (nb >= b - 0.2) { next = nb; break; }
     }
-    // おちてくる ざいりょうは、わっかに ぴったり かさなった ときが
-    // たたく とき。目と 手が 1つの ばしょで そろう。
-    if (next !== null && next - b < 2) {
-      const k = Math.max(0, Math.min(1, 1 - (next - b) / 2));
-      drawFood(ctx, RG.st.food, cx, -30 + k * 176, 90, t);
+    // 音符が わくに ついた あたりで、ざいりょうが みちから 手もとへ おちる。
+    // 「たたいた 音符が そのまま ざいりょうに なる」ように 見せる。
+    if (next !== null && next - b < 0.75) {
+      const k = Math.max(0, Math.min(1, 1 - (next - b) / 0.75));
+      drawFood(ctx, RG.st.food, cx, LANE_Y + 10 + k * (cy - 66 - LANE_Y), 90, t);
     }
     if (call < 0.5 && call >= 0) {
       ctx.fillStyle = '#C8501A';
@@ -389,20 +468,20 @@ function drawMini(kind, t, b) {
     // マヨネーズの ようき。おしっぱなしで にゅるー と 出る
     const on = !!RG.holding;
     ctx.save();
-    ctx.translate(cx, cy - 130);
+    ctx.translate(cx, cy - 92);
     ctx.fillStyle = '#F0F4F8';
-    rr(ctx, -20, -50, 40, 66, 14); ctx.fill();
+    rr(ctx, -20, -40, 40, 54, 13); ctx.fill();
     ctx.fillStyle = '#FFD24A';
-    rr(ctx, -14, -40, 28, 46, 10); ctx.fill();
+    rr(ctx, -14, -32, 28, 38, 9); ctx.fill();
     ctx.fillStyle = '#C8CEDA';
-    rr(ctx, -7, 14, 14, 16, 4); ctx.fill();
+    rr(ctx, -7, 12, 14, 15, 4); ctx.fill();
     ctx.restore();
     if (on) {
       ctx.strokeStyle = '#FFFBEA'; ctx.lineWidth = 8; ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(cx, cy - 100);
+      ctx.moveTo(cx, cy - 64);
       for (let i = 0; i <= 10; i++) {
-        ctx.lineTo(cx + Math.sin(i * 0.9 + b * 4) * 12, cy - 100 + i * 8);
+        ctx.lineTo(cx + Math.sin(i * 0.9 + b * 4) * 12, cy - 64 + i * 4);
       }
       ctx.stroke();
     }
@@ -414,18 +493,18 @@ function drawMini(kind, t, b) {
     // ふりかける
     const sw = hit < 0.3 && hit >= 0 ? Math.sin((hit / 0.3) * Math.PI) : 0;
     ctx.save();
-    ctx.translate(cx, cy - 120);
+    ctx.translate(cx, cy - 96);
     ctx.rotate(0.6 + sw * 0.5);
     ctx.fillStyle = '#E8E0D0';
-    rr(ctx, -14, -34, 28, 44, 8); ctx.fill();
+    rr(ctx, -14, -26, 28, 36, 8); ctx.fill();
     ctx.fillStyle = '#B8AE9A';
-    rr(ctx, -11, -42, 22, 10, 4); ctx.fill();
+    rr(ctx, -11, -34, 22, 9, 4); ctx.fill();
     ctx.restore();
     if (sw > 0.2) {
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       for (let i = 0; i < 8; i++) {
         ctx.beginPath();
-        ctx.arc(cx + (i - 4) * 10 + Math.sin(i) * 6, cy - 90 + (1 - sw) * 70, 2, 0, 7);
+        ctx.arc(cx + (i - 4) * 10 + Math.sin(i) * 6, cy - 70 + (1 - sw) * 50, 2, 0, 7);
         ctx.fill();
       }
     }
@@ -490,8 +569,8 @@ function drawHUD(t, b) {
     ctx.fillStyle = p.col;
     fitFont(p.text, VW * 0.5, 26, 'bold ');
     ctx.strokeStyle = 'rgba(60,30,10,0.7)'; ctx.lineWidth = 5;
-    const y = 130 - (b - p.b) * 12;
-    ctx.strokeText(p.text, VW * 0.82, y); ctx.fillText(p.text, VW * 0.82, y);
+    const y = 214 - (b - p.b) * 12;
+    ctx.strokeText(p.text, VW * 0.79, y); ctx.fillText(p.text, VW * 0.79, y);
     ctx.globalAlpha = 1;
   }
   ctx.textAlign = 'left';
@@ -586,9 +665,9 @@ function drawHowto() {
   ctx.fillText('あそびかた', 24, 14);
   const lines = [
     '① 音楽に 合わせて **画面を タップ**。ボタンは 1つだけ',
-    '② まん中の わっかが 小さく なって **ぴったり かさなった しゅんかん**',
-    '③ 「おしっぱなし」の ところは、**はなす タイミング** で てんすうが つく',
-    '④ 「お手本！」が 出たら 見るだけ。まねを するのは そのあと',
+    '② 音符は **右から** ながれてくる。まん中の **白い わく** に かさなった しゅんかん',
+    '③ **青い ぼう** は おしっぱなし。**はなす** ところで てんすうが つく',
+    '④ **点線の わ** は コックさんの お手本。たたかずに 見るだけ',
     '⑤ クリアすると **ざいりょうが 1つ** 手に入る（ぜんぶで 15こ）',
     '⑥ ざいりょうが 3つ そろったら **サンドイッチが 食べられる**',
     '⑦ 3回 だめでも つぎの ミニゲームが あくので 安心して',

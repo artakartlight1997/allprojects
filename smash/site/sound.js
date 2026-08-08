@@ -178,6 +178,19 @@ function sfxGimmick() {
   tone(t, 48, 0.5, 0.22, 'sawtooth', A.sfx, 40);
   nz(t, 0.3, 0.2, 100, 900, A.sfx);
 }
+// アイテムが おちてきた しらせ。気づいてほしいので すこし 高く 目立つ音。
+function sfxItemDrop() {
+  if (!A.ctx) return;
+  const t = anow();
+  tone(t, 88, 0.16, 0.14, 'triangle', A.sfx, 96);
+  tone(t + 0.10, 95, 0.20, 0.13, 'triangle', A.sfx);
+}
+// アイテムを 手に入れた。うれしい 上がりかた。
+function sfxItemGet() {
+  if (!A.ctx) return;
+  const t = anow();
+  [0, 4, 7, 12, 16].forEach((d, i) => tone(t + i * 0.055, 76 + d, 0.26, 0.20, 'square', A.sfx));
+}
 function sfxEnd(win) {
   if (!A.ctx) return;
   const t = anow() + 0.05;

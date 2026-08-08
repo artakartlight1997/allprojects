@@ -61,13 +61,27 @@ const ATK = {
            ox: 26, ang: 0.62 },
 };
 
+// --- とくべつアイテム ------------------------------------------------------------
+// そらから おちてきて、あしばに のる。ふれると 手に入る。
+// どれも「見たらすぐ うれしい」ものだけ。むずかしい つかいかたは いらない。
+const ITEMS = {
+  star:   { name: 'スター',     col: '#FFE066', dur: 8.0, msg: 'むてき！ ぶつかると あいてが とぶ' },
+  hammer: { name: 'ハンマー',   col: '#FF8A5A', dur: 8.0, msg: 'こうげきが すごく つよい！' },
+  heart:  { name: 'ハート',     col: '#FF7FA8', dur: 0,   msg: 'ダメージが へった！' },
+  shoes:  { name: 'スピードぐつ', col: '#8FE0FF', dur: 8.0, msg: 'はやく うごけて 高く とべる！' },
+  bomb:   { name: 'ばくだん',   col: '#B0B8C8', dur: 0,   msg: 'ドカン！ まわりを ふっとばす' },
+};
+const ITEM_KEYS = Object.keys(ITEMS);
+const ITEM_GAP = 11.0;      // なんびょう ごとに おちてくるか
+const ITEM_R = 15;
+
 let failStage = -1, failStreak = 0;
 function assistLevel() { return Math.min(2, Math.floor(failStreak / 2)); }
 
 const G = {
   screen: 'title', si: 0, pending: 0,
   t: 0, VW: 800, cx: 400,
-  fighters: [], shots: [], pops: [], puffs: [],
+  fighters: [], shots: [], pops: [], puffs: [], items: [],
   plats: [], gim: null,
   done: false, win: false, endT: 0, timeL: TIME_LIMIT,
   shake: 0, assist: 0,
@@ -82,6 +96,7 @@ function mkFighter(charKey, isPlayer, stocks, aiSkill) {
     atk: null, cool: 0, hitstun: 0, inv: SPAWN_INV, respawnT: 0,
     charging: false, chargeT: 0, spCool: 0, spT: 0, spKind: '',
     dropT: 0, squash: 0, aiT: 0, aiAim: 0, dead: false,
+    item: '', itemT: 0, bombT: 0,
   };
 }
 
@@ -96,7 +111,9 @@ function startStage(i) {
   G.t = 0;
   G.plats = st.plats.map((p) => Object.assign({}, p, { bx: p.x, by: p.y, on: true, fall: 0 }));
   G.gim = { t: 0, phase: 'idle', warn: 0, act: 0, val: 0, bolts: [], lava: VH + 200 };
-  G.shots = []; G.pops = []; G.puffs = [];
+  G.balls = (st.balls || []).map((b, i) => Object.assign({ t: i * 0.9, bx: b.x, by: b.y + b.len }, b));
+  G.shots = []; G.pops = []; G.puffs = []; G.items = [];
+  G.itemT = ITEM_GAP * 0.55;
   G.done = false; G.win = false; G.endT = 0; G.shake = 0; G.slow = 0;
   G.timeL = TIME_LIMIT;
 
@@ -185,6 +202,7 @@ function update(dt, inp) {
   if (G.shake > 0) G.shake -= dt;
 
   updateGimmick(dt);
+  updateBalls(dt);
 
   for (const f of G.fighters) {
     if (f.stocks <= 0) continue;
@@ -193,6 +211,7 @@ function update(dt, inp) {
       if (f.respawnT <= 0) {
         f.x = 0; f.y = 60; f.vx = 0; f.vy = 0;
         f.dmg = 0; f.inv = SPAWN_INV; f.hitstun = 0; f.atk = null;
+        f.item = ''; f.itemT = 0; f.bombT = 0;
         f.onGround = false; f.jumps = JUMPS;
         sfxSpawn();
       }
@@ -204,6 +223,7 @@ function update(dt, inp) {
   }
 
   updateShots(dt);
+  updateItems(dt);
 
   for (const p of G.pops) p.t += dt;
   G.pops = G.pops.filter((p) => p.t < 1.5);
@@ -242,7 +262,7 @@ function stepFighter(f, c, cmd, dt) {
   } else {
     // よこ
     const acc = f.onGround ? ACC_G : ACC_A;
-    const spd = c.spd * (f.onGround ? 1 : 0.92);
+    const spd = c.spd * (f.onGround ? 1 : 0.92) * itemSpd(f);
     if (f.atk && f.onGround) {
       // こうげき中は 足が とまる
       f.vx -= Math.sign(f.vx) * Math.min(Math.abs(f.vx), FRIC * dt);
@@ -255,7 +275,7 @@ function stepFighter(f, c, cmd, dt) {
     }
     // ジャンプ
     if (cmd.jump && f.jumps > 0 && !f.spT) {
-      f.vy = -(f.jumps === JUMPS ? c.jump : c.jump * 0.92);
+      f.vy = -(f.jumps === JUMPS ? c.jump : c.jump * 0.92) * itemJump(f);
       f.jumps--;
       f.onGround = false;
       f.squash = -0.3;
@@ -292,6 +312,9 @@ function stepFighter(f, c, cmd, dt) {
     if (!p) f.onGround = false; else f.plat = p;
   }
   if (!f.onGround) landOn(f, prevBottom);
+
+  // ゆかの とげ
+  stepSpikes(f);
 
   // ブラストゾーン
   if (Math.abs(f.x) > BLAST_X || f.y > BLAST_BOT || f.y < BLAST_TOP) koFighter(f);
@@ -355,13 +378,15 @@ function hitScan(f, a) {
     if (Math.abs(o.x - hx) > A2.rx + charW(CHARS[o.char]) * 0.5) continue;
     if (Math.abs(oy - hy) > A2.ry + charH(CHARS[o.char]) * 0.4) continue;
     a.hit.push(o);
-    const mul = a.mul * c.atk;
-    applyHit(o, f, A2.dmg * mul, (A2.kb + o.dmg * A2.kbs) * mul, A2.ang, f.face);
+    const mul = a.mul * c.atk * itemAtk(f);
+    applyHit(o, f, A2.dmg * mul, (A2.kb + o.dmg * A2.kbs) * mul * itemKb(f), A2.ang, f.face);
   }
 }
 
 // dmgAdd … ふえる ％  kb … ふっとぶ 強さ  ang … 角度（ラジアン、上むき）
 function applyHit(o, from, dmgAdd, kb, ang, dir) {
+  // スターを もっている あいだは ぜんぶ はねかえす（じぶんの しかけ ダメージも）
+  if (itemSafe(o)) { puff(o.x, o.y - 26, '#FFE066', 4, 90); return; }
   const w = CHARS[o.char].weight;
   o.dmg += dmgAdd;
   const k = kb / w;
@@ -513,6 +538,153 @@ function nearestFoe(f) {
   return best;
 }
 
+
+// --- とくべつアイテム ------------------------------------------------------------
+
+function updateItems(dt) {
+  // そらから ときどき おちてくる
+  G.itemT -= dt;
+  if (G.itemT <= 0 && G.items.length < 3 && !G.done) {
+    G.itemT = ITEM_GAP;
+    const half = stageHalf();
+    G.items.push({
+      kind: ITEM_KEYS[(Math.random() * ITEM_KEYS.length) | 0],
+      x: (Math.random() * 2 - 1) * (half - 60),
+      y: -40, vy: 0, on: false, t: 0, life: 16,
+    });
+    sfxItemDrop();
+  }
+
+  for (const it of G.items) {
+    it.t += dt;
+    if (!it.on) {
+      const prev = it.y;
+      it.vy = Math.min(320, it.vy + 900 * dt);
+      it.y += it.vy * dt;
+      for (const p of G.plats) {
+        if (!p.on || p.thru) continue;
+        if (it.x < p.x || it.x > p.x + p.w) continue;
+        if (prev <= p.y && it.y >= p.y) { it.y = p.y; it.vy = 0; it.on = true; }
+      }
+      if (it.y > VH + 120) it.life = 0;
+    }
+    // ふれたら 手に入る
+    for (const f of G.fighters) {
+      if (f.stocks <= 0 || f.respawnT > 0 || it.life <= 0) continue;
+      if (Math.abs(f.x - it.x) > ITEM_R + 18) continue;
+      if (Math.abs((f.y - 26) - (it.y - ITEM_R)) > 34) continue;
+      takeItem(f, it.kind);
+      it.life = 0;
+    }
+    it.life -= dt;
+  }
+  G.items = G.items.filter((it) => it.life > 0);
+
+  // もっている あいだ
+  for (const f of G.fighters) {
+    if (f.stocks <= 0) continue;
+    if (f.itemT > 0) {
+      f.itemT -= dt;
+      if (f.item === 'star') {
+        puff(f.x, f.y - 26, '#FFE066', 1, 40);
+        starTouch(f);
+      }
+      if (f.itemT <= 0) { f.item = ''; pop(f.x, f.y - 60, 'アイテム おわり', '#C8D4E8'); }
+    }
+    if (f.bombT > 0) {
+      f.bombT -= dt;
+      if (f.bombT <= 0) blowUp(f);
+    }
+  }
+}
+
+function takeItem(f, kind) {
+  const I = ITEMS[kind];
+  sfxItemGet();
+  pop(f.x, f.y - 62, I.name + '！', I.col, true);
+  puff(f.x, f.y - 26, I.col, 12, 190);
+  if (kind === 'heart') {
+    f.dmg = Math.max(0, f.dmg - 35);
+    return;
+  }
+  if (kind === 'bomb') { f.bombT = 0.65; return; }
+  f.item = kind;
+  f.itemT = I.dur;
+}
+
+// スターを もっている あいだ、ふれた あいてが ふっとぶ
+function starTouch(f) {
+  for (const o of G.fighters) {
+    if (o === f || o.stocks <= 0 || o.respawnT > 0 || o.inv > 0) continue;
+    if (Math.abs(o.x - f.x) > 40) continue;
+    if (Math.abs(o.y - f.y) > 50) continue;
+    applyHit(o, f, 9, 300 + o.dmg * 9.0, 0.8, Math.sign(o.x - f.x) || f.face);
+  }
+}
+
+// ばくだんは ひろった 人の まわりで ドカン。ひろった 本人は 平気。
+function blowUp(f) {
+  G.shake = Math.max(G.shake, 0.34);
+  puff(f.x, f.y - 26, '#FFC060', 24, 320);
+  sfxSmash();
+  for (const o of G.fighters) {
+    if (o === f || o.stocks <= 0 || o.respawnT > 0 || o.inv > 0) continue;
+    if (Math.abs(o.x - f.x) > 120 || Math.abs(o.y - f.y) > 100) continue;
+    applyHit(o, f, 16, 360 + o.dmg * 10.0, 1.05, Math.sign(o.x - f.x) || 1);
+  }
+}
+
+// もっている アイテムに よる 強さの かけ算
+function itemAtk(f) { return f.item === 'hammer' ? 2.3 : 1; }
+function itemKb(f) { return f.item === 'hammer' ? 1.45 : 1; }
+function itemSpd(f) { return f.item === 'shoes' ? 1.5 : 1; }
+function itemJump(f) { return f.item === 'shoes' ? 1.28 : 1; }
+function itemSafe(f) { return f.item === 'star'; }
+
+// --- とげ（さわると いたい ゆか）--------------------------------------------------
+//
+// ステージの データに spikes: [{x, w}] と 書くと、その ばしょの ゆかに
+// とげが 出る。ずっと 見えているので、2かい目からは よけられる。
+
+function spikeAt(x) {
+  const sp = STAGES[G.si].spikes;
+  if (!sp) return null;
+  for (const s of sp) if (x > s.x && x < s.x + s.w) return s;
+  return null;
+}
+
+function stepSpikes(f) {
+  if (!f.onGround || f.inv > 0 || itemSafe(f)) return;
+  if (!f.plat || f.plat.thru) return;
+  if (!spikeAt(f.x)) return;
+  applyHit(f, f, 10, 300 + f.dmg * 7.0, 1.35, Math.sign(f.vx) || 1);
+  f.inv = 0.8;
+  puff(f.x, f.y - 6, '#FF8A8A', 8, 160);
+  sfxGimmick();
+}
+
+// --- とげボール（くさりで ゆれる）-------------------------------------------------
+
+function updateBalls(dt) {
+  const bs = G.balls;
+  if (!bs) return;
+  for (const b of bs) {
+    b.t += dt;
+    const a = Math.sin(b.t * b.sp) * b.sw;
+    b.bx = b.x + Math.sin(a) * b.len;
+    b.by = b.y + Math.cos(a) * b.len;
+    for (const f of G.fighters) {
+      if (f.stocks <= 0 || f.respawnT > 0 || f.inv > 0 || itemSafe(f)) continue;
+      if (Math.abs(f.x - b.bx) > b.r + 14) continue;
+      if (Math.abs((f.y - 26) - b.by) > b.r + 22) continue;
+      applyHit(f, f, 12, 330 + f.dmg * 8.5, 0.9, Math.sign(f.x - b.bx) || 1);
+      f.inv = 0.8;
+      G.shake = Math.max(G.shake, 0.2);
+      sfxGimmick();
+    }
+  }
+}
+
 // --- しかけ（ギミック）----------------------------------------------------------
 
 function updateGimmick(dt) {
@@ -662,6 +834,23 @@ function aiThink(f, dt) {
     return cmd;
   }
 
+  // ちかくの アイテムを ひろいに いく。かちまけに ちょくせつ ひびくので
+  // あいてを おいかける より さきに 見る。
+  if (!f.item && G.items.length) {
+    let best = null, bd = 1e9;
+    for (const it of G.items) {
+      const d = Math.abs(it.x - f.x) + Math.abs(it.y - f.y) * 0.6;
+      if (d < bd) { bd = d; best = it; }
+    }
+    if (best && bd < 200 && Math.random() < 0.55 + f.ai * 0.4) {
+      cmd.mx = best.x > f.x ? 1 : -1;
+      if (best.y < f.y - 40) cmd.jump = true;
+      if (f.onGround && !aheadSafe(f, cmd.mx)) cmd.jump = true;
+      f.aiCmd = cmd;
+      return cmd;
+    }
+  }
+
   // ちかづく
   if (adx > 46) cmd.mx = dx > 0 ? 1 : -1;
   else if (adx < 26) cmd.mx = dx > 0 ? -1 : 1;
@@ -670,6 +859,8 @@ function aiThink(f, dt) {
   if (dy < -46 && Math.random() < 0.3 + f.ai * 0.4) cmd.jump = true;
   // あなに 落ちない ように
   if (f.onGround && !aheadSafe(f, cmd.mx)) { cmd.jump = true; }
+  // とげの 上に いたら はなれる
+  if (f.onGround && spikeAt(f.x)) { cmd.jump = true; cmd.mx = f.x > 0 ? -1 : 1; }
 
   // こうげき
   if (adx < 52 && Math.abs(dy) < 44) {
@@ -691,6 +882,8 @@ function aiThink(f, dt) {
 function aheadSafe(f, mx) {
   if (!mx) return true;
   const nx = f.x + mx * 34;
+  // とげの 上は「あしばが ある」けど 安全では ない
+  if (spikeAt(nx)) return false;
   for (const p of G.plats) {
     if (!p.on || p.thru) continue;
     if (nx > p.x - 4 && nx < p.x + p.w + 4 && Math.abs(f.y - p.y) < 8) return true;

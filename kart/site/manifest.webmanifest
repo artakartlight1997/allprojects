@@ -1,0 +1,10 @@
+{
+  "name": "まさきのカートレース",
+  "short_name": "カートレース",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1E2A4A",
+  "theme_color": "#1E2A4A",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

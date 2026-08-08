@@ -110,7 +110,8 @@ function dropAt(mx, my) {
   const p = prefOf(G.hold.k);
   const k = G.hold.k;
   G.hold = null;
-  if (hitPref(p, mx, my)) {
+  // ★ 形の中でなくても 目じるしの 近くなら はまる（細い半島でも 置ける）
+  if (nearPref(p, mx, my)) {
     G.bag = G.bag.filter((q) => q !== k);
     G.placed.push(k);
     G.glow = k; G.glowT = 0.7;

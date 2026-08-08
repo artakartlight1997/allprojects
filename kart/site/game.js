@@ -59,7 +59,12 @@ const DRIVERS = [
 const MAXS = 13000;      // 道の上での最高速度（1秒に進むきょり）
 const ACC = 5200;        // 加速
 const BRK = 9000;        // 草の上での減速
-const OFF_MAX = 0.46;    // 草の上での最高速度（わりあい）
+const OFF_MAX = 0.55;    // 草の上での最高速度（わりあい）
+// ★ 草に出すぎて 道が 画面から 消え、どっちへ もどれば いいか 分からなく
+//   なる、と 言われた。外に 出られる はばを せまくして、さらに
+//   外にいるほど 内へ もどす 力（見えない ガードレール）を かける。
+const OFF_MAX_X = 1.42;  // これより 外へは 出られない
+const OFF_PULL = 2.2;    // 草の上で 内へ もどる 力
 const TURN = 2.7;        // ハンドルの効き（左右のずれ／秒）
 // ★ カーブで外へふくらむ力。強すぎるとハンドルを最大に切っても
 //   曲がりきれず、ずっと草の上になる。いちばんきついカーブ（7）でも
@@ -205,11 +210,15 @@ function stepKart(f, dt, coast) {
   else f.steer = G.steer;
 
   const sp = f.spd / MAXS;
-  f.px += f.steer * TURN * f.drv.grip * (0.5 + sp * 0.5) * dt;
+  // ★ 草の上でも ハンドルは しっかり きく（もどれない と こまる）
+  f.px += f.steer * TURN * f.drv.grip * (0.62 + sp * 0.38) * dt;
   // カーブで外へふくらむ
   f.px -= seg.curve * sp * CENTRIF * dt;
+  // ★ 見えない ガードレール。道から 外れた ぶんだけ 内へ もどされる。
+  const out = Math.abs(f.px) - 1;
+  if (out > 0) f.px -= Math.sign(f.px) * Math.min(out, 0.6) * OFF_PULL * dt;
   // 道の外へは出すぎない
-  f.px = Math.max(-2.0, Math.min(2.0, f.px));
+  f.px = Math.max(-OFF_MAX_X, Math.min(OFF_MAX_X, f.px));
 
   // ドリフト（同じ向きにまがりつづけると火花がたまる）
   if (f.steer !== 0 && f.spd > MAXS * 0.55 && (f.driftDir === 0 || f.driftDir === f.steer)) {

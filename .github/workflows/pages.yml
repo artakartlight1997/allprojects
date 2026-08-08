@@ -38,6 +38,8 @@ on:
       - 'kyushu/site/**'
       - 'shikoku/site/**'
       - 'mogura/site/**'
+      - 'shooter/site/**'
+      - 'block/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -88,12 +90,14 @@ jobs:
       #   /kyushu/     りなのきゅうしゅうパズル（形を はめて 県を おぼえる・全10めん）
       #   /shikoku/    りなのしこくツアー（名さんの おつかい と まわる地図・全10めん）
       #   /mogura/     りなのモグラたたき（たたく・たたかないを 見わける・全10めん）
+      #   /shooter/    まさきのうちゅうシューティング（よこスクロール・全10めん）
+      #   /block/      あおいのブロックくずし（ばくだんと アイテム・全12めん）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -115,6 +119,8 @@ jobs:
           cp -r kyushu/site/. public/kyushu/
           cp -r shikoku/site/. public/shikoku/
           cp -r mogura/site/. public/mogura/
+          cp -r shooter/site/. public/shooter/
+          cp -r block/site/. public/block/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

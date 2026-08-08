@@ -123,6 +123,7 @@ function aimEnd() {
   if (d < 12) return;            // ちょっとしか ひいて いない → うたない
   const B = ballKind();
   G.ball = {
+    px: undefined, py: undefined, rest: 0,
     x: SLING.x, y: SLING.y, r: B.r,
     vx: dx * POWER * B.pow, vy: dy * POWER * B.pow,
     mass: B.mass, kind: B, life: 0, hits: 0,
@@ -187,9 +188,18 @@ function step(h) {
       if (q.dead) continue;
       hitBox(b, q);
     }
-    // おわり
-    const slow = Math.abs(b.vx) < 26 && Math.abs(b.vy) < 26 && b.y + b.r >= GY - 1;
-    if (b.x > 900 || b.y > 700 || (slow && b.life > 0.6) || b.life > 9) {
+    // ── おわり
+    // ★ まえは「じめんの 上で おそくなったら」しか 見ていなかったので、
+    //   つみきの 上や すきまに はさまった たまが 9びょう 消えず、
+    //   その あいだ つぎの たまが うてなかった（「たまがスタック」）。
+    //   いまは **どこに いても** ほとんど 動かなく なったら 消す。
+    const moved = Math.hypot(b.x - (b.px === undefined ? b.x : b.px),
+                             b.y - (b.py === undefined ? b.y : b.py));
+    b.px = b.x; b.py = b.y;
+    if (moved < 0.8) b.rest = (b.rest || 0) + h; else b.rest = 0;
+    const slow = Math.abs(b.vx) < 26 && Math.abs(b.vy) < 26;
+    if (b.x > 900 || b.y > 700 || b.rest > 0.7 ||
+        (slow && b.life > 0.7) || b.life > 5) {
       G.ball = null;
       if (G.shots <= 0 && G.saved < G.need) sfxMiss();
     }

@@ -56,7 +56,8 @@ function drawPlay() {
   const st = RG.st;
   const b = beatNow();
   const v = { beat: b, notes: RG.notes, hitB: RG.hitB, missB: RG.missB,
-              callB: RG.callB, poseI: RG.poseI, hitLane: RG.hitLane };
+              callB: RG.callB, poseI: RG.poseI, hitLane: RG.hitLane,
+              shoutB: RG.shoutB, holding: !!RG.holding };
   st.draw.call(st, v);
 
   // 上の おび
@@ -142,17 +143,17 @@ function drawTitle(t) {
     ctx.globalAlpha = 1;
   }
   chibi(W * 0.78, H * 0.86, H * 0.34, Object.assign({}, RINA, {
-    arm: -1.2 + Math.sin(t * 4) * 0.5, arm2: -1.2 - Math.sin(t * 4) * 0.5,
+    arm: 1.9 + Math.sin(t * 4) * 0.6, arm2: 1.9 - Math.sin(t * 4) * 0.6,
     face: 'h', squash: Math.abs(Math.sin(t * 2)) * 0.12,
   }));
 
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#FFFFFF';
-  fitFont('りなのリズムスター', W * 0.55, H * 0.15, 'bold ');
-  ctx.fillText('りなのリズムスター', H * 0.06, H * 0.07);
+  fitFont('りなりなリズム', W * 0.55, H * 0.15, 'bold ');
+  ctx.fillText('りなりなリズム', H * 0.06, H * 0.07);
   ctx.fillStyle = '#FFE0EE';
-  fitFont('ビートに 合わせて タップ！ ぜんぶで 6つ', W * 0.5, H * 0.048);
-  ctx.fillText('ビートに 合わせて タップ！ ぜんぶで 6つ', H * 0.07, H * 0.245);
+  fitFont('ビートに 合わせて タップ！ ミニゲーム ' + STAGES.length + 'つ', W * 0.5, H * 0.048);
+  ctx.fillText('ビートに 合わせて タップ！ ミニゲーム ' + STAGES.length + 'つ', H * 0.07, H * 0.245);
   ctx.fillStyle = '#FFF3C4';
   const done = clearedCount();
   fitFont('クリアした ミニゲーム ' + done + ' / ' + STAGES.length, W * 0.5, H * 0.042);
@@ -170,10 +171,20 @@ function drawTitle(t) {
   drawButton(button(x + bw * 0.52, y, bw * 0.48, bh * 0.82, () => { RG.screen = 'howto'; }),
              'あそびかた', '#D8D4F0');
   y += bh * 0.96;
-  drawButton(button(x, y, bw, bh * 0.72, () => { calStart(); }),
-             '♪ ずれ合わせ', '#FFB0D0', '#3A2030',
-             save.lat >= 0 ? 'いまの ずれ ' + Math.round(save.lat * 1000) + 'ミリびょう'
-                           : 'さいしょに やると 気もちいい');
+  drawButton(button(x, y, bw * 0.48, bh * 0.72, () => { sfxTest(); }),
+             '♪ 音を ためす', '#FFE08A', '#3A2A08',
+             soundOK() ? '音は 出せる じょうたい' : 'ここを おしてね');
+  drawButton(button(x + bw * 0.52, y, bw * 0.48, bh * 0.72, () => { calStart(); }),
+             'ずれ合わせ', '#FFB0D0', '#3A2030',
+             save.lat >= 0 ? 'ずれ ' + Math.round(save.lat * 1000) + 'ミリびょう'
+                           : 'やると 気もちいい');
+
+  // 音が 出ない ときの あんない（スマホの 消音スイッチが いちばん 多い）
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  const tip = '音が 出ないときは スマホの よこの スイッチ（消音）と 音りょうを たしかめてね';
+  fitFont(tip, W * 0.62, H * 0.038);
+  ctx.fillText(tip, H * 0.06, H - H * 0.085);
   drawHubButton();
 }
 
@@ -189,9 +200,9 @@ function drawHowto() {
     '　 すこし ずれると「はやい」「おそい」、はずすと「ミス…」',
     '③ たたく ところは かならず 曲の 音に なっている。耳で おぼえよう',
     '④ 「まねっこ たいこ」は パパの リズムを 1小節 おぼえて まねる',
-    '⑤ さいごの「リミックス」は ぜんぶが つぎつぎ 出てくる',
-    '⑥ せいせき ハイレベル！ ＞ クリア！ ＞ もういちど',
-    '⑦ 1つ クリアすると つぎの ミニゲームが あく',
+    '⑤ 「ねじまき ロボ」は おしっぱなし。音が 上がりきったら はなす',
+    '⑥ 「リミックス」は ミニゲームが つぎつぎ 出てくる',
+    'せいせき ハイレベル！ ＞ クリア！ ＞ もういちど。1つ クリアすると つぎが あく',
     '★ 音が ずれて 感じるときは タイトルの「ずれ合わせ」',
     'パソコン: スペースキー か やじるしキー でも たたける',
   ];
@@ -214,14 +225,14 @@ function drawSelect() {
   ctx.font = 'bold ' + Math.round(H * 0.06) + 'px system-ui, sans-serif';
   ctx.fillText('ミニゲームを えらぶ', H * 0.04, H * 0.04);
 
-  const cols = 3, rows = 2;
-  const gapx = H * 0.03;
+  const cols = 4, rows = Math.ceil(STAGES.length / 4);
+  const gapx = H * 0.028, gapy = H * 0.032;
   const cw = (W - H * 0.08 - gapx * (cols - 1)) / cols;
-  const chh = Math.min(H * 0.30, (H * 0.60) / rows);
-  const gx = H * 0.04, gy = H * 0.17;
+  const chh = Math.min(H * 0.26, (H * 0.72 - gapy * (rows - 1)) / rows);
+  const gx = H * 0.04, gy = H * 0.16;
   for (let i = 0; i < STAGES.length; i++) {
     const st = STAGES[i];
-    const x = gx + (i % cols) * (cw + gapx), y = gy + ((i / cols) | 0) * (chh + H * 0.04);
+    const x = gx + (i % cols) * (cw + gapx), y = gy + ((i / cols) | 0) * (chh + gapy);
     const open = stageOpen(i);
     const rk = save.rank[st.key];
     ctx.fillStyle = open ? st.col : 'rgba(255,255,255,0.08)';
@@ -232,8 +243,8 @@ function drawSelect() {
     ctx.fillText(open ? st.name : '？？？', x + cw / 2, y + chh * 0.3);
     if (open) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      fitFont(st.desc, cw * 0.92, chh * 0.15);
-      ctx.fillText(st.desc, x + cw / 2, y + chh * 0.55);
+      fitFont(st.desc, cw * 0.94, chh * 0.145);
+      ctx.fillText(st.desc, x + cw / 2, y + chh * 0.56);
       if (rk !== undefined) {
         ctx.fillStyle = rk === 2 ? '#7A4A00' : 'rgba(0,0,0,0.6)';
         fitFont(RANK_NAME[rk], cw * 0.8, chh * 0.17, 'bold ');
@@ -390,6 +401,12 @@ canvas.addEventListener('pointerdown', (ev) => {
   if (RG.screen === 'play') rTap();
   else if (RG.screen === 'cal') calTap();
 });
+function upHandler(ev) {
+  if (RG.screen === 'play') rRelease();
+}
+canvas.addEventListener('pointerup', upHandler);
+canvas.addEventListener('pointercancel', upHandler);
+window.addEventListener('blur', () => { if (RG.holding) rRelease(); });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // ほかの アプリに 行くと 画面の コマ送りが 止まるが、曲は 鳴りつづける。
@@ -406,6 +423,12 @@ window.addEventListener('keydown', (e) => {
     audioStart();
     if (RG.screen === 'play') rTap();
     else if (RG.screen === 'cal') calTap();
+  }
+});
+window.addEventListener('keyup', (e) => {
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.code)) {
+    e.preventDefault();
+    if (RG.screen === 'play') rRelease();
   }
 });
 

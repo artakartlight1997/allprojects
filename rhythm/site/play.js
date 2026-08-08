@@ -53,6 +53,8 @@ const RG = {
   si: 0,              // つぎに 音を 予約する 音符
   hitB: -9, missB: -9, callB: -9,
   hitLane: 1,
+  shoutB: -9,
+  holding: null,      // いま ながおし ちゅうの 音符
   poseI: 0,
   perfect: 0, good: 0, miss: 0, extra: 0,
   combo: 0, maxCombo: 0,
@@ -71,6 +73,8 @@ function startStage(i) {
   if (st.fixNotes) st.fixNotes(RG.notes);
   RG.si = 0;
   RG.hitB = RG.missB = RG.callB = -9;
+  RG.shoutB = -9;
+  RG.holding = null;
   RG.poseI = 0;
   RG.perfect = RG.good = RG.miss = RG.extra = 0;
   RG.combo = RG.maxCombo = 0;
@@ -103,6 +107,14 @@ function schedNote(n) {
       nzHit(tp, 0.12, 0.16, 500, 2200, A.music);
       pluck(tp, n.p - 12, 0.16, 0.12, A.music);
     }
+  }
+  if (n.k === 'hold') {
+    const th = timeOfBeat(n.hb);
+    if (th > anow()) {
+      riser(th, (n.b - n.hb) * 60 / S.bpm, n.p - 12, n.p, 0.15);
+      if (t > anow()) pluck(t, n.p, 0.26, 0.24, A.music);
+    }
+    return;
   }
   if (t < anow()) return;                     // もう すぎた 音は 鳴らさない
   if (n.k === 'call') {
@@ -137,6 +149,7 @@ function updatePlay() {
     }
     if (n.res) continue;
     if (b > n.b + missB) {
+      if (RG.holding === n) RG.holding = null;
       n.res = 'miss';
       RG.miss++;
       RG.combo = 0;
@@ -179,9 +192,28 @@ function rTap() {
   if (RG.screen !== 'play') return;
   const t = anow() - latency();
   const b = beatAt(t);
+
+  // ながおし は 「はなす ところ」で てんすうを つける。
+  // おす ほうは ゆるく して、こどもが 早めに おさえても だいじょうぶに する。
+  if (!RG.holding) {
+    let h = null, hd = 1e9;
+    for (const n of RG.notes) {
+      if (n.k !== 'hold' || n.res) continue;
+      const d = Math.abs(n.hb - b);
+      if (d < hd) { hd = d; h = n; }
+    }
+    if (h && hd * 60 / S.bpm <= 0.35) {
+      RG.holding = h;
+      h.held = 1;
+      RG.hitB = beatNow();
+      nzHit(anow(), 0.06, 0.2, 800, 3000, A.sfx);
+      return;
+    }
+  }
+
   let best = null, bd = 1e9;
   for (const n of RG.notes) {
-    if (n.k === 'call' || n.res) continue;
+    if (n.k === 'call' || n.k === 'hold' || n.res) continue;
     const d = Math.abs(n.b - b);
     if (d < bd) { bd = d; best = n; }
   }
@@ -197,6 +229,7 @@ function rTap() {
     RG.maxCombo = Math.max(RG.maxCombo, RG.combo);
     RG.hitB = beatNow();
     RG.hitLane = best.lane;
+    if (best.kk === 'shout') RG.shoutB = beatNow();
     RG.poseI++;
     sfxHit(kind, perfect);
     return;
@@ -225,6 +258,33 @@ function rTap() {
     sfxHit(kind, false);          // ひまなときは 音だけ 鳴らして あそべる
     RG.hitB = beatNow();
   }
+}
+
+// ゆびを はなした（ながおし の しんぱん）
+function rRelease() {
+  const n = RG.holding;
+  if (!n || RG.screen !== 'play') { RG.holding = null; return; }
+  RG.holding = null;
+  const b = beatAt(anow() - latency());
+  const sec = Math.abs(n.b - b) * 60 / S.bpm;
+  RG.hitB = beatNow();
+  RG.poseI++;
+  if (sec <= WIN_GOOD) {
+    const perfect = sec <= WIN_PERFECT;
+    n.res = perfect ? 'perfect' : 'good';
+    if (perfect) { RG.perfect++; pop('ピッタリ！', '#FFE066'); }
+    else { RG.good++; pop(b < n.b ? 'はやい' : 'おそい', '#A8E0FF'); }
+    RG.combo++;
+    RG.maxCombo = Math.max(RG.maxCombo, RG.combo);
+    sfxHit(n.hit || RG.st.hit, perfect);
+    return;
+  }
+  n.res = 'miss';
+  RG.miss++;
+  RG.combo = 0;
+  RG.missB = beatNow();
+  pop('ミス…', '#FF9C9C');
+  sfxMiss();
 }
 
 // --- ずれ合わせ ----------------------------------------------------------------

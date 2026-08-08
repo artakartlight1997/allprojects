@@ -285,7 +285,7 @@ function newGame(creative) {
   dayT = 0.42;
   for (let i = 0; i < P.inv.length; i++) P.inv[i] = null;
   clearMobs();
-  // 村の そばに 出たときは、村の ほうを むいて はじめる
+  // 街や 村の そばに 出たときは、そっちを むいて はじめる
   if (s.near) {
     P.yaw = Math.atan2(s.near.x - P.x, s.near.z - P.z);
     P.pitch = 0.05;
@@ -297,7 +297,7 @@ function newGame(creative) {
     invAdd(ID.planks, 16); invAdd(ID.torch, 8);
   }
   UI.hint = 6;
-  UI.msg = s.near ? 'むらが 目のまえに あるよ！' : '';
+  UI.msg = s.town ? 'まちの ひろばに ついたよ！' : s.near ? 'むらが 目のまえに あるよ！' : '';
   UI.msgT = s.near ? 4 : 0;
 }
 

@@ -368,6 +368,51 @@ for (const [key, , col] of WOOLS) {
   });
 }
 
+// --- 生きものの 絵 -----------------------------------------------------------
+//
+// ブロックでは ないが、同じ 1 まいの 絵に まぜて おく。
+// そうすれば 生きものを 出すのに テクスチャを 切りかえなくて すむ。
+
+tile('vil_face', (c) => {
+  c.fillStyle = '#C89A72'; c.fillRect(0, 0, TS, TS);
+  c.fillStyle = '#5A4030'; c.fillRect(2, 1, 12, 3);        // かみ
+  c.fillStyle = '#FFFFFF'; c.fillRect(3, 6, 3, 3); c.fillRect(10, 6, 3, 3);
+  c.fillStyle = '#2A3A6A'; c.fillRect(4, 7, 2, 2); c.fillRect(11, 7, 2, 2);
+  c.fillStyle = '#A87A58'; c.fillRect(7, 8, 2, 4);         // はな
+  c.fillStyle = '#7A5040'; c.fillRect(5, 13, 6, 1);        // くち
+});
+tile('vil_head', (c) => {
+  c.fillStyle = '#C89A72'; c.fillRect(0, 0, TS, TS);
+  c.fillStyle = '#5A4030'; c.fillRect(0, 0, TS, 4);
+});
+tile('vil_body', (c) => {
+  grain('#6B4E8C', 0.14, 0.5)(c);
+  c.fillStyle = '#8A6AB0'; c.fillRect(0, 0, TS, 2);
+  c.fillStyle = '#4A3462'; c.fillRect(6, 2, 4, 14);        // まえの あわせ
+});
+tile('vil_leg', grain('#4A3462', 0.12, 0.5));
+tile('slime_skin', (c) => {
+  grain('#5ACF6A', 0.18, 0.6)(c);
+  c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(2, 2, 4, 3);
+  c.fillStyle = '#1E4A24'; c.fillRect(4, 7, 3, 3); c.fillRect(9, 7, 3, 3);
+  c.fillStyle = '#1E4A24'; c.fillRect(6, 12, 4, 1);
+});
+tile('ghost_skin', (c) => {
+  grain('#DCE4F0', 0.10, 0.4)(c);
+  c.fillStyle = '#3A4258'; c.fillRect(3, 6, 3, 4); c.fillRect(10, 6, 3, 4);
+  c.fillStyle = '#3A4258'; c.fillRect(6, 12, 4, 2);
+});
+tile('pipe_side', (c) => {
+  grain('#3EA84E', 0.16, 0.5)(c);
+  c.fillStyle = 'rgba(255,255,255,0.25)'; c.fillRect(2, 0, 3, TS);
+  c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(12, 0, 3, TS);
+});
+tile('pipe_top', (c) => {
+  grain('#4EC05E', 0.14, 0.5)(c);
+  c.strokeStyle = 'rgba(0,0,0,0.3)'; c.lineWidth = 2;
+  c.strokeRect(1, 1, 14, 14);
+});
+
 // --- 1 まいの絵にまとめる ---------------------------------------------------
 
 function buildAtlas() {
@@ -477,6 +522,7 @@ block('mushroom', 'きのこ', { all: T.mushroom, hard: 0.05, solid: false, opaq
 for (const [key, jp] of WOOLS) {
   block('wool_' + key, jp + 'のウール', { all: T['wool_' + key], hard: 0.5 });
 }
+block('pipe', 'どかん', { top: T.pipe_top, side: T.pipe_side, bottom: T.pipe_top, hard: 1.6 });
 block('water', 'みず', { all: T.water, hard: Infinity, solid: false, opaque: false, alpha: 0.72, liquid: true });
 block('lava', 'ようがん', { all: T.lava, hard: Infinity, solid: false, opaque: false, alpha: 0.9, liquid: true, light: 0.9 });
 

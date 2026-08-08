@@ -21,6 +21,8 @@ const P = {
   digX: 0, digY: -1, digZ: 0, digT: 0, digNeed: 1,
   hurtT: 0,
   hp: 10,
+  swing: 0,        // なぐった あとの まち時間
+  hurtFlash: 0,    // やられた ときの あかい ふち
 };
 
 function eyeY() { return P.y + EYE; }

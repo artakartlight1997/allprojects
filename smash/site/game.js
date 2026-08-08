@@ -12,7 +12,7 @@
 
 const SAVE_KEY = 'smash.v1';
 
-const save = { clear: {}, skip: {}, plays: 0 };
+const save = { clear: {}, skip: {}, plays: 0, diff: 1 };
 
 function loadSave() {
   try {
@@ -20,6 +20,7 @@ function loadSave() {
     if (o.clear && typeof o.clear === 'object') save.clear = o.clear;
     if (o.skip && typeof o.skip === 'object') save.skip = o.skip;
     if (Number.isFinite(o.plays)) save.plays = o.plays;
+    if (Number.isFinite(o.diff)) save.diff = Math.max(0, Math.min(4, o.diff));
   } catch (e) {}
 }
 function storeSave() {
@@ -43,21 +44,21 @@ const GRAV = 1900;
 const FALL_MAX = 760;
 const ACC_G = 2600, ACC_A = 1700, FRIC = 2400;
 const KB_DRAG = 1.6;        // ふっとんでいる あいだの ブレーキ
-const BLAST_X = 495;        // ここより 外へ 出たら KO
+const BLAST_X = 470;        // ここより 外へ 出たら KO
 const BLAST_TOP = -230;
 const BLAST_BOT = VH + 300;   // 下は 深めに。もどってくる 時間を あげる
 const RESPAWN_T = 1.1;
 const SPAWN_INV = 2.4;
 const JUMPS = 3;              // ゆかで 1 + 空中で 2。おちても もどりやすい
-const TIME_LIMIT = 90;        // びょう。時間切れは ストックの おおい ほうの かち
+const TIME_LIMIT = 99;        // びょう。時間切れは ストックの へりかたが 少ない ほうの かち
 
 // こうげき。hit は「いつ あたり判定が 出るか」（びょう）
 const ATK = {
-  jab:   { dur: 0.30, hit: [0.05, 0.15], dmg: 5,  kb: 100, kbs: 6.4, rx: 30, ry: 26,
+  jab:   { dur: 0.30, hit: [0.05, 0.15], dmg: 5,  kb: 105, kbs: 7.6, rx: 30, ry: 26,
            ox: 24, ang: 0.52 },
-  smash: { dur: 0.56, hit: [0.15, 0.30], dmg: 15, kb: 285, kbs: 13.0, rx: 46, ry: 34,
+  smash: { dur: 0.56, hit: [0.15, 0.30], dmg: 15, kb: 300, kbs: 16.0, rx: 46, ry: 34,
            ox: 38, ang: 0.72 },
-  air:   { dur: 0.42, hit: [0.07, 0.24], dmg: 8,  kb: 160, kbs: 8.4, rx: 36, ry: 32,
+  air:   { dur: 0.42, hit: [0.07, 0.24], dmg: 8,  kb: 170, kbs: 9.8, rx: 36, ry: 32,
            ox: 26, ang: 0.62 },
 };
 
@@ -74,6 +75,29 @@ const ITEMS = {
 const ITEM_KEYS = Object.keys(ITEMS);
 const ITEM_GAP = 11.0;      // なんびょう ごとに おちてくるか
 const ITEM_R = 15;
+
+// --- つよさ（5だんかい）----------------------------------------------------------
+//
+// ai    … コンピューターの うでまえの ばいりつ（はんのうの はやさ・こうげきの ひんど）
+// stock … あいての ストックを ふやす／へらす
+// atk   … あいての ダメージの ばいりつ
+// mine  … じぶんの ストックを ふやす／へらす
+// tough … あいてが ふっとびにくく なる ばいりつ（＝重さ）。ボスを 手ごわく する かなめ
+// boss  … ボス（スマッシュキング・かげまさき）だけ さらに つよく する ばいりつ
+const DIFFS = [
+  { key: 'e', name: 'やさしい',   col: '#A8E0A8', ai: 0.32, stock: -1, atk: 0.55, mine: 2, boss: 1.0, tough: 0.70,
+    about: 'はじめてでも だいじょうぶ' },
+  { key: 'n', name: 'ふつう',     col: '#8FD6FF', ai: 0.60, stock: 0,  atk: 0.78, mine: 1, boss: 1.0, tough: 0.90,
+    about: 'ちょうど よい つよさ' },
+  { key: 'h', name: 'つよい',     col: '#FFD166', ai: 0.95, stock: 0,  atk: 1.00, mine: 0, boss: 1.1, tough: 1.10,
+    about: 'すこし 手ごわい' },
+  { key: 'v', name: 'めちゃつよ', col: '#FF9C5A', ai: 1.35, stock: 1,  atk: 1.25, mine: 0, boss: 1.3, tough: 1.30,
+    about: 'よけないと やられる' },
+  { key: 'x', name: 'さいきょう', col: '#FF5A7A', ai: 1.90, stock: 2,  atk: 1.55, mine: -1, boss: 1.6, tough: 1.60,
+    about: 'ほんき。ボスは バケモノ' },
+];
+function diffNow() { return DIFFS[Math.max(0, Math.min(4, save.diff | 0))]; }
+function setDiff(i) { save.diff = Math.max(0, Math.min(4, i)); storeSave(); }
 
 let failStage = -1, failStreak = 0;
 function assistLevel() { return Math.min(2, Math.floor(failStreak / 2)); }
@@ -96,6 +120,7 @@ function mkFighter(charKey, isPlayer, stocks, aiSkill) {
     atk: null, cool: 0, hitstun: 0, inv: SPAWN_INV, respawnT: 0,
     charging: false, chargeT: 0, spCool: 0, spT: 0, spKind: '',
     dropT: 0, squash: 0, aiT: 0, aiAim: 0, dead: false,
+    dmul: 1, hard: 0, wmul: 1, stock0: stocks,
     item: '', itemT: 0, bombT: 0,
   };
 }
@@ -117,12 +142,22 @@ function startStage(i) {
   G.done = false; G.win = false; G.endT = 0; G.shake = 0; G.slow = 0;
   G.timeL = TIME_LIMIT;
 
-  const me = mkFighter('masaki', true, 3 + as, 0);
+  const D = diffNow();
+  G.diff = D;
+  const me = mkFighter('masaki', true, Math.max(1, 3 + as + D.mine), 0);
   me.x = -110; me.y = 100; me.face = 1;
   G.fighters = [me];
   st.foes.forEach((k, n) => {
-    const f = mkFighter(k, false, Math.max(1, st.foeStocks - (as >= 2 ? 1 : 0)),
-                        Math.max(0.2, st.ai - as * 0.12));
+    const boss = !!CHARS[k].boss || k === 'kage';
+    const bm = boss ? D.boss : 1;
+    const stk = Math.max(1, st.foeStocks + D.stock - (as >= 2 ? 1 : 0) + (boss && D.boss > 1.2 ? 1 : 0));
+    const f = mkFighter(k, false, stk,
+                        Math.max(0.15, Math.min(1.35, st.ai * D.ai * bm) - as * 0.12));
+    f.dmul = D.atk * bm;
+    // ボスは さらに ふっとびにくい。ここが「めちゃくちゃ つよい」の 中心。
+    f.wmul = D.tough * (boss ? 1 + (D.boss - 1) * 0.55 : 1);
+    // 「さいきょう」では、ただ かずを 上げるだけでは なく うごきも かえる
+    f.hard = Math.max(0, Math.min(1, (save.diff - 1) / 3)) * (boss ? 1.15 : 1);
     f.x = 110 + n * 90; f.y = 100; f.face = -1;
     G.fighters.push(f);
   });
@@ -150,27 +185,43 @@ function puff(x, y, col, n, sp) {
 
 // --- あしば --------------------------------------------------------------------
 
-function landOn(f, prevBottom) {
-  // 上から おりてきた ときだけ のる（下から すりぬけられる）
-  if (f.vy < 0) return;
+// あしばに のる。上から おりてきた ときだけ（下からは すりぬけられる）。
+//
+// ★ 「いまの いち」だけで しらべては いけない。
+//   ふっとばされると よこに 1コマで 100px 以上 うごくので、
+//   うごく まえと あとの あいだに ゆかを またいでいても、
+//   さいごの いちが ゆかの 外だと「のらなかった」ことに なって
+//   **ゆかを すりぬける**。
+//   だから (px,py) → (f.x,f.y) の **線**が ゆかの 高さを またぐ
+//   しゅんかんを もとめて、その ときの よこの いちで しらべる。
+function landOn(f, px, py) {
+  if (f.vy < 0) return false;
+  let best = null, bestT = 2, bestX = f.x;
   for (const p of G.plats) {
     if (!p.on) continue;
-    if (f.x < p.x - 8 || f.x > p.x + p.w + 8) continue;
-    if (prevBottom <= p.y + 2 && f.y >= p.y) {
-      if (p.thru && f.dropT > 0) continue;
-      f.y = p.y;
-      f.vy = 0;
-      if (!f.onGround) {
-        f.onGround = true;
-        f.jumps = JUMPS;
-        f.squash = 0.35;
-        puff(f.x, f.y, 'rgba(255,255,255,0.6)', 3, 60);
-      }
-      f.plat = p;
-      return true;
-    }
+    if (p.thru && f.dropT > 0) continue;
+    if (py > p.y + 2) continue;        // うごく まえから もう 下に いた
+    if (f.y < p.y) continue;           // まだ ゆかより 上
+    // ゆかの 高さを またいだ わりあい（0〜1）
+    const t = (f.y === py) ? 1 : (p.y - py) / (f.y - py);
+    if (t < 0 || t > 1) continue;
+    const cx = px + (f.x - px) * t;
+    if (cx < p.x - 8 || cx > p.x + p.w + 8) continue;
+    if (t < bestT) { bestT = t; best = p; bestX = cx; }
   }
-  return false;
+  if (!best) return false;
+  // またいだ ばしょに 足を つける
+  f.x = bestX;
+  f.y = best.y;
+  f.vy = 0;
+  if (!f.onGround) {
+    f.onGround = true;
+    f.jumps = JUMPS;
+    f.squash = 0.35;
+    puff(f.x, f.y, 'rgba(255,255,255,0.6)', 3, 60);
+  }
+  f.plat = best;
+  return true;
 }
 
 // ゆかより 下に いて、ステージからも 外に 出ている とき だけ はたらく。
@@ -187,7 +238,7 @@ function pullBack(f, dt) {
 function overPlat(f) {
   for (const p of G.plats) {
     if (!p.on) continue;
-    if (f.x >= p.x - 8 && f.x <= p.x + p.w + 8 && Math.abs(f.y - p.y) < 3) return p;
+    if (f.x >= p.x - 8 && f.x <= p.x + p.w + 8 && Math.abs(f.y - p.y) < 6) return p;
   }
   return null;
 }
@@ -304,20 +355,35 @@ function stepFighter(f, c, cmd, dt) {
   stepSpecial(f, c, cmd, dt);
 
   // うごかす
-  const prevBottom = f.y;
+  const px = f.x, py = f.y;
   f.x += f.vx * dt;
   f.y += f.vy * dt;
   if (f.onGround) {
     const p = overPlat(f);
-    if (!p) f.onGround = false; else f.plat = p;
+    if (!p) {
+      f.onGround = false;
+    } else {
+      // ★ ゆかに **ぴったり** つけ直す。
+      //   立っている あいだも 毎コマ 重力が たされるので、そのままだと
+      //   1コマに 0.5px ずつ ゆかに めりこむ。6コマ（0.1びょう）で
+      //   overPlat の 3px を こえて「ゆかから 外れた」ことに なり、
+      //   そのまま ゆかを すりぬけて 落ちて いく。
+      //   コンピューターが かってに 落ちて いたのも これが げんいん。
+      f.plat = p;
+      f.y = p.y;
+      f.vy = 0;
+    }
   }
-  if (!f.onGround) landOn(f, prevBottom);
+  if (!f.onGround) landOn(f, px, py);
 
   // ゆかの とげ
   stepSpikes(f);
 
-  // ブラストゾーン
-  if (Math.abs(f.x) > BLAST_X || f.y > BLAST_BOT || f.y < BLAST_TOP) koFighter(f);
+  // ブラストゾーン。うちゅう（ふわふわ）の 面だけは 上の 線を 近づける。
+  // 重力が よわいと みんな 上に うかぶ ばかりで、いつまでも しょうぶが
+  // つかず 時間切れに なって しまう。
+  const bTop = STAGES[G.si].blastTop === undefined ? BLAST_TOP : STAGES[G.si].blastTop;
+  if (Math.abs(f.x) > BLAST_X || f.y > BLAST_BOT || f.y < bTop) koFighter(f);
 }
 
 // --- こうげき ------------------------------------------------------------------
@@ -378,7 +444,7 @@ function hitScan(f, a) {
     if (Math.abs(o.x - hx) > A2.rx + charW(CHARS[o.char]) * 0.5) continue;
     if (Math.abs(oy - hy) > A2.ry + charH(CHARS[o.char]) * 0.4) continue;
     a.hit.push(o);
-    const mul = a.mul * c.atk * itemAtk(f);
+    const mul = a.mul * c.atk * itemAtk(f) * (f.dmul || 1);
     applyHit(o, f, A2.dmg * mul, (A2.kb + o.dmg * A2.kbs) * mul * itemKb(f), A2.ang, f.face);
   }
 }
@@ -387,7 +453,7 @@ function hitScan(f, a) {
 function applyHit(o, from, dmgAdd, kb, ang, dir) {
   // スターを もっている あいだは ぜんぶ はねかえす（じぶんの しかけ ダメージも）
   if (itemSafe(o)) { puff(o.x, o.y - 26, '#FFE066', 4, 90); return; }
-  const w = CHARS[o.char].weight;
+  const w = CHARS[o.char].weight * (o.wmul || 1);
   o.dmg += dmgAdd;
   const k = kb / w;
   o.vx = Math.cos(ang) * k * dir;
@@ -439,7 +505,8 @@ function stepSpecial(f, c, cmd, dt) {
         for (const o of G.fighters) {
           if (o === f || o.stocks <= 0 || o.respawnT > 0 || o.inv > 0) continue;
           if (Math.abs(o.x - f.x) < 84 && Math.abs(o.y - f.y) < 70) {
-            applyHit(o, f, 12 * c.atk, (215 + o.dmg * 6.8), 1.0, Math.sign(o.x - f.x) || 1);
+            applyHit(o, f, 12 * c.atk * (f.dmul || 1),
+                     (215 + o.dmg * 6.8) * (f.dmul || 1), 1.0, Math.sign(o.x - f.x) || 1);
           }
         }
         sfxSmash();
@@ -501,14 +568,15 @@ function spHitScan(f, reach, dmg, kb, ang, rate) {
     if (o === f || o.stocks <= 0 || o.respawnT > 0 || o.inv > 0) continue;
     if (Math.abs(o.x - hx) > reach) continue;
     if (Math.abs((o.y - charH(CHARS[o.char]) * 0.5) - hy) > 44) continue;
-    applyHit(o, f, dmg, kb + o.dmg * 7.5, ang, f.face);
+    applyHit(o, f, dmg * (f.dmul || 1), (kb + o.dmg * 7.5) * (f.dmul || 1), ang, f.face);
   }
 }
 
 function shoot(f, vx, vy, dmg, kb, col) {
   const c = CHARS[f.char];
+  const m = f.dmul || 1;
   G.shots.push({ x: f.x + f.face * 22, y: f.y - charH(c) * 0.55, vx, vy,
-                 dmg, kb, col, r: 10, from: f, t: 0 });
+                 dmg: dmg * m, kb: kb * m, col, r: 10, from: f, t: 0 });
 }
 
 function updateShots(dt) {
@@ -824,7 +892,8 @@ function aiThink(f, dt) {
     c2.jump = false; c2.atk = false; c2.sp = false;
     return c2;
   }
-  f.aiT = 0.16 - f.ai * 0.07;
+  // はんのうの はやさ。つよいほど 早く 手が うごく。
+  f.aiT = Math.max(0.045, 0.16 - f.ai * 0.07 - f.hard * 0.035);
 
   const dx = o.x - f.x, dy = o.y - f.y;
   const adx = Math.abs(dx);
@@ -861,6 +930,27 @@ function aiThink(f, dt) {
     }
   }
 
+  // あいてが ステージの 外に いる とき、はしまで 出て しとめに いく。
+  // 「もどってくる ところを たたく」は つよい 人の 動きなので、
+  // つよさが 高い ときだけ する。
+  if (f.hard > 0.45 && Math.abs(o.x) > half - 10 && o.y > f.y + 10 &&
+      Math.abs(f.x) < half + 30) {
+    cmd.mx = o.x > 0 ? 1 : -1;
+    if (Math.abs(o.x - f.x) < 90 && Math.random() < 0.3 + f.hard * 0.5) cmd.atk = true;
+    f.aiCmd = cmd;
+    return cmd;
+  }
+
+  // じぶんの ダメージが たまったら、はしから はなれて まん中で 守る。
+  // 「あぶない ときは 下がる」が できると、きゅうに 手ごわく なる。
+  if (f.hard > 0.55 && f.dmg > 85 && Math.abs(f.x) > half * 0.45 &&
+      Math.random() < 0.35 + f.hard * 0.4) {
+    cmd.mx = f.x > 0 ? -1 : 1;
+    if (adx < 70) cmd.jump = true;
+    f.aiCmd = cmd;
+    return cmd;
+  }
+
   // ちかづく
   if (adx > 46) cmd.mx = dx > 0 ? 1 : -1;
   else if (adx < 26) cmd.mx = dx > 0 ? -1 : 1;
@@ -875,14 +965,23 @@ function aiThink(f, dt) {
   // こうげき
   if (adx < 52 && Math.abs(dy) < 44) {
     const r = Math.random();
-    if (r < 0.22 + f.ai * 0.35) cmd.atk = true;
+    // ダメージが たまった あいては スマッシュで しとめる。
+    // つよいほど「ここで きめる」を ねらってくる。
+    const finish = o.dmg > 65 && Math.random() < 0.35 + f.hard * 0.55;
+    if (finish) { cmd.atkHold = true; f.aiHold = 0.55 + f.hard * 0.3; }
+    else if (r < 0.22 + f.ai * 0.35) cmd.atk = true;
     else if (r < 0.30 + f.ai * 0.42) { cmd.atkHold = true; f.aiHold = 0.5; }
   } else if (adx > 110 && adx < 420 && Math.abs(dy) < 70 && f.spCool <= 0) {
     if (Math.random() < 0.35 + f.ai * 0.45) cmd.sp = true;
   }
-  // たまに よける
+  // よける。つよいほど 「ためている あいて」を 見て さがる。
   if (o.atk && adx < 90 && Math.random() < f.ai * 0.5) {
     cmd.mx = dx > 0 ? -1 : 1; cmd.jump = Math.random() < 0.5;
+  }
+  if (o.charging && adx < 110 && Math.random() < 0.25 + f.hard * 0.6) {
+    cmd.mx = dx > 0 ? -1 : 1;
+    cmd.atkHold = false; cmd.atk = false;
+    if (Math.random() < 0.4 + f.hard * 0.4) cmd.jump = true;
   }
   f.aiCmd = cmd;
   return cmd;
@@ -915,10 +1014,18 @@ function stageHalf() {
 // 時間切れの はんてい：ストックが おおい ほう。おなじなら ダメージが 少ない ほう。
 function timeWin() {
   const me = G.fighters[0];
-  const foes = G.fighters.slice(1).filter((f) => f.stocks > 0);
-  const fs = foes.reduce((a, f) => a + f.stocks, 0);
-  if (me.stocks !== fs) return me.stocks > fs;
-  const fd = foes.reduce((a, f) => Math.min(a, f.dmg), 999);
+  const all = G.fighters.slice(1);
+  const foes = all.filter((f) => f.stocks > 0);
+  // へった わりあいで くらべる。つよさに よって はじめの ストックの かずが
+  // ちがうので、かずで くらべると どちらかに 不公平に なる。
+  const rate = (a) => {
+    const s0 = a.reduce((n, f) => n + (f.stock0 || 1), 0);
+    const s1 = a.reduce((n, f) => n + Math.max(0, f.stocks), 0);
+    return s0 ? 1 - s1 / s0 : 1;
+  };
+  const mr = rate([me]), fr = rate(all);
+  if (Math.abs(mr - fr) > 0.001) return mr < fr;
+  const fd = foes.reduce((a2, f) => Math.min(a2, f.dmg), 999);
   return me.dmg <= fd;
 }
 

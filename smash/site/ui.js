@@ -562,6 +562,13 @@ function drawHUD(t) {
 
   drawButton(button(10, 8, 74, 28, () => { bgmStop(); G.screen = 'select'; }),
              'やめる', 'rgba(255,255,255,0.8)');
+  if (G.diff) {
+    ctx.fillStyle = G.diff.col;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText(G.diff.name, 92, 22);
+    ctx.textAlign = 'left';
+  }
 }
 
 // --- そうさボタン ---------------------------------------------------------------
@@ -652,6 +659,35 @@ function drawTitle(t) {
   fitFont('かった ステージ ' + done + ' / ' + STAGES.length, VW * 0.4, 18);
   ctx.fillText('かった ステージ ' + done + ' / ' + STAGES.length, 30, 24 + fs + 32);
 
+  // つよさ えらび。5だんかい。えらんだ ものだけ 色を つける。
+  {
+    const D = diffNow();
+    const dw = Math.min(VW * 0.42, 356);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('あいての つよさ', 30, VH * 0.30 - 20);
+    const cw = (dw - 4 * 5) / 5;
+    for (let i = 0; i < DIFFS.length; i++) {
+      const d = DIFFS[i];
+      const on = i === (save.diff | 0);
+      const bx = 28 + i * (cw + 5);
+      const bb = button(bx, VH * 0.30, cw, 34, () => { setDiff(i); });
+      ctx.fillStyle = on ? d.col : 'rgba(255,255,255,0.22)';
+      rr(ctx, bb.x, bb.y, bb.w, bb.h, 9); ctx.fill();
+      ctx.strokeStyle = on ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = on ? 3 : 2; ctx.stroke();
+      ctx.fillStyle = on ? '#2A2440' : 'rgba(255,255,255,0.85)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      fitFont(d.name, cw * 0.9, 14, on ? 'bold ' : '');
+      ctx.fillText(d.name, bb.x + bb.w / 2, bb.y + bb.h / 2);
+    }
+    ctx.fillStyle = D.col;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    fitFont(D.about, dw, 14, 'bold ');
+    ctx.fillText(D.about, 30, VH * 0.30 + 40);
+  }
+
   const bw = Math.min(VW * 0.38, 320), bh = 56;
   let y = VH * 0.44;
   const nx = Math.min(STAGES.length - 1, done);
@@ -695,7 +731,7 @@ function drawHowto() {
     '⑥ 画面の 外に 出たら 1ストック へる。さきに 0 に なった ほうの まけ',
     '⑦ ステージには しかけが ある。赤い しるしが 出たら にげる',
     '　 ゆかの **とげ** と、ゆれる **とげボール** も さわると いたい',
-    '⑧ 90びょうで 時間切れ。そのときは ストックの おおい ほうの かち',
+    '⑧ 99びょうで 時間切れ。そのときは ストックの へりかたが 少ない ほうの かち',
     '⑨ そらから **とくべつアイテム** が おちてくる。ふれると 手に入る',
     '　 ★むてき ／ 🔨つよい こうげき ／ ♥ダメージが へる ／ 👟はやい ／ 💣ドカン',
     'パソコン: ←→ うごく / ↑ か スペース ジャンプ / Z こうげき / X ひっさつ',
@@ -807,6 +843,14 @@ function drawRule(t) {
   ctx.fillText(gt || 'しかけは なし。まずは たたかいかたに なれよう', VW / 2, 256);
 
   ctx.textAlign = 'left';
+  {
+    const D = diffNow();
+    ctx.fillStyle = D.col;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    fitFont('つよさ：' + D.name, VW * 0.4, 18, 'bold ');
+    ctx.fillText('つよさ：' + D.name, VW / 2, 288);
+    ctx.textAlign = 'left';
+  }
   const bw = Math.min(VW * 0.3, 240);
   drawButton(button(VW / 2 - bw / 2, VH - 106, bw, 50, () => { startStage(G.pending); }),
              'たたかう！', '#FFD166');
@@ -1040,7 +1084,9 @@ function drawRotate() {
 let last = 0, tsec = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.045, (now - last) / 1000 || 0);
+  // 1コマの 上限。ながいほど 1コマで うごく きょりが 大きく なり、
+  // あしばを とびこえやすく なる。ゆっくりに なっても すりぬけない ほうが よい。
+  const dt = Math.min(0.032, (now - last) / 1000 || 0);
   last = now;
   tsec += dt;
   ui.buttons = [];

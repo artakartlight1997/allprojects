@@ -5,6 +5,7 @@
 //   thru … 下から すりぬけられる あしば（下キーで おりられる）
 //   spikes … ゆかの とげ [{x, w}]。ずっと 見えているので 2かい目からは よけられる
 //   mild   … 5面までの「やさしい」しかけ（うごきが ゆっくり・力が よわい）
+//   blastTop … 上の ブラストゾーンを 面ごとに かえる（ふわふわの 面 用）
 //
 // ★ ゆかに すきま（あな）は 作らない。
 //   すきまは 下の ダメージひょうじに かくれて「見えない あな」に なる。
@@ -75,7 +76,8 @@ const STAGES = [
   },
   {
     name: 'うちゅう ていしゃじょう', sky: ['#150F35', '#4A2E7A'], gim: 'lowg',
-    foes: ['robo'], foeStocks: 3, ai: 0.7, stars: true,
+    blastTop: -130,
+    foes: ['robo'], foeStocks: 2, ai: 0.55, stars: true,
     plats: [ground(-190, 356, 380), shelf(-320, 250, 120), shelf(200, 250, 120),
             shelf(-60, 168, 120)],
     balls: [{ x: 0, y: 20, len: 190, r: 17, sp: 1.5, sw: 0.95 }],
@@ -95,7 +97,7 @@ const STAGES = [
   },
   {
     name: 'おうさまの アリーナ', sky: ['#3A1040', '#B04070'], gim: 'king',
-    foes: ['king'], foeStocks: 4, ai: 0.9, stars: true,
+    foes: ['king'], foeStocks: 3, ai: 0.9, stars: true,
     plats: [ground(-250, 352, 500), shelf(-270, 250, 130), shelf(140, 250, 130),
             shelf(-65, 162, 130)],
     spikes: [{ x: -250, w: 44 }, { x: 206, w: 44 }],

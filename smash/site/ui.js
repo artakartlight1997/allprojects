@@ -669,6 +669,12 @@ function drawTitle(t) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   fitFont('音が 出ないときは スマホの よこの スイッチ（消音）を たしかめてね', VW * 0.6, 14);
   ctx.fillText('音が 出ないときは スマホの よこの スイッチ（消音）を たしかめてね', 28, VH - 24);
+  // 版ばんごう。ふるい ものが スマホに のこっていないか、ここで 見わけられる。
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 13px system-ui, sans-serif';
+  ctx.fillText('v' + GAME_VER, VW - 14, VH - 24);
+  ctx.textAlign = 'left';
   drawHubButton();
 }
 

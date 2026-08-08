@@ -25,6 +25,7 @@ on:
       - 'escape/site/**'
       - 'rhythm/site/**'
       - 'fuwa/site/**'
+      - 'smash/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -62,12 +63,13 @@ jobs:
       #   /escape/     りな逃走中（めいろで パパから にげる）
       #   /rhythm/     りなりなリズム（ビートに合わせてタップ）
       #   /fuwa/       ふわふわふわりな（そらを とんで たたかう）
+      #   /smash/      まさきのスマッシュバトル（ふっとばし たいせん）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -76,6 +78,7 @@ jobs:
           cp -r escape/site/. public/escape/
           cp -r rhythm/site/. public/rhythm/
           cp -r fuwa/site/. public/fuwa/
+          cp -r smash/site/. public/smash/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

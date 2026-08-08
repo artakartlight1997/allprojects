@@ -1,0 +1,10 @@
+{
+  "name": "りなのモグラたたき",
+  "short_name": "モグラたたき",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2A1E30",
+  "theme_color": "#2A1E30",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

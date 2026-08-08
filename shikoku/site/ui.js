@@ -77,7 +77,10 @@ function hitBtn(px, py) {
 // --- 地図の ばしょ ---------------------------------------------------------------
 
 function mapBox() {
-  const B = bounds(PREFS);
+  // ★ その面で つかう 県だけで 大きさを 合わせる。
+  //   いつも 沖縄まで 入れて 計算すると、沖縄を つかわない 面で
+  //   九州が 小さく なって しまう。
+  const B = bounds(G.list && G.list.length ? G.list : PREFS);
   // かけらの たなが 出ている ときだけ 右を あける
   const needTray = G.bag && G.bag.length;
   const left = 20, right = VW - (needTray ? 210 : 20);

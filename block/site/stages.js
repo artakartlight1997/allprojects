@@ -16,7 +16,7 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 1;
+const GAME_VER = 2;
 
 const VH = 450;
 const COLS = 13;

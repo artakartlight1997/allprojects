@@ -13,7 +13,7 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 1;
+const GAME_VER = 2;
 
 const VH = 450;
 
@@ -48,21 +48,23 @@ function foeHpMul() { return [1, 0.92, 0.84, 0.74][assistLevel(G.stage)]; }
 
 // --- てきの しゅるい ---------------------------------------------------------------
 
+// ★ さいしょは r13 くらいだったが「てきが 小さくて わからない」ので
+//   ぜんぶ 1.4ばい くらいに 大きく した。
 const FOES = {
   //                 大きさ  かたさ  てん   うつ
-  zako:  { r: 13, hp: 1, pt: 100, shoot: 0,    col: '#FF8FA0', name: 'ザコ' },
-  wave:  { r: 13, hp: 1, pt: 140, shoot: 0,    col: '#B98FE0', name: 'うねうね' },
-  dive:  { r: 14, hp: 2, pt: 220, shoot: 0,    col: '#FFC46A', name: 'つっこみ' },
-  turret:{ r: 16, hp: 4, pt: 320, shoot: 1.5,  col: '#6ACB6A', name: 'うってくる' },
-  rock:  { r: 21, hp: 8, pt: 260, shoot: 0,    col: '#9AA0B0', name: 'いわ' },
-  gunner:{ r: 15, hp: 3, pt: 380, shoot: 1.05, col: '#5AC8E8', name: 'まというち' },
+  zako:  { r: 19, hp: 1, pt: 100, shoot: 0,    col: '#FF8FA0', name: 'ザコ' },
+  wave:  { r: 19, hp: 1, pt: 140, shoot: 0,    col: '#B98FE0', name: 'うねうね' },
+  dive:  { r: 20, hp: 2, pt: 220, shoot: 0,    col: '#FFC46A', name: 'つっこみ' },
+  turret:{ r: 23, hp: 4, pt: 320, shoot: 1.5,  col: '#6ACB6A', name: 'うってくる' },
+  rock:  { r: 28, hp: 8, pt: 260, shoot: 0,    col: '#9AA0B0', name: 'いわ' },
+  gunner:{ r: 22, hp: 3, pt: 380, shoot: 1.05, col: '#5AC8E8', name: 'まというち' },
 };
 
 // ボス
 const BOSSES = {
-  ufo:  { r: 44, hp: 62,  pt: 3000, name: 'まるいUFO' },
-  core: { r: 50, hp: 96,  pt: 5000, name: 'コアマシン' },
-  papa: { r: 48, hp: 88,  pt: 6000, name: 'リナパパ' },
+  ufo:  { r: 54, hp: 78,  pt: 3000, name: 'まるいUFO' },
+  core: { r: 58, hp: 118, pt: 5000, name: 'コアマシン' },
+  papa: { r: 56, hp: 108, pt: 6000, name: 'リナパパ' },
 };
 
 // --- めん -------------------------------------------------------------------------
@@ -103,7 +105,7 @@ const S_NAMES = [
 const S_BOSS = ['ufo', 'ufo', 'core', 'papa', 'ufo', 'core', 'papa', 'core', 'ufo', 'papa'];
 
 const STAGES = S_NAMES.map((name, i) => ({
-  name, boss: S_BOSS[i], bossHp: 1 + i * 0.12, waves: makeWaves(i),
+  name, boss: S_BOSS[i], bossHp: 1 + i * 0.15, waves: makeWaves(i),
 }));
 
 // --- じょうたい -------------------------------------------------------------------
@@ -113,13 +115,15 @@ const G = {
   stage: 0,
   S: null,
   px: 90, py: 225,
-  tx: 90, ty: 225,     // ゆびの ばしょ（ここへ 船が よっていく）
+  tx: 90, ty: 225,     // 船の 行き先（ゆびで ひっぱると ここが うごく）
+  fingerX: null, fingerY: 0,
   hp: 3, maxhp: 3,
   pw: 1,               // たまの つよさ 1〜4
   shield: 0,
   inv: 0,              // やられた あと 少しの あいだ 無てき
   fire: 0,
   shots: [], ebul: [], foes: [], items: [], puffs: [],
+  trail: [], opts: [],   // ★ オプション（船の とおった みちを ついてくる 玉）
   boss: null, bossIn: 0,
   wi: 0, pend: [],     // つぎに 出す なみ
   t: 0, score: 0,
@@ -133,6 +137,7 @@ function startStage(i) {
   G.stage = Math.max(0, Math.min(STAGES.length - 1, i));
   G.S = STAGES[G.stage];
   G.px = 90; G.py = 225; G.tx = 90; G.ty = 225;
+  G.fingerX = null;
   G.maxhp = 3 + extraHP();
   G.hp = G.maxhp;
   // ★ はじめから 2。1本だと ボスに とどく まえに やられて つまらない。
@@ -141,6 +146,7 @@ function startStage(i) {
   G.inv = 1.0;
   G.fire = 0;
   G.shots = []; G.ebul = []; G.foes = []; G.items = []; G.puffs = [];
+  G.trail = []; G.opts = [];
   G.boss = null; G.bossIn = 0;
   G.wi = 0; G.pend = [];
   G.t = 0; G.score = 0;
@@ -200,21 +206,27 @@ function spawnBoss() {
 
 // --- たま ---------------------------------------------------------------------------
 
+function optCount() { return G.pw >= 4 ? 2 : G.pw >= 3 ? 1 : 0; }
+
 function shoot() {
   const x = G.px + 16, y = G.py;
   const v = 430;
-  const add = (vy, dmg) => G.shots.push({ x, y, vx: v, vy, r: 5, dmg: dmg || 1, t: 0 });
+  const add = (vy, dmg) => G.shots.push({ x, y, vx: v, vy, r: 6, dmg: dmg || 1, t: 0 });
   if (G.pw <= 1) add(0);
-  else if (G.pw === 2) { G.shots.push({ x, y: y - 7, vx: v, vy: 0, r: 5, dmg: 1, t: 0 });
-                         G.shots.push({ x, y: y + 7, vx: v, vy: 0, r: 5, dmg: 1, t: 0 }); }
+  else if (G.pw === 2) { G.shots.push({ x, y: y - 8, vx: v, vy: 0, r: 6, dmg: 1, t: 0 });
+                         G.shots.push({ x, y: y + 8, vx: v, vy: 0, r: 6, dmg: 1, t: 0 }); }
   else if (G.pw === 3) { add(0, 2); add(-120); add(120); }
-  else { add(0, 3); add(-140); add(140); G.shots.push({ x: G.px - 16, y, vx: -300, vy: 0, r: 5, dmg: 1, t: 0 }); }
+  else { add(0, 3); add(-140); add(140); G.shots.push({ x: G.px - 16, y, vx: -300, vy: 0, r: 6, dmg: 1, t: 0 }); }
+  // ★ オプションも いっしょに うつ
+  for (const o of G.opts) {
+    G.shots.push({ x: o.x + 12, y: o.y, vx: v, vy: 0, r: 5, dmg: 1, t: 0 });
+  }
   sfxShot();
 }
 
 function efire(x, y, sp, ang) {
   const s = sp * foeBulMul();
-  G.ebul.push({ x, y, vx: Math.cos(ang) * s, vy: Math.sin(ang) * s, r: 6, t: 0 });
+  G.ebul.push({ x, y, vx: Math.cos(ang) * s, vy: Math.sin(ang) * s, r: 8, t: 0 });
 }
 
 function aimAt(x, y) { return Math.atan2(G.py - y, G.px - x); }
@@ -288,8 +300,19 @@ function update(dt) {
   const W2 = fieldW();
   G.tx = Math.max(24, Math.min(W2 - 24, G.tx));
   G.ty = Math.max(44, Math.min(VH - 20, G.ty));
-  G.px += (G.tx - G.px) * Math.min(1, dt * 14);
-  G.py += (G.ty - G.py) * Math.min(1, dt * 14);
+  G.px += (G.tx - G.px) * Math.min(1, dt * 22);
+  G.py += (G.ty - G.py) * Math.min(1, dt * 22);
+
+  // ★ オプション。船の とおった みちを おくれて ついてくる。
+  G.trail.unshift({ x: G.px, y: G.py });
+  if (G.trail.length > 90) G.trail.length = 90;
+  const nOpt = optCount();
+  while (G.opts.length < nOpt) G.opts.push({ x: G.px, y: G.py });
+  while (G.opts.length > nOpt) G.opts.pop();
+  for (let i = 0; i < G.opts.length; i++) {
+    const t2 = G.trail[Math.min(G.trail.length - 1, 16 + i * 16)];
+    if (t2) { G.opts[i].x = t2.x; G.opts[i].y = t2.y; }
+  }
 
   // うつ
   G.fire -= dt;
@@ -324,7 +347,7 @@ function update(dt) {
       f.cd -= dt;
       if (f.cd <= 0 && f.x < W2 - 10) {
         f.cd = F.shoot * (0.8 + Math.random() * 0.5);
-        efire(f.x, f.y, 148 + G.stage * 4, aimAt(f.x, f.y));
+        efire(f.x, f.y, 152 + G.stage * 5, aimAt(f.x, f.y));
         if (f.k === 'gunner' && G.stage >= 6) {
           efire(f.x, f.y, 150, aimAt(f.x, f.y) + 0.25);
           efire(f.x, f.y, 150, aimAt(f.x, f.y) - 0.25);
@@ -359,7 +382,7 @@ function updateBoss(dt) {
   b.cd -= dt;
   const wild = b.hp < b.max * 0.4 ? 1 : 0;
   if (b.cd <= 0) {
-    const sp = 132 + G.stage * 5 + wild * 24;
+    const sp = 138 + G.stage * 6 + wild * 26;
     if (b.k === 'ufo') {
       b.cd = 1.5 - wild * 0.4;
       for (let i = -2; i <= 2; i++) efire(b.x - 20, b.y, sp, Math.PI + i * 0.22);
@@ -420,7 +443,8 @@ function collide() {
     }
   }
   // てき・たま → じぶん
-  const me = { x: G.px, y: G.py, r: 11 };
+  // ★ てきを 大きく した ぶん、船の あたり はんていは 小さく する。
+  const me = { x: G.px, y: G.py, r: 9 };
   for (let i = G.ebul.length - 1; i >= 0; i--) {
     if (hit(G.ebul[i], me)) { G.ebul.splice(i, 1); hurt(); }
   }

@@ -1,0 +1,10 @@
+{
+  "name": "りなのリズムスター",
+  "short_name": "リズム",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2B1B54",
+  "theme_color": "#2B1B54",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

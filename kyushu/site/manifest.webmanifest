@@ -1,0 +1,10 @@
+{
+  "name": "りなのきゅうしゅうパズル",
+  "short_name": "きゅうしゅうパズル",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#16283C",
+  "theme_color": "#16283C",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
+}

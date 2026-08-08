@@ -35,6 +35,8 @@ on:
       - 'guard/site/**'
       - 'rescue/site/**'
       - 'dungeon/site/**'
+      - 'kyushu/site/**'
+      - 'shikoku/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -82,12 +84,14 @@ jobs:
       #   /guard/      まさきのまもれ！ひみつきち（タワーディフェンス・全12めん）
       #   /rescue/     あおいのどうぶつレスキュー（ひっぱって とばす 物理パズル・全20めん）
       #   /dungeon/    りなのふしぎダンジョン（ターンせいの もぐりRPG・ちか10かい）
+      #   /kyushu/     りなのきゅうしゅうパズル（形を はめて 県を おぼえる・全10めん）
+      #   /shikoku/    りなのしこくツアー（名さんの おつかい と まわる地図・全10めん）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -106,6 +110,8 @@ jobs:
           cp -r guard/site/. public/guard/
           cp -r rescue/site/. public/rescue/
           cp -r dungeon/site/. public/dungeon/
+          cp -r kyushu/site/. public/kyushu/
+          cp -r shikoku/site/. public/shikoku/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

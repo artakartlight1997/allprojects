@@ -16,7 +16,7 @@
 'use strict';
 
 // 版ばんごう。index.html の ?v= と 同じ 数字に する。
-const GAME_VER = 2;
+const GAME_VER = 3;
 
 const VH = 450;
 const COLS = 13;
@@ -100,27 +100,29 @@ const LAYOUTS = [
 
 // papa … リナパパの たいりょく（0 なら 出ない）
 // spd  … たまの はやさ
+// ★ 面の名前に ボスの名前を出さない。選ぶ画面で最後のボスが
+//   分かってしまうと、出てきたときのおどろきが なくなる。
 const STAGES = [
-  { name: '1. はじめての ブロックくずし', spd: 340, papa: 0 },
-  { name: '2. すきま に 気をつけて',      spd: 354, papa: 0 },
-  { name: '3. ピラミッド',                spd: 368, papa: 0 },
-  { name: '4. リナパパ とうじょう！',     spd: 379, papa: 8 },
-  { name: '5. トンネル と ばくだん',      spd: 393, papa: 0 },
-  { name: '6. ハート',                    spd: 405, papa: 0 },
-  { name: '7. かべの むこう',             spd: 416, papa: 0 },
-  { name: '8. リナパパ ふたたび',         spd: 428, papa: 12 },
-  { name: '9. しま めぐり',               spd: 439, papa: 0 },
-  { name: '10. ちどり',                   spd: 451, papa: 0 },
-  { name: '11. とりで',                   spd: 462, papa: 0 },
-  { name: '12. さいごの リナパパ',        spd: 474, papa: 16 },
+  { name: '1. はじめの一歩',     spd: 340, papa: 0 },
+  { name: '2. すき間に注意',     spd: 354, papa: 0 },
+  { name: '3. ピラミッド',       spd: 368, papa: 0 },
+  { name: '4. 何かが来る',       spd: 379, papa: 8 },
+  { name: '5. トンネルと爆弾',   spd: 393, papa: 0 },
+  { name: '6. ハート',           spd: 405, papa: 0 },
+  { name: '7. 壁の向こう',       spd: 416, papa: 0 },
+  { name: '8. また来た',         spd: 428, papa: 12 },
+  { name: '9. 島めぐり',         spd: 439, papa: 0 },
+  { name: '10. ちどり',          spd: 451, papa: 0 },
+  { name: '11. とりで',          spd: 462, papa: 0 },
+  { name: '12. 最後の戦い',      spd: 474, papa: 16 },
 ].map((s, i) => ({ ...s, map: LAYOUTS[i] }));
 
 // ブロックの しゅるい
 const BRICK = {
   n: { hp: 1, pt: 100, col: '#FF8FA0', name: 'ふつう' },
   h: { hp: 2, pt: 200, col: '#FFC46A', name: 'かたい' },
-  H: { hp: 3, pt: 320, col: '#B98FE0', name: 'もっと かたい' },
-  s: { hp: 99, pt: 0, col: '#8A93A8', name: 'はがね' },
-  b: { hp: 1, pt: 250, col: '#5A5468', name: 'ばくだん' },
-  '?': { hp: 1, pt: 150, col: '#6ACB6A', name: 'ふしぎ' },
+  H: { hp: 3, pt: 320, col: '#B98FE0', name: 'もっと固い' },
+  s: { hp: 99, pt: 0, col: '#8A93A8', name: '鋼鉄' },
+  b: { hp: 1, pt: 250, col: '#5A5468', name: '爆弾' },
+  '?': { hp: 1, pt: 150, col: '#6ACB6A', name: '不思議' },
 };

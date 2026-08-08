@@ -272,7 +272,7 @@ function drawTop() {
   // のこりの たま
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.font = 'bold 13px system-ui, sans-serif';
-  ctx.fillText('のこりの たま', VW * 0.34, 24);
+  ctx.fillText('のこりの玉', VW * 0.34, 24);
   for (let i = 0; i < Math.min(10, G.shots); i++) {
     const K = BALLS.find((b) => b.key === G.S.balls[Math.min(G.S.balls.length - 1, G.next + i)]) || BALLS[0];
     ctx.fillStyle = K.col;
@@ -284,11 +284,13 @@ function drawTop() {
   ctx.textAlign = 'right';
   ctx.fillStyle = '#FFE066';
   ctx.font = 'bold 17px system-ui, sans-serif';
-  ctx.fillText('たすけた ' + G.saved + ' / ' + G.need, VW - 108, 24);
+  ctx.fillText('助けた ' + G.saved + ' / ' + G.need, VW - 156, 24);
   ctx.textAlign = 'left';
 
-  drawButton(button(VW - 98, 10, 44, 28, () => startStage(G.stage)), 'やり\nなおす'.replace('\n', ''), 'rgba(255,255,255,0.85)');
-  drawButton(button(VW - 50, 10, 42, 28, () => { bgmStop(); G.screen = 'title'; }), 'めん', 'rgba(255,255,255,0.85)');
+  // ★ 「めん」だけだと 何のボタンか 分からない と 言われたので 名前を 長くした。
+  //   そのぶん ボタンも 広げる。
+  drawButton(button(VW - 148, 10, 58, 28, () => startStage(G.stage)), 'やりなおす', 'rgba(255,255,255,0.85)');
+  drawButton(button(VW - 86, 10, 78, 28, () => { bgmStop(); G.screen = 'title'; }), '面をえらぶ', 'rgba(255,255,255,0.85)');
 }
 
 // --- タイトル -------------------------------------------------------------------
@@ -306,8 +308,8 @@ function drawTitle(t) {
   const fs = fitFont('あおいのどうぶつレスキュー', VW * 0.50, 38, 'bold ');
   ctx.fillText('あおいのどうぶつレスキュー', 24, 16);
   ctx.fillStyle = '#D8F0FF';
-  fitFont('ひっぱって はなす。おりを こわして どうぶつを たすけよう', VW * 0.52, 15);
-  ctx.fillText('ひっぱって はなす。おりを こわして どうぶつを たすけよう', 26, 20 + fs + 4);
+  fitFont('引っぱってはなす。おりをこわして動物を助けよう', VW * 0.52, 15);
+  ctx.fillText('引っぱってはなす。おりをこわして動物を助けよう', 26, 20 + fs + 4);
 
   for (let i = 0; i < BALLS.length; i++) {
     drawBall({ kind: BALLS[i] }, VW - 44 - (BALLS.length - 1 - i) * 52, 42 + Math.sin(t * 2 + i) * 4);
@@ -368,7 +370,7 @@ function drawTitle(t) {
   drawButton(button(VW - 150, 12, 138, 30, () => { location.href = '/allprojects/'; }),
              '≡ ゲームをえらぶ', 'rgba(255,255,255,0.9)', '#33304A');
   drawButton(button(VW - 224, VH - 40, 96, 30, () => { G.screen = 'howto'; }),
-             'あそびかた', '#E8D0F8');
+             '遊びかた', '#E8D0F8');
   drawButton(button(VW - 116, VH - 40, 96, 30, () => { sfxTest(); }),
              '♪ 音', 'rgba(255,255,255,0.85)');
 
@@ -383,7 +385,7 @@ function drawHowto() {
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#D8F0FF';
   ctx.font = 'bold 28px system-ui, sans-serif';
-  ctx.fillText('あそびかた', 24, 14);
+  ctx.fillText('遊びかた', 24, 14);
   const lines = [
     '① 左の ぬいぐるみを **ゆびで ひっぱる**（うしろに ひくほど とおくへ とぶ）',
     '② はなすと とんでいく。白い 点が とぶ 道すじの めやす',
@@ -439,7 +441,7 @@ function drawResult(t) {
              'もう一度', '#E8D0F8');
   if (nxt < STAGES.length && opened(nxt)) {
     drawButton(button(VW / 2 - bw / 2, VH - 56, bw, 38, () => startStage(nxt)),
-               'つぎの めん', '#FFD166');
+               '次の面', '#FFD166');
   }
   drawButton(button(VW / 2 + 100, VH - 56, bw, 38, () => { G.screen = 'title'; }),
              'めんを えらぶ', 'rgba(255,255,255,0.85)');
@@ -531,7 +533,7 @@ function drawRotate() {
   ctx.fillStyle = '#FFFFFF';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = 'bold ' + Math.round(W * 0.07) + 'px system-ui, sans-serif';
-  ctx.fillText('よこ向きにしてね', W / 2, H * 0.45);
+  ctx.fillText('横向きにしてね', W / 2, H * 0.45);
   ctx.font = Math.round(W * 0.045) + 'px system-ui, sans-serif';
   ctx.fillStyle = '#D8F0FF';
   ctx.fillText('よこに とばす ゲームだよ', W / 2, H * 0.56);

@@ -135,7 +135,11 @@ function kick(t, v) {
 
 function sfxStep() {
   if (!A.ctx) return;
-  nz(anow(), 0.045, 0.05, 300, 1300);
+  // ★ 波形で 見たら ほとんど 無音だったので 上げた。
+  //   1歩ごとに 鳴るので、うるさく ならない ぎりぎりまで。
+  const t = anow();
+  nz(t, 0.055, 0.16, 260, 1500);
+  tone(t, 110, 0.05, 0.05, 'sine', A.sfx, 90);
 }
 function sfxHit(big) {
   if (!A.ctx) return;

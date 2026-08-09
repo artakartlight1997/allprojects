@@ -11,7 +11,7 @@
 
 'use strict';
 
-const GAME_VER = 3;
+const GAME_VER = 4;
 const VH = 450;
 
 const MW = 19, MH = 15;

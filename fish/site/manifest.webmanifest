@@ -1,0 +1,16 @@
+{
+  "name": "ゆいのつりぼり",
+  "short_name": "つりぼり",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#123A4A",
+  "theme_color": "#123A4A",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

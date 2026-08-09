@@ -6,7 +6,7 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const VH = 450;
 
 const BW = 21, BH = 13;

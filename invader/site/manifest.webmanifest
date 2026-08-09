@@ -1,0 +1,16 @@
+{
+  "name": "リナパパのインベーダー",
+  "short_name": "インベーダー",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#080C1C",
+  "theme_color": "#080C1C",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

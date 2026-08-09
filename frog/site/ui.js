@@ -4,7 +4,7 @@
 
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
-let W = 0, H = 0, SC = 1, VW = 800, VOY = 0, DPR = 1;
+let W = 0, H = 0, SC = 1, VW = 800, VOY = 0, VOB = 0, DPR = 1;
 
 // ★ たて長の 画面（スマホを たてに 持った とき）だと よこが せまく なりすぎて、
 //   右がわの ボタンや 数字が 画面の 外に 出て しまう。
@@ -22,7 +22,11 @@ function layout() {
   canvas.height = Math.round(H * DPR);
   SC = Math.min(H / VH, W / VW_MIN);
   VW = W / SC;
-  VOY = Math.max(0, (H / SC - VH) / 2);
+  // ★ たて長の ときは、あまった たての ぶんを 上に すこし・下に たっぷり 分ける。
+  //   下の 広い ところに 大きな 十字ボタンを おく ため。
+  const extra = Math.max(0, H / SC - VH);
+  VOY = extra * 0.12;
+  VOB = extra - VOY;
   ctx.setTransform(DPR * SC, 0, 0, DPR * SC, 0, Math.round(DPR * SC * VOY));
 }
 window.addEventListener('resize', layout);
@@ -68,8 +72,9 @@ function hitBtn(px, py) {
 
 function boardBox() {
   const top = 32, bot = 56;
-  const c = Math.max(8, Math.floor(Math.min((VH - top - bot) / FH, (VW - 20) / FW)));
-  return { x: Math.round((VW - c * FW) / 2), y: top, c: c };
+  const av = VW - 20 - padReserve();
+  const c = Math.max(8, Math.floor(Math.min((VH - top - bot) / FH, av / FW)));
+  return { x: Math.round((VW - padReserve() - c * FW) / 2), y: top, c: c };
 }
 
 // --- ドット絵 ---------------------------------------------------------------------
@@ -278,18 +283,46 @@ function drawHud(B) {
   }
 }
 
+// ★ 十字ボタンは ゆびで さわる ものなので、かそう画面の たんいでは なく
+//   じっさいの 画面の 大きさ（CSS ピクセル）を 見て 大きさを きめる。
+//   まえは「よこはばの 4.5%」きめうちで、たて向きの スマホでは
+//   14px ほどしか なく、ねらっても なかなか 当たらなかった。
+//   たて長で 下に すきまが ある ときは、そこに でんと 大きく おく。
+const PAD_TOUCH = 62;   // ゆびで 押したい 大きさ（CSS ピクセル）
+let padHit = '', padHitT = 0;
+
+function padBox() {
+  const want = PAD_TOUCH / SC;   // かそう画面の たんいに なおす
+  if (VOB >= 120) {
+    const c = Math.max(want, Math.min(VW * 0.22, VOB * 0.30, 110 / SC));
+    return { c: c, x: (VW - c * 3) / 2, y: VH + Math.max(8, (VOB - c * 3) / 2), band: true };
+  }
+  const c = Math.min(Math.max(want, 30), VH * 0.24, VW * 0.13);
+  return { c: c, x: VW - c * 3 - 12, y: (VH - c * 3) / 2 + 8, band: false };
+}
+
+// 十字ボタンの ぶんの ばしょ。よこ長の ときは 右がわに あけて、
+// ばんめんと かさならない ように する（たて長は 下に おくので 0）。
+function padReserve() {
+  const P = padBox();
+  return P.band ? 0 : P.c * 3 + 22;
+}
+
 function drawPad() {
-  const c = Math.min(28, VW * 0.045);
-  const px = VW - c * 3.4, py = VH - c * 3.4;
+  const P = padBox(), c = P.c, g = Math.max(2, c * 0.07);
   const set = [[0, -1, 1, 0, '↑'], [-1, 0, 0, 1, '←'], [1, 0, 2, 1, '→'], [0, 1, 1, 2, '↓']];
   for (const [dx, dy, gx, gy, label] of set) {
-    const b = button(px + gx * c, py + gy * c, c - 2, c - 2, () => hop(dx, dy));
-    ctx.fillStyle = 'rgba(248,248,248,0.22)';
-    ctx.fillRect(b.x, b.y, b.w, b.h);
-    ctx.fillStyle = PAL.w;
+    // 押せる はんいは マスいっぱい。見た目だけ すこし 内がわに 描く
+    const b = button(P.x + gx * c, P.y + gy * c, c, c, () => hop(dx, dy));
+    b.pad = dx + ',' + dy;
+    const on = false;
+    const flash = padHit === b.pad && padHitT > 0;
+    ctx.fillStyle = flash ? PAL.w : on ? PAL.g : 'rgba(248,248,248,' + (P.band ? 0.34 : 0.24) + ')';
+    ctx.fillRect(b.x + g, b.y + g, c - g * 2, c - g * 2);
+    ctx.fillStyle = (flash || on) ? PAL.k : PAL.w;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = 'bold ' + Math.round(c * 0.5) + 'px system-ui, sans-serif';
-    ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+    ctx.font = 'bold ' + Math.round(c * 0.46) + 'px system-ui, sans-serif';
+    ctx.fillText(label, b.x + c / 2, b.y + c / 2);
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }
 }
@@ -369,33 +402,60 @@ function drawHowto() {
 
 // --- そうさ ----------------------------------------------------------------------
 
-let tsx = 0, tsy = 0, tsOn = false;
+// ゆび 1本ずつ おぼえて おく。
+// 十字ボタンの 上で ゆびを すべらせても むきが 変わる ように する。
+const touchAt = {};
 
 function tapAt(px, py) {
   audioStart();
   const b = hitBtn(px, py);
   if (b && b.on) b.on();
+  if (b && b.pad) { padHit = b.pad; padHitT = 0.14; }
+  return b;
 }
 
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
   const r = canvas.getBoundingClientRect();
-  const t = e.changedTouches[0];
-  tsx = t.clientX - r.left; tsy = t.clientY - r.top; tsOn = true;
-  tapAt(tsx, tsy);
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    const x = t.clientX - r.left, y = t.clientY - r.top;
+    const b = tapAt(x, y);
+    touchAt[t.identifier] = { x: x, y: y, pad: b ? b.pad : null };
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    const s = touchAt[t.identifier];
+    if (!s || !s.pad) continue;
+    const b = hitBtn(t.clientX - r.left, t.clientY - r.top);
+    if (b && b.pad && b.pad !== s.pad) {
+      b.on(); s.pad = b.pad; padHit = b.pad; padHitT = 0.14;
+    }
+  }
 }, { passive: false });
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
-  if (!tsOn) return;
-  tsOn = false;
   const r = canvas.getBoundingClientRect();
-  const t = e.changedTouches[0];
-  const dx = (t.clientX - r.left) - tsx, dy = (t.clientY - r.top) - tsy;
-  if (Math.abs(dx) > 24 || Math.abs(dy) > 24) {
-    if (Math.abs(dx) > Math.abs(dy)) hop(dx > 0 ? 1 : -1, 0);
-    else hop(0, dy > 0 ? 1 : -1);
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    const s = touchAt[t.identifier];
+    delete touchAt[t.identifier];
+    // 十字ボタンから 始まった ゆびは、はらい（スワイプ）として あつかわない
+    if (!s || s.pad) continue;
+    const dx = (t.clientX - r.left) - s.x, dy = (t.clientY - r.top) - s.y;
+    if (Math.abs(dx) > 24 || Math.abs(dy) > 24) {
+      if (Math.abs(dx) > Math.abs(dy)) hop(dx > 0 ? 1 : -1, 0);
+      else hop(0, dy > 0 ? 1 : -1);
+    }
   }
 }, { passive: false });
+canvas.addEventListener('touchcancel', (e) => {
+  for (let i = 0; i < e.changedTouches.length; i++) delete touchAt[e.changedTouches[i].identifier];
+});
 canvas.addEventListener('mousedown', (e) => {
   const r = canvas.getBoundingClientRect();
   tapAt(e.clientX - r.left, e.clientY - r.top);
@@ -412,6 +472,7 @@ window.addEventListener('keydown', (e) => {
 // たて長の ときだけ、下の あいた ところに あんないを 出す
 function portraitTip() {
   if (VOY < 26) return;
+  if (VOB >= 120 && G.screen === 'play') return;   // そこは 十字ボタンの ばしょ
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -432,6 +493,14 @@ function frame(ms) {
   dt = Math.min(0.05, dt);
 
   update(dt);
+  if (padHitT > 0) padHitT -= dt;
+
+  // レターボックスの すきまを 消す（十字ボタンを そこに 描く ため）
+  if (VOB > 0) {
+    ctx.fillStyle = PAL.k;
+    ctx.fillRect(0, -VOY - 2, VW, VOY + 4);
+    ctx.fillRect(0, VH - 2, VW, VOB + 4);
+  }
 
   ui.buttons = [];
   if (G.screen === 'title') drawTitle();

@@ -40,6 +40,8 @@ const G = {
   foes: [],
   items: [],
   stair: null,
+  chests: [],
+  hasKey: false,
   log: [],
   over: false, win: false,
   anim: [],            // ぱっと 出る エフェクト
@@ -76,52 +78,52 @@ function startRun(depth) {
   storeSave();
   buildFloor();
   G.screen = 'play';
-  G.log = ['ちかしつ ' + G.depth + 'かい に おりた'];
+  G.log = G.depth === 1 ? STORY.open.slice(-2) : ['地下 ' + G.depth + '階に おりた'];
+  say(MAPS[Math.min(MAPS.length - 1, G.depth - 1)].story);
   bgmStart(G.depth);
 }
 
+// ★ 地図は floors.js に 文字で 書いてある（毎回 同じ 形）。
+//   ここでは その 文字を よんで、かべ・ゆか・かいだん・とびら・敵・道具に する。
 function buildFloor() {
-  const f = makeFloor(G.depth);
-  G.m = f.m; G.rooms = f.rooms;
+  const rows = MAPS[Math.min(MAPS.length - 1, G.depth - 1)].map;
+  G.m = [];
   G.seen = []; G.lit = [];
+  G.foes = []; G.items = []; G.chests = [];
+  G.stair = null;
+  G.hasKey = false;
   for (let y = 0; y < MH; y++) {
-    G.seen.push(new Array(MW).fill(false));
-    G.lit.push(new Array(MW).fill(false));
+    const line = rows[y] || '';
+    const mrow = [], srow = [], lrow = [];
+    for (let x = 0; x < MW; x++) {
+      const c = line[x] || '#';
+      let t = FLOOR;
+      if (c === '#') t = WALL;
+      else if (c === '>') { t = STAIR; G.stair = { x, y }; }
+      else if (c === '+') t = DOOR;
+      mrow.push(t);
+      // ★ 形は はじめから ぜんぶ 見えている（ドルアーガの塔 と 同じ）。
+      //   毎回 同じ 地図なので かくす いみが なく、かくすと 迷子に なる。
+      srow.push(t !== WALL);
+      lrow.push(false);
+      if (c === '<') { G.me.x = x; G.me.y = y; }
+      else if (FOE_OF[c]) G.foes.push(mkFoe(FOE_OF[c], x, y));
+      else if (ITEM_OF[c]) G.items.push({ x, y, k: ITEM_OF[c] });
+      else if (c === 'C') G.chests.push({ x, y, open: false });
+    }
+    G.m.push(mrow); G.seen.push(srow); G.lit.push(lrow);
   }
-  // りなは 1つ目の へや、かいだんは さいごの へや
-  const a = G.rooms[0], b = G.rooms[G.rooms.length - 1];
-  G.me.x = a.cx; G.me.y = a.cy;
-  G.stair = { x: b.cx, y: b.cy };
-  G.m[b.cy][b.cx] = STAIR;
-
-  // てき
-  G.foes = [];
-  const isBoss = G.depth >= FLOORS;
-  if (isBoss) {
-    G.foes.push(mkFoe('boss', b.cx - 2, b.cy));
-    for (let i = 0; i < 4; i++) spawnFoe();
-    sfxBoss();
-  } else {
-    const n = 4 + Math.floor(G.depth * 1.1);
-    for (let i = 0; i < n; i++) spawnFoe();
-  }
-
-  // どうぐ
-  G.items = [];
-  const ni = 3 + rnd(3);
-  for (let i = 0; i < ni; i++) {
-    const p = freeSpot();
-    if (!p) break;
-    G.items.push({ x: p.x, y: p.y, k: IKEYS[rnd(IKEYS.length)] });
-  }
+  G.rooms = [];
   G.turn = 0;
   look();
+  if (G.depth >= FLOORS) sfxBoss();
 }
 
 function mkFoe(k, x, y) {
   const F = FOES[k];
-  const up = 1 + (G.depth - F.from) * 0.10;
-  const s = Math.max(1, up);
+  // ★ 深いほど 少し 強い。前は「その敵が 出はじめる 階」を 見て いたが、
+  //   地図に 直接 置くように なって その数字を やめたので、階だけで きめる。
+  const s = F.boss ? 1 : 1 + (G.depth - 1) * 0.07;
   return {
     k, x, y,
     hp: Math.round(F.hp * s), max: Math.round(F.hp * s),
@@ -130,50 +132,14 @@ function mkFoe(k, x, y) {
   };
 }
 
-function freeSpot(minDist) {
-  for (let t = 0; t < 300; t++) {
-    const r = G.rooms[rnd(G.rooms.length)];
-    const x = r.x + rnd(r.w), y = r.y + rnd(r.h);
-    if (G.m[y][x] === WALL) continue;
-    if (G.stair && x === G.stair.x && y === G.stair.y) continue;
-    if (G.me && x === G.me.x && y === G.me.y) continue;
-    if (minDist && Math.abs(x - G.me.x) + Math.abs(y - G.me.y) < minDist) continue;
-    if (G.foes.some((f) => f.x === x && f.y === y)) continue;
-    if (G.items.some((f) => f.x === x && f.y === y)) continue;
-    return { x, y };
-  }
-  return null;
-}
-
-function spawnFoe() {
-  const ok = FKEYS.filter((k) => FOES[k].from <= G.depth);
-  const k = ok.length ? ok[rnd(ok.length)] : 'slime';
-  const p = freeSpot(7);
-  if (!p) return;
-  G.foes.push(mkFoe(k, p.x, p.y));
-}
-
-// --- 見える はんい ---------------------------------------------------------------
-//
-// へやの 中に いれば その へや ぜんぶ、通路なら まわり 1マスだけ。
-
+// たいまつの あかり。★ 地図の 形は はじめから 見えていて、
+// ここで きめるのは「明るい ところ」だけ。
+const LAMP = 4.6;
 function look() {
-  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) G.lit[y][x] = false;
-  const inRoom = G.rooms.find((r) =>
-    G.me.x >= r.x && G.me.x < r.x + r.w && G.me.y >= r.y && G.me.y < r.y + r.h);
-  if (inRoom) {
-    for (let y = inRoom.y - 1; y <= inRoom.y + inRoom.h; y++) {
-      for (let x = inRoom.x - 1; x <= inRoom.x + inRoom.w; x++) {
-        if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
-        G.lit[y][x] = true; G.seen[y][x] = true;
-      }
-    }
-  }
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const x = G.me.x + dx, y = G.me.y + dy;
-      if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
-      G.lit[y][x] = true; G.seen[y][x] = true;
+  for (let y = 0; y < MH; y++) {
+    for (let x = 0; x < MW; x++) {
+      const d = Math.hypot(x - G.me.x, y - G.me.y);
+      G.lit[y][x] = d <= LAMP;
     }
   }
 }
@@ -194,6 +160,21 @@ function act(dx, dy) {
   if (dx === 0 && dy === 0) { endTurn(); return true; }   // その場で まつ
   const f = foeAt(nx, ny);
   if (f) { attack(G.me, f, true); endTurn(); return true; }
+  // ★ とびら。カギを 持って いれば あけられる。
+  if (G.m[ny] && G.m[ny][nx] === DOOR) {
+    if (G.hasKey || G.me.bag.indexOf('key') >= 0) {
+      const i = G.me.bag.indexOf('key');
+      if (i >= 0) G.me.bag.splice(i, 1);
+      G.hasKey = false;
+      G.m[ny][nx] = FLOOR;
+      say('カギで とびらを 開けた！');
+      sfxPick();
+      endTurn();
+      return true;
+    }
+    say('カギが かかって いる。カギを さがそう');
+    return false;
+  }
   if (!walkable(G.m, nx, ny)) return false;
   G.me.x = nx; G.me.y = ny;
   sfxStep();
@@ -205,9 +186,32 @@ function act(dx, dy) {
 }
 
 function pickHere() {
+  // たからばこ
+  const c = G.chests.find((q) => q.x === G.me.x && q.y === G.me.y && !q.open);
+  if (c) {
+    c.open = true;
+    const k = CHEST[Math.min(CHEST.length - 1, G.depth - 1)];
+    if (G.me.bag.length < 8) {
+      G.me.bag.push(k);
+      say('宝箱！ ' + ITEMS[k].name + ' が 出た');
+    } else {
+      G.items.push({ x: c.x, y: c.y, k });
+      say('宝箱！ でも もちものが いっぱい');
+    }
+    sfxPick();
+  }
   const i = G.items.findIndex((q) => q.x === G.me.x && q.y === G.me.y);
   if (i < 0) return;
   const it = G.items.splice(i, 1)[0];
+  // ★ カギは もちものに 入れない ので、いっぱいでも 先に ひろう。
+  //   ここを あとに すると、もちものが いっぱいの とき カギが
+  //   ひろえず、とびらが 一生 あかなく なる。
+  if (it.k === 'key') {
+    G.hasKey = true;
+    say('カギを 見つけた！ とびらへ 行こう');
+    sfxPick();
+    return;
+  }
   if (G.me.bag.length >= 8) { say('もちものが いっぱい！'); G.items.push(it); return; }
   G.me.bag.push(it.k);
   say(ITEMS[it.k].name + ' を ひろった');
@@ -236,7 +240,7 @@ function attack(a, d, byMe) {
     }
   } else {
     sfxHurt();
-    say(FOES[a.k].name + ' の こうげき ' + dm);
+    say(FOES[a.k].name + ' の 攻撃 ' + dm);
     G.anim.push({ x: d.x, y: d.y, n: dm, t: 0, me: true });
     if (d.hp <= 0) { d.hp = 0; die(); }
   }
@@ -261,10 +265,10 @@ function useItem(i) {
   const k = G.me.bag[i];
   if (!k) return;
   const me = G.me;
-  if (k === 'herb') { me.hp = Math.min(me.max, me.hp + 30); say('やくそう。30 かいふく'); sfxHeal(); }
-  else if (k === 'herb2') { me.hp = me.max; say('とくやくそう！ ぜんぶ かいふく'); sfxHeal(); }
-  else if (k === 'sword') { me.atk += 3; say('こうげきが 3 あがった！'); sfxLevel(); }
-  else if (k === 'shield') { me.def += 2; say('まもりが 2 あがった！'); sfxLevel(); }
+  if (k === 'herb') { me.hp = Math.min(me.max, me.hp + 30); say('やくそう。30 回復'); sfxHeal(); }
+  else if (k === 'herb2') { me.hp = me.max; say('とくやくそう！ ぜんぶ 回復'); sfxHeal(); }
+  else if (k === 'sword') { me.atk += 3; say('攻撃が 3 上がった！'); sfxLevel(); }
+  else if (k === 'shield') { me.def += 2; say('守りが 2 上がった！'); sfxLevel(); }
   else if (k === 'bomb') {
     let n = 0;
     for (const f of G.foes.slice()) {
@@ -278,10 +282,10 @@ function useItem(i) {
         }
       }
     }
-    say('かみなり！ ' + n + 'たいに 20');
+    say('かみなり！ ' + n + '体に 20');
     sfxHit(true);
   } else if (k === 'wing') {
-    say('つばさで つぎの かいへ！');
+    say('つばさで 次の 階へ！');
     G.me.bag.splice(i, 1);
     descend();
     return;
@@ -301,7 +305,8 @@ function endTurn() {
     }
   }
   // ときどき 1ぴき ふえる（のんびり しすぎない ように）
-  if (!G.over && G.depth < FLOORS && G.turn % 26 === 25 && G.foes.length < 12) spawnFoe();
+  // ★ とちゅうで 敵が わいてくるのは やめた。地図に 置いた 敵だけ。
+  //   「かたづけた はずの ところに また いる」と 分かりにくい。
   bgmHeat(G.me.hp / G.me.max < 0.3 ? 1 : 0);
 }
 
@@ -366,7 +371,8 @@ function descend() {
   if (G.depth % 5 === 1 || G.depth === FLOORS) save.check = Math.max(save.check, G.depth);
   storeSave();
   buildFloor();
-  say('ちかしつ ' + G.depth + 'かい に おりた');
+  say('地下 ' + G.depth + '階に おりた');
+  say(MAPS[Math.min(MAPS.length - 1, G.depth - 1)].story);
   sfxStair();
   bgmStart(G.depth);
 }
@@ -379,7 +385,7 @@ function die() {
   storeSave();
   bgmStop();
   sfxDown();
-  say('ちからつきた…');
+  say('力つきた…');
 }
 
 function winRun() {

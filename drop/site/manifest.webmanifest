@@ -1,0 +1,16 @@
+{
+  "name": "ゆいのぽとぽとパズル",
+  "short_name": "ぽとぽと",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#241C3A",
+  "theme_color": "#241C3A",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

@@ -40,6 +40,12 @@ on:
       - 'mogura/site/**'
       - 'shooter/site/**'
       - 'block/site/**'
+      - 'egg/site/**'
+      - 'fish/site/**'
+      - 'drop/site/**'
+      - 'pinball/site/**'
+      - 'dress/site/**'
+      - 'othello/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -92,12 +98,18 @@ jobs:
       #   /mogura/     りなのモグラたたき（たたく・たたかないを 見わける・全10めん）
       #   /shooter/    まさきの宇宙シューティング（よこスクロール・全10めん）
       #   /block/      あおいのブロック崩し（ばくだんと アイテム・全12めん）
+      #   /egg/        ゆいのたまごっこ（たまごから 育てる いくせい・すがた8しゅるい）
+      #   /fish/       ゆいのつりぼり（つり・さかな35しゅるいの ずかん・つりば10か所）
+      #   /drop/       ゆいのぽとぽとパズル（落ちものパズル・全10めん）
+      #   /pinball/    ゆいのキラキラピンボール（物理ピンボール・台6しゅるい）
+      #   /dress/      ゆいのきせかえサロン（きせかえ と お題コーデ・お題10こ）
+      #   /othello/    ゆいのねこオセロ（オセロ・あいて5だんかい）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block public/egg public/fish public/drop public/pinball public/dress public/othello
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -121,6 +133,12 @@ jobs:
           cp -r mogura/site/. public/mogura/
           cp -r shooter/site/. public/shooter/
           cp -r block/site/. public/block/
+          cp -r egg/site/. public/egg/
+          cp -r fish/site/. public/fish/
+          cp -r drop/site/. public/drop/
+          cp -r pinball/site/. public/pinball/
+          cp -r dress/site/. public/dress/
+          cp -r othello/site/. public/othello/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

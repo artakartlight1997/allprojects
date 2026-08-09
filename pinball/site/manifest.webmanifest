@@ -1,0 +1,16 @@
+{
+  "name": "ゆいのキラキラピンボール",
+  "short_name": "ピンボール",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1B1030",
+  "theme_color": "#1B1030",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

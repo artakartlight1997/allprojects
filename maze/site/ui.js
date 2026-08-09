@@ -184,10 +184,10 @@ function drawGhost(cx, cy, s, col, scared, blink, eaten, dx, dy) {
 
 function mazeBox() {
   const top = 34, bot = 66;
-  const av = VW - 24 - padReserve();
+  const av = VW - 24 - stickReserve();
   const s = Math.min((VH - top - bot) / MH, av / MW);
   const c = Math.max(6, Math.floor(s));
-  return { x: Math.round((VW - padReserve() - c * MW) / 2), y: top, c: c };
+  return { x: Math.round((VW - stickReserve() - c * MW) / 2), y: top, c: c };
 }
 
 function drawMaze(B) {
@@ -272,7 +272,7 @@ function drawPlay() {
   }
 
   drawHud(B);
-  drawPad();
+  drawStick();
 
   if (G.ready > 0) {
     retroText('READY！', VW / 2, VH * 0.44, 30, PAL.y, PAL.dk, 'center');
@@ -322,48 +322,107 @@ function drawHud(B) {
 }
 
 // 十字ボタン
-// ★ 十字ボタンは ゆびで さわる ものなので、かそう画面の たんいでは なく
-//   じっさいの 画面の 大きさ（CSS ピクセル）を 見て 大きさを きめる。
-//   まえは「よこはばの 4.5%」きめうちで、たて向きの スマホでは
-//   14px ほどしか なく、ねらっても なかなか 当たらなかった。
-//   たて長で 下に すきまが ある ときは、そこに でんと 大きく おく。
-const PAD_TOUCH = 74;   // ゆびで 押したい 大きさ（CSS ピクセル）
-let padHit = '', padHitT = 0;
+// ★ 十字ボタンより、ぐりぐり 動かせる スティックの ほうが あそびやすい
+//   ので 入れかえた。まるい 台の あたり（右がわの ひろい ところ）なら
+//   どこを さわっても きく。さわった 場所と まん中を くらべて
+//   上下左右を きめ、ゆびを すべらせれば その まま むきが 変わる。
+//   大きさは じっさいの 画面（CSS ピクセル）で きめるので、
+//   どんな スマホでも おなじ 大きさに 見える。
+const STICK_TOUCH = 78;        // にぎりを 動かせる はんい（CSS ピクセル・半径）
+const STICK_false = false;   // 入れっぱなしで くりかえすか
+const stick = { on: false, id: null, dx: 0, dy: 0, dir: '', rep: 0 };
+const STICK_DIRS = { l: [-1, 0], r: [1, 0], u: [0, -1], d: [0, 1] };
 
-function padBox() {
-  const want = PAD_TOUCH / SC;   // かそう画面の たんいに なおす
+function stickBox() {
+  const want = STICK_TOUCH / SC;
   if (VOB >= 120) {
-    const c = Math.max(want, Math.min(VW * 0.22, VOB * 0.30, 110 / SC));
-    return { c: c, x: (VW - c * 3) / 2, y: VH + Math.max(8, (VOB - c * 3) / 2), band: true };
+    const r = Math.max(want, Math.min(VW * 0.16, VOB * 0.22, 150 / SC));
+    return { x: VW / 2, y: VH + VOB / 2, r: r };
   }
-  const c = Math.min(Math.max(want, 30), VH * 0.28, VW * 0.14);
-  return { c: c, x: VW - c * 3 - 12, y: (VH - c * 3) / 2 + 8, band: false };
+  const r = Math.min(Math.max(want, 42), VH * 0.30, VW * 0.15);
+  return { x: VW - r - 26, y: VH * 0.55, r: r };
 }
 
-// 十字ボタンの ぶんの ばしょ。よこ長の ときは 右がわに あけて、
-// ばんめんと かさならない ように する（たて長は 下に おくので 0）。
-function padReserve() {
-  const P = padBox();
-  return P.band ? 0 : P.c * 3 + 22;
+// スティックの ぶんの ばしょ。ばんめんと 重ねない ように あけて おく。
+function stickReserve() {
+  return VOB >= 120 ? 0 : stickBox().r * 2 + 52;
 }
 
-function drawPad() {
-  const P = padBox(), c = P.c, g = Math.max(2, c * 0.07);
-  const set = [[0, -1, 1, 0, '↑'], [-1, 0, 0, 1, '←'], [1, 0, 2, 1, '→'], [0, 1, 1, 2, '↓']];
-  for (const [dx, dy, gx, gy, label] of set) {
-    // 押せる はんいは マスいっぱい。見た目だけ すこし 内がわに 描く
-    const b = button(P.x + gx * c, P.y + gy * c, c, c, () => turn(dx, dy));
-    b.pad = dx + ',' + dy;
-    const on = G.me && G.me.wx === dx && G.me.wy === dy;
-    const flash = padHit === b.pad && padHitT > 0;
-    ctx.fillStyle = flash ? PAL.w : on ? PAL.y : 'rgba(248,248,248,' + (P.band ? 0.34 : 0.24) + ')';
-    ctx.fillRect(b.x + g, b.y + g, c - g * 2, c - g * 2);
-    ctx.fillStyle = (flash || on) ? PAL.k : PAL.w;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = 'bold ' + Math.round(c * 0.46) + 'px system-ui, sans-serif';
-    ctx.fillText(label, b.x + c / 2, b.y + c / 2);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+// そこは スティックの なわばりか（この 中なら どこでも きく）
+function inStick(vx, vy) {
+  return VOB >= 120 ? vy > VH - 4 : vx > VW - stickReserve();
+}
+
+// いま すすんで いる むき（さわって いない ときの めじるし用）
+function nowDir() {
+  const x = G.me ? G.me.wx : 0, y = G.me ? G.me.wy : 0;
+  return x < 0 ? 'l' : x > 0 ? 'r' : y < 0 ? 'u' : y > 0 ? 'd' : '';
+}
+
+function stickSet(vx, vy) {
+  const S = stickBox();
+  const ax = vx - S.x, ay = vy - S.y;
+  const len = Math.hypot(ax, ay);
+  if (len < S.r * 0.26) {          // まん中の ちょっとは むきなし
+    stick.dx = ax; stick.dy = ay; stick.dir = '';
+    return;
   }
+  const k = Math.min(1, len / S.r);
+  stick.dx = ax / len * k * S.r;
+  stick.dy = ay / len * k * S.r;
+  const dir = Math.abs(ax) > Math.abs(ay) ? (ax > 0 ? 'r' : 'l') : (ay > 0 ? 'd' : 'u');
+  if (dir !== stick.dir) {
+    stick.dir = dir;
+    stick.rep = 0.34;
+    turn(STICK_DIRS[dir][0], STICK_DIRS[dir][1]);
+  }
+}
+
+function stickRelease() {
+  stick.on = false; stick.id = null; stick.dir = ''; stick.dx = 0; stick.dy = 0;
+}
+
+// 入れっぱなしの ときの くりかえし（カエルの ジャンプ用）
+function stickTick(dt) {
+  if (!STICK_false || !stick.on || !stick.dir) return;
+  stick.rep -= dt;
+  if (stick.rep <= 0) {
+    stick.rep = 0.19;
+    turn(STICK_DIRS[stick.dir][0], STICK_DIRS[stick.dir][1]);
+  }
+}
+
+function drawStick() {
+  const S = stickBox(), r = S.r;
+  const lit = stick.dir || (stick.on ? '' : nowDir());
+  ctx.save();
+  // 台
+  ctx.beginPath(); ctx.arc(S.x, S.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(248,248,248,0.10)'; ctx.fill();
+  ctx.lineWidth = Math.max(2, r * 0.055);
+  ctx.strokeStyle = 'rgba(248,248,248,0.30)'; ctx.stroke();
+  // 上下左右の めじるし（さんかく）
+  const s = r * 0.13;
+  for (const [k, ax, ay] of [['u', 0, -1], ['d', 0, 1], ['l', -1, 0], ['r', 1, 0]]) {
+    const tx = S.x + ax * r * 0.90, ty = S.y + ay * r * 0.90;
+    const bx = S.x + ax * r * 0.68, by = S.y + ay * r * 0.68;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(bx - ay * s, by + ax * s);
+    ctx.lineTo(bx + ay * s, by - ax * s);
+    ctx.closePath();
+    ctx.fillStyle = lit === k ? PAL.y : 'rgba(248,248,248,0.36)';
+    ctx.fill();
+  }
+  // にぎり
+  const kx = S.x + stick.dx, ky = S.y + stick.dy;
+  ctx.beginPath(); ctx.arc(kx, ky, r * 0.42, 0, Math.PI * 2);
+  ctx.fillStyle = stick.on ? PAL.y : 'rgba(248,248,248,0.68)'; ctx.fill();
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(kx - r * 0.12, ky - r * 0.14, r * 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
+  ctx.restore();
 }
 
 // --- タイトル --------------------------------------------------------------------
@@ -420,7 +479,8 @@ function drawHowto() {
   ctx.fillRect(0, 0, VW, VH);
   retroText('あそびかた', 24, 14, 26, PAL.y, PAL.dk);
   const lines = [
-    '① 十字ボタン（パソコンは 矢印キー）で うごく',
+    '① 右下の スティックを 上下左右に たおして うごく',
+    'ゆびは スティックから はなさず すべらせても OK。パソコンは 矢印キー',
     '② めいろの おかしを ぜんぶ 食べると クリア',
     '③ おばけに つかまると 1機 へる。3機 なくなると おしまい',
   ].concat(TIPS);
@@ -444,14 +504,13 @@ function drawHowto() {
 // --- そうさ ----------------------------------------------------------------------
 
 // ゆび 1本ずつ おぼえて おく。
-// 十字ボタンの 上で ゆびを すべらせても むきが 変わる ように する。
+// スティックを にぎった ゆびは、はなすまで ずっと おいかける。
 const touchAt = {};
 
 function tapAt(px, py) {
   audioStart();
   const b = hitBtn(px, py);
   if (b && b.on) b.on();
-  if (b && b.pad) { padHit = b.pad; padHitT = 0.14; }
   return b;
 }
 
@@ -461,8 +520,17 @@ canvas.addEventListener('touchstart', (e) => {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const t = e.changedTouches[i];
     const x = t.clientX - r.left, y = t.clientY - r.top;
-    const b = tapAt(x, y);
-    touchAt[t.identifier] = { x: x, y: y, pad: b ? b.pad : null };
+    audioStart();
+    const b = hitBtn(x, y);
+    if (b && b.on) { b.on(); touchAt[t.identifier] = { x: x, y: y, btn: true }; continue; }
+    const v = toV(x, y);
+    if (inStick(v.x, v.y)) {
+      stick.on = true; stick.id = t.identifier;
+      stickSet(v.x, v.y);
+      touchAt[t.identifier] = { x: x, y: y, stick: true };
+      continue;
+    }
+    touchAt[t.identifier] = { x: x, y: y };
   }
 }, { passive: false });
 canvas.addEventListener('touchmove', (e) => {
@@ -471,11 +539,9 @@ canvas.addEventListener('touchmove', (e) => {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const t = e.changedTouches[i];
     const s = touchAt[t.identifier];
-    if (!s || !s.pad) continue;
-    const b = hitBtn(t.clientX - r.left, t.clientY - r.top);
-    if (b && b.pad && b.pad !== s.pad) {
-      b.on(); s.pad = b.pad; padHit = b.pad; padHitT = 0.14;
-    }
+    if (!s || !s.stick || stick.id !== t.identifier) continue;
+    const v = toV(t.clientX - r.left, t.clientY - r.top);
+    stickSet(v.x, v.y);
   }
 }, { passive: false });
 canvas.addEventListener('touchend', (e) => {
@@ -485,8 +551,10 @@ canvas.addEventListener('touchend', (e) => {
     const t = e.changedTouches[i];
     const s = touchAt[t.identifier];
     delete touchAt[t.identifier];
-    // 十字ボタンから 始まった ゆびは、はらい（スワイプ）として あつかわない
-    if (!s || s.pad) continue;
+    if (!s) continue;
+    if (s.stick) { if (stick.id === t.identifier) stickRelease(); continue; }
+    if (s.btn) continue;
+    // ばんめんの ほうを はらっても むきが 変わる
     const d = toVd((t.clientX - r.left) - s.x, (t.clientY - r.top) - s.y);
     const dx = d.x, dy = d.y;
     if (Math.abs(dx) > 24 || Math.abs(dy) > 24) {
@@ -496,12 +564,29 @@ canvas.addEventListener('touchend', (e) => {
   }
 }, { passive: false });
 canvas.addEventListener('touchcancel', (e) => {
-  for (let i = 0; i < e.changedTouches.length; i++) delete touchAt[e.changedTouches[i].identifier];
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const t = e.changedTouches[i];
+    delete touchAt[t.identifier];
+    if (stick.id === t.identifier) stickRelease();
+  }
 });
+// パソコン（マウス）でも スティックを つかめる
 canvas.addEventListener('mousedown', (e) => {
   const r = canvas.getBoundingClientRect();
-  tapAt(e.clientX - r.left, e.clientY - r.top);
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  const b = hitBtn(x, y);
+  audioStart();
+  if (b && b.on) { b.on(); return; }
+  const v = toV(x, y);
+  if (inStick(v.x, v.y)) { stick.on = true; stick.id = 'm'; stickSet(v.x, v.y); }
 });
+canvas.addEventListener('mousemove', (e) => {
+  if (stick.id !== 'm') return;
+  const r = canvas.getBoundingClientRect();
+  const v = toV(e.clientX - r.left, e.clientY - r.top);
+  stickSet(v.x, v.y);
+});
+window.addEventListener('mouseup', () => { if (stick.id === 'm') stickRelease(); });
 window.addEventListener('keydown', (e) => {
   audioStart();
   if (e.code === 'ArrowLeft') { e.preventDefault(); turn(-1, 0); }
@@ -515,7 +600,7 @@ window.addEventListener('keydown', (e) => {
 function portraitTip() {
   if (ROT) return;               // まわして いる ときは 画面いっぱいなので いらない
   if (VOY < 26) return;
-  if (VOB >= 120 && G.screen === 'play') return;   // そこは 十字ボタンの ばしょ
+  if (VOB >= 120 && G.screen === 'play') return;   // そこは スティックの ばしょ
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -536,9 +621,9 @@ function frame(ms) {
   dt = Math.min(0.05, dt);
 
   update(dt);
-  if (padHitT > 0) padHitT -= dt;
+  stickTick(dt);
 
-  // レターボックスの すきまを 消す（十字ボタンを そこに 描く ため）
+  // レターボックスの すきまを 消す（スティックを そこに 描く ため）
   if (VOB > 0) {
     ctx.fillStyle = PAL.k;
     ctx.fillRect(0, -VOY - 2, VW, VOY + 4);

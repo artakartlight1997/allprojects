@@ -64,6 +64,43 @@
   bar.appendChild(sp);
   bar.appendChild(again);
 
+  // ★ よこ長の絵づくりのゲームは、たてに持ったスマホだと中みを 90度まわして
+  //   画面いっぱいに使う（html の data-game-rot="1" で しらせてくる）。
+  //   そのときこのおびだけ横のままだと 1つだけ ねている ことになるので、
+  //   おびも いっしょに まわして 画面の右はしへ うつす。
+  //   スマホを左にかたむけて持つと、おびはちゃんと「上」に来る。
+  var lastRot = null;
+
+  function barPx() {
+    return (window.matchMedia && window.matchMedia('(max-height:430px)').matches) ? BAR_S : BAR;
+  }
+
+  function applyRot() {
+    var rot = document.documentElement.getAttribute('data-game-rot') === '1';
+    if (rot === lastRot) return;
+    lastRot = rot;
+    var h = barPx();
+    if (rot) {
+      bar.style.width = '100vh';
+      bar.style.height = h + 'px';
+      bar.style.right = 'auto';
+      bar.style.paddingTop = '0';
+      bar.style.transformOrigin = '0 0';
+      bar.style.transform = 'translate(100vw, 0) rotate(90deg)';
+      document.body.style.paddingTop = '0';
+      document.body.style.paddingRight = h + 'px';
+    } else {
+      bar.style.width = '';
+      bar.style.height = '';
+      bar.style.right = '';
+      bar.style.paddingTop = '';
+      bar.style.transform = '';
+      document.body.style.paddingRight = '';
+      document.body.style.paddingTop = 'calc(' + h + 'px + env(safe-area-inset-top))';
+    }
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 0);
+  }
+
   function put() {
     if (!document.body) return;
     document.body.appendChild(bar);
@@ -87,6 +124,14 @@
     // ★ 余白を変えても resize は出ないので、自分で出してゲームに作り直させる
     setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 0);
     setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 250);
+
+    // ゲームが「まわしたよ」と しらせて きたら、おびも まわす
+    applyRot();
+    if (window.MutationObserver) {
+      new MutationObserver(applyRot).observe(document.documentElement,
+        { attributes: true, attributeFilter: ['data-game-rot'] });
+    }
+    window.addEventListener('orientationchange', function () { setTimeout(applyRot, 300); });
   }
 
   if (document.body) put();

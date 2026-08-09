@@ -226,6 +226,7 @@ STAGES.push({
     'oo.oo...', 'o.o.o.o.', 'oo..o.o.', 'o.......',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#FFD9A8', '#F2A05C');
     const gy = H * 0.74;
     floor(gy, '#8C5A38');
@@ -235,7 +236,7 @@ STAGES.push({
     const s = H * 0.34, px = W * 0.15, fist = px + s * 0.78;
     // まり（2拍 かけて とんでくる）
     for (const n of v.notes) {
-      if (n.g !== 0) continue;
+      if (n.g !== G) continue;
       const d = n.b - v.beat;
       if (d > 2.2 || d < -0.7) continue;
       const x = fist + (d / 2) * (W + H * 0.2 - fist);
@@ -287,6 +288,7 @@ STAGES.push({
     'o...o...', 'o.o.o.o.', 'o.o.o.o.', 'o.......',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#BFE8F6', '#63B4D8');
     const gy = H * 0.82;                     // ゆか
     floor(gy, '#6EC46A');
@@ -300,7 +302,7 @@ STAGES.push({
     // なわが つぎに 足もとへ 来るのは いつか
     let prev = v.beat - 2, next = v.beat + 2;
     for (const n of v.notes) {
-      if (n.g !== 1) continue;
+      if (n.g !== G) continue;
       if (n.b <= v.beat && n.b > prev) prev = n.b;
       if (n.b > v.beat && n.b < next) next = n.b;
     }
@@ -387,6 +389,7 @@ STAGES.push({
     'o..o..o.', 'o.o.o.o.', 'oo.oo.o.', 'o.......',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#CFE8A8', '#7FA84A');
     const gy = H * 0.70;
     floor(gy, '#7A5C3A');
@@ -398,7 +401,7 @@ STAGES.push({
       ctx.beginPath(); ctx.ellipse(lx[i], gy + H * 0.03, hr, hr * 0.42, 0, 0, 7); ctx.fill();
     }
     for (const n of v.notes) {
-      if (n.g !== 2) continue;
+      if (n.g !== G) continue;
       const d = n.b - v.beat;
       if (d > 1.1 || d < -0.9) continue;
       // -0.9拍で 顔を 出して、0拍で いちばん 上、そのあと ひっこむ
@@ -531,6 +534,7 @@ STAGES.push({
     'o..o..o.', '.o.o.o.o', 'oo..oo..', 'o.......',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#2A1E4A', '#5A3A8C');
     // ゆかの ライト
     const gy = H * 0.80;
@@ -545,7 +549,7 @@ STAGES.push({
     // つぎの 音の 目じるし（ちいさい 玉が よこから 近づく）
     const cx = W / 2;
     for (const n of v.notes) {
-      if (n.g !== 4) continue;
+      if (n.g !== G) continue;
       const d = n.b - v.beat;
       if (d > 2 || d < -0.35) continue;
       const x = cx + (d / 2) * W * 0.46;
@@ -597,6 +601,7 @@ STAGES.push({
     '..h...h.', '....H...', '..h...h.', '..h.....',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#DCE8F0', '#7E97AE');
     const by = H * 0.62;                       // ベルトの 上の 面
     const cx = W * 0.56;                       // ここで はなす
@@ -618,7 +623,7 @@ STAGES.push({
 
     const hr = H * 0.075;
     for (const n of v.notes) {
-      if (n.g !== 5) continue;
+      if (n.g !== G) continue;
       const len = n.b - n.hb;
       const d = n.b - v.beat;
       if (d > len + 2.5 || d < -0.9) continue;
@@ -697,6 +702,7 @@ STAGES.push({
     'c.o.c.o.', 'cocococo', 'cocococo', 'c...o...',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#CFF0E0', '#3E9A7A');
     const gy = H * 0.92;                       // ゆか
     const ty = H * 0.60;                       // だいの 上の 面
@@ -720,7 +726,7 @@ STAGES.push({
     // 玉。1つ前の 音符から つぎの 音符へ とぶ
     let prev = null, next = null;
     for (const n of v.notes) {
-      if (n.g !== 6) continue;
+      if (n.g !== G) continue;
       if (n.b <= v.beat && (!prev || n.b > prev.b)) prev = n;
       if (n.b > v.beat && (!next || n.b < next.b)) next = n;
     }
@@ -787,6 +793,7 @@ STAGES.push({
     'o.o.o.o.', '..o.o.s.', 'o.o.o.oo', '......s.',
   ],
   draw(v) {
+    const G = this.gi;
     bg('#3A1E4E', '#B0407A');
     const gy = H * 0.86;
     // ステージの あかり
@@ -819,7 +826,7 @@ STAGES.push({
 
     // つぎに 来るのは 手びょうし？ かけ声？
     for (const n of v.notes) {
-      if (n.g !== 7 || n.res) continue;
+      if (n.g !== G || n.res) continue;
       const d = n.b - v.beat;
       if (d < 0 || d > 2) continue;
       const a = Math.max(0, 1 - d / 2);

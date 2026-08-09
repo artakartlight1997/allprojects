@@ -236,7 +236,10 @@ function pointerDown(id, px, py) {
   if (b && b.on) { b.on(); return; }
   const v = toV(px, py);
   IN.x = v.x; IN.y = v.y;
-  IN.taps.push({ x: v.x, y: v.y });
+  // ★ さわった しゅんかんの おとの とけい も いっしょに のこす。
+  //   リズムゲームは 1コマ（16ミリびょう）の ずれでも 気に なる ので、
+  //   まいコマ まとめて 見るのでは なく、さわった その ときの じかんで しらべる。
+  IN.taps.push({ x: v.x, y: v.y, at: anow() });
   if (inFireZone(v)) {
     if (firePtr === null) { firePtr = id; IN.fire = true; IN.fireTap = true; }
     return;

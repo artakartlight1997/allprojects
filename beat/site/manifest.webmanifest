@@ -1,0 +1,16 @@
+{
+  "name": "ゆいの超高速リズム",
+  "short_name": "超高速リズム",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0C0618",
+  "theme_color": "#0C0618",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

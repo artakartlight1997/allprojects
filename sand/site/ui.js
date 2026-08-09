@@ -7,18 +7,26 @@
 
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
-let W = 0, H = 0, SC = 1, VW = 800;
+let W = 0, H = 0, SC = 1, VW = 800, VOY = 0, DPR = 1;
+
+// ★ たて長の 画面（スマホを たてに 持った とき）だと よこが せまく なりすぎて、
+//   右がわの ボタンや 数字が 画面の 外に 出て しまう。
+//   そこで「よこ VW_MIN 以上は かならず 入る」ように 縮尺を きめ、
+//   あまった たての ぶんは 上下に 分けて まん中に よせる（レターボックス）。
+//   よこ長の ときは これまでと まったく 同じ 見た目に なる。
+const VW_MIN = 720;
 
 const ui = { buttons: [] };
 
 function layout() {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(2, window.devicePixelRatio || 1);
   W = canvas.clientWidth; H = canvas.clientHeight;
-  canvas.width = Math.round(W * dpr);
-  canvas.height = Math.round(H * dpr);
-  SC = H / VH;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  SC = Math.min(H / VH, W / VW_MIN);
   VW = W / SC;
-  ctx.setTransform(dpr * SC, 0, 0, dpr * SC, 0, 0);
+  VOY = Math.max(0, (H / SC - VH) / 2);
+  ctx.setTransform(DPR * SC, 0, 0, DPR * SC, 0, Math.round(DPR * SC * VOY));
 }
 window.addEventListener('resize', layout);
 window.addEventListener('orientationchange', () => setTimeout(layout, 200));
@@ -66,7 +74,7 @@ function drawButton(b, label, col, textCol, sub) {
 }
 
 function hitBtn(px, py) {
-  const x = px / SC, y = py / SC;
+  const x = px / SC, y = py / SC - VOY;
   for (let i = ui.buttons.length - 1; i >= 0; i--) {
     const b = ui.buttons[i];
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
@@ -1000,6 +1008,7 @@ function drawRotate() {
 
 let tsec = 0, last = 0;
 function frame(now) {
+  portraitTip();
   requestAnimationFrame(frame);
   const dt = Math.min(0.045, (now - last) / 1000 || 0);
   last = now;
@@ -1021,3 +1030,16 @@ function frame(now) {
 
 layout();
 requestAnimationFrame(frame);
+// たて長の ときだけ、下の あいた ところに あんないを 出す
+function portraitTip() {
+  if (VOY < 26) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 13px system-ui, sans-serif';
+  ctx.fillText('よこ向きに すると 大きく なるよ', VW / 2, VH + Math.min(VOY * 0.55, 26));
+  ctx.restore();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+}
+
+

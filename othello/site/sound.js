@@ -242,3 +242,22 @@ function bgmBar(t0, bar, spb) {
     tone(t0 + i * (spb * 4 / 6), r + mel[i], spb * 0.5, 0.055, 'triangle', A.mus);
   }
 }
+
+// --- この ゲームだけの おと ------------------------------------------------------
+
+// たくさん ひっくり返すほど 音が はなやかに なる
+function sfxPut(n) {
+  if (!A.ctx) return;
+  const t = anow();
+  tone(t, 60, 0.09, 0.12, 'triangle', A.sfx, 67);
+  const k = Math.min(6, n || 1);
+  for (let i = 0; i < k; i++) {
+    tone(t + 0.09 + i * 0.055, 72 + i * 2, 0.12, 0.09, 'sine', A.sfx, 76 + i * 2);
+  }
+}
+function sfxPass() {
+  if (!A.ctx) return;
+  const t = anow();
+  tone(t, 64, 0.20, 0.11, 'triangle', A.sfx, 57);
+  nz(t, 0.10, 0.06, 300, 1600);
+}

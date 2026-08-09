@@ -256,7 +256,7 @@ function chord(t, ms, dur, v) {
     o.frequency.value = mid2f(m);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(lv, t + 0.05);
-    g.gain.setValueAtTime(lv, t + dur * 0.82);
+    g.gain.setValueAtTime(lv, t + dur * 0.95);   // ほとんど 最後まで のばす（すきま よぼう）
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(A.music);
     o.start(t); o.stop(t + dur + 0.05);
@@ -300,6 +300,27 @@ function swish(t, v) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
   src.connect(f); f.connect(g); g.connect(A.music);
   src.start(t); src.stop(t + 0.24);
+}
+
+// 高さが すべる 音。「ぽよん」「ビーム」など、みじかい 音の もと。
+function glide(t, f0, f1, dur, v, type, bp, q) {
+  if (!A.ctx) return;
+  t = safeT(t);
+  const o = A.ctx.createOscillator(), g = A.ctx.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(v, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  let tail = o;
+  if (bp) {
+    const f = A.ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = bp; f.Q.value = q || 2;
+    o.connect(f); tail = f;
+  }
+  tail.connect(g); g.connect(A.sfx);
+  o.start(t); o.stop(t + dur + 0.03);
 }
 
 // --- たたいた ときの 音 ---------------------------------------------------------
@@ -348,6 +369,38 @@ function sfxHit(kind, good) {
   } else if (kind === 'taiko') {
     tom(t, 165, 0.7, A.sfx);
     nzHit(t, 0.05, 0.3, 500, 3000, A.sfx);
+  } else if (kind === 'splash') {
+    // 水に とびこむ「ぽちゃん」
+    nzHit(t, 0.14, 0.34, 300, 2600, A.sfx);
+    glide(t, 300, 780, 0.14, 0.26, 'sine');
+  } else if (kind === 'boing') {
+    // ぽよん と とぶ
+    glide(t, 260, 820, 0.09, 0.34, 'sine');
+    glide(t + 0.09, 820, 430, 0.12, 0.20, 'sine');
+  } else if (kind === 'bubble') {
+    glide(t, 700, 1500, 0.10, 0.24, 'sine');
+    nzHit(t, 0.03, 0.20, 2000, 7000, A.sfx);
+  } else if (kind === 'bell') {
+    // チン！（トースター・はとどけい・おさら）
+    pluck(t, 96, 0.45, 0.26, A.sfx);
+    pluck(t + 0.015, 103, 0.40, 0.14, A.sfx);
+  } else if (kind === 'magic') {
+    for (let i = 0; i < 3; i++) pluck(t + i * 0.035, 84 + i * 7, 0.3, 0.18, A.sfx);
+  } else if (kind === 'boom') {
+    kick(t, 1.0, A.sfx);
+    nzHit(t, 0.30, 0.34, 120, 1600, A.sfx);
+  } else if (kind === 'beam') {
+    glide(t, 1400, 420, 0.18, 0.22, 'sawtooth', 1500, 4);
+    nzHit(t, 0.05, 0.24, 1500, 6000, A.sfx);
+  } else if (kind === 'wood') {
+    tom(t, 320, 0.5, A.sfx);
+    nzHit(t, 0.035, 0.34, 1200, 5000, A.sfx);
+  } else if (kind === 'piano') {
+    pluck(t, 72, 0.42, 0.24, A.sfx);
+    pluck(t, 79, 0.42, 0.16, A.sfx);
+  } else if (kind === 'vacuum') {
+    glide(t, 900, 180, 0.22, 0.20, 'sawtooth', 900, 2);
+    nzHit(t, 0.18, 0.20, 200, 1400, A.sfx);
   } else {
     nzHit(t, 0.06, 0.4, 700, 3500, A.sfx);
     pluck(t, 79, 0.1, 0.24, A.sfx);
@@ -397,6 +450,10 @@ const DRUM = {
   funk:  { k: 'x.....x...x.....', s: '....x.......x...', h: 'h.hhh.hhh.hhh.hh' },
   taiko: { k: 'x...x...x...x...', s: '................', h: '................' },
   disco: { k: 'x...x...x...x...', s: '....x.......x...', h: '..h...h...h...h.' },
+  rock:  { k: 'x.....x.x.......', s: '....x.......x...', h: 'h.h.h.h.h.h.h.h.' },
+  latin: { k: 'x..x..x...x.x...', s: '....s.s.....s.s.', h: 'h.hhh.hhh.hhh.hh' },
+  soft:  { k: 'x.......x.......', s: '............s...', h: '..h...h...h...h.' },
+  drive: { k: 'x..x..x.x..x..x.', s: '....x.......x...', h: 'hhhhhhhhhhhhhhhh' },
 };
 
 const S = {
@@ -456,13 +513,15 @@ function schedBar(bar) {
   bass(t0, r - 24, spb * 0.9, 0.3);
   bass(t0 + spb * 2, r - 24, spb * 0.45, 0.26);
   bass(t0 + spb * 3, r - 24 + 7, spb * 0.45, 0.22);
-  chord(t0, [r - 12, r - 12 + third, r - 12 + 7], spb * 3.7, 0.14);
+  // わおん は 小節の おわりで 切らずに つぎの 小節に すこし かぶせる。
+  // 3.7拍で 切ると 小節の つなぎめに 0.1秒 ほど 音が とぎれる。
+  chord(t0, [r - 12, r - 12 + third, r - 12 + 7], spb * 4.15, 0.14);
 
   // うしろで ずっと 鳴っている きらきら（アルペジオ）。
   // これが 無いと ドラムと ベースだけで、たたかない あいだが さびしい。
   const arp = [0, third, 7, 12, 7, third, 12, 7];
   for (let i = 0; i < 8; i++) {
-    pluck(t0 + i * (spb / 2), r - 12 + arp[i], spb * 0.46, 0.10, A.music);
+    pluck(t0 + i * (spb / 2), r - 12 + arp[i], spb * 0.60, 0.10, A.music);
   }
 }
 

@@ -123,7 +123,7 @@ function drawPlay() {
   ctx.textAlign = 'left';
 
   drawButton(button(H * 0.03, H - H * 0.10, H * 0.26, H * 0.075, () => {
-    stopStage(); RG.screen = 'select';
+    stopStage(); openSelect(RG.st.gi);
   }), 'やめる', 'rgba(255,255,255,0.8)');
 
   if (RG.assist > 0) {
@@ -161,8 +161,9 @@ function drawTitle(t) {
   fitFont('りなりなリズム', W * 0.55, H * 0.15, 'bold ');
   ctx.fillText('りなりなリズム', H * 0.06, H * 0.07);
   ctx.fillStyle = '#FFE0EE';
-  fitFont('ビートに 合わせて タップ！ ミニゲーム ' + STAGES.length + 'つ', W * 0.5, H * 0.048);
-  ctx.fillText('ビートに 合わせて タップ！ ミニゲーム ' + STAGES.length + 'つ', H * 0.07, H * 0.245);
+  const sub = 'ビートに 合わせて タップ！ ミニゲーム ' + STAGES.length + 'こ・ワールド ' + WORLDS.length + 'つ';
+  fitFont(sub, W * 0.5, H * 0.048);
+  ctx.fillText(sub, H * 0.07, H * 0.245);
   ctx.fillStyle = '#FFF3C4';
   const done = clearedCount();
   fitFont('クリアした ミニゲーム ' + done + ' / ' + STAGES.length, W * 0.5, H * 0.042);
@@ -171,11 +172,11 @@ function drawTitle(t) {
   const bw = Math.min(W * 0.4, H * 0.9), bh = H * 0.13;
   const x = H * 0.06;
   let y = H * 0.4;
-  const nx = Math.min(STAGES.length - 1, done);
+  const nx = nextStageIndex();
   drawButton(button(x, y, bw, bh, () => { enterFullscreen(); showRule(nx); }),
              done > 0 ? STAGES[nx].name + ' から' : 'はじめる', '#FFD166');
   y += bh * 1.14;
-  drawButton(button(x, y, bw * 0.48, bh * 0.82, () => { RG.screen = 'select'; }),
+  drawButton(button(x, y, bw * 0.48, bh * 0.82, () => { openSelect(); }),
              'ミニゲーム', '#BFE4F0');
   drawButton(button(x + bw * 0.52, y, bw * 0.48, bh * 0.82, () => { RG.screen = 'howto'; }),
              'あそびかた', '#D8D4F0');
@@ -211,6 +212,7 @@ function drawHowto() {
     '④ 「まねっこ たいこ」は パパの リズムを 1小節 おぼえて まねる',
     '⑤ 「ねじまき ロボ」は おしっぱなし。音が 上がりきったら はなす',
     '⑥ 「リミックス」は ミニゲームが つぎつぎ 出てくる',
+    '⑦ ぜんぶで ' + STAGES.length + '面。10面ずつ 5つの ワールドに 分かれている',
     'せいせき ハイレベル！ ＞ クリア！ ＞ もういちど。1つ クリアすると つぎが あく',
     '★ 音が ずれて 感じるときは タイトルの「ずれ合わせ」',
     'パソコン: スペースキー か やじるしキー でも たたける',
@@ -272,7 +274,7 @@ function drawRule(t) {
   drawButton(button(W / 2 - bw2 / 2, H * 0.70, bw2, bh2,
                     () => { startStage(RG.pending); }), 'はじめる！', '#FFD166');
   drawButton(button(H * 0.04, H * 0.04, H * 0.32, H * 0.09,
-                    () => { RG.screen = 'select'; }), 'もどる', '#D8D4F0');
+                    () => { openSelect(RG.pending); }), 'もどる', '#D8D4F0');
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   fitFont('画面を さわっても はじまるよ', W * 0.5, H * 0.04);
@@ -281,48 +283,111 @@ function drawRule(t) {
 }
 
 // --- ミニゲームえらび -----------------------------------------------------------
+//
+// 50面 を 1画面に ならべると 字が つぶれるので、10面ずつ ワールドで ページに 分ける。
+
+// 長い 名前は 2行に する（1行だと 字が ちいさくなりすぎる）
+function cardName(name, cx, cy, maxW, maxH) {
+  const one = fitFont(name, maxW, maxH, 'bold ');
+  const sp = name.lastIndexOf(' ', Math.ceil(name.length / 2) + 1);
+  if (one >= maxH * 0.72 || name.length <= 6) {
+    ctx.fillText(name, cx, cy);
+    return;
+  }
+  const cut = sp > 1 ? sp : Math.ceil(name.length / 2);
+  const a = name.slice(0, cut).trim(), b = name.slice(cut).trim();
+  const fs = Math.min(fitFont(a, maxW, maxH * 0.66, 'bold '),
+                      fitFont(b, maxW, maxH * 0.66, 'bold '));
+  ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
+  ctx.fillText(a, cx, cy - fs * 0.56);
+  ctx.fillText(b, cx, cy + fs * 0.56);
+}
+
+// えらぶ 画面へ。見せる ページは「つぎに やる 面」の ワールド。
+function openSelect(i) {
+  RG.world = worldOf(i === undefined ? nextStageIndex() : i);
+  RG.screen = 'select';
+}
 
 function drawSelect() {
   ctx.fillStyle = '#241E3E'; ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold ' + Math.round(H * 0.06) + 'px system-ui, sans-serif';
-  ctx.fillText('ミニゲームを えらぶ', H * 0.04, H * 0.04);
+  const w = Math.max(0, Math.min(WORLDS.length - 1, RG.world || 0));
+  const wd = WORLDS[w];
 
-  const cols = 4, rows = Math.ceil(STAGES.length / 4);
-  const gapx = H * 0.028, gapy = H * 0.032;
+  // ワールドの おび
+  ctx.fillStyle = wd.col + '33';
+  rr(ctx, H * 0.04, H * 0.035, W - H * 0.08, H * 0.10, 12); ctx.fill();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  fitFont(wd.name, W * 0.36, H * 0.055, 'bold ');
+  ctx.fillText(wd.name, W * 0.44, H * 0.085);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  const doneW = countCleared(wd.from, wd.to);
+  const cnt = 'クリア ' + doneW + '/10   ぜんぶで ' + clearedCount() + '/' + STAGES.length;
+  fitFont(cnt, W * 0.24, H * 0.034);
+  ctx.fillText(cnt, W * 0.79, H * 0.085);
+
+  // ← → で ワールドを かえる
+  if (w > 0) {
+    drawButton(button(H * 0.05, H * 0.045, H * 0.09, H * 0.08,
+                      () => { RG.world = w - 1; }), '←', '#D8D4F0');
+  }
+  if (w < WORLDS.length - 1) {
+    drawButton(button(W - H * 0.14, H * 0.045, H * 0.09, H * 0.08,
+                      () => { RG.world = w + 1; }), '→', '#D8D4F0');
+  }
+
+  const cols = 5, rows = 2;
+  const gapx = H * 0.024, gapy = H * 0.030;
   const cw = (W - H * 0.08 - gapx * (cols - 1)) / cols;
-  const chh = Math.min(H * 0.26, (H * 0.72 - gapy * (rows - 1)) / rows);
-  const gx = H * 0.04, gy = H * 0.16;
-  for (let i = 0; i < STAGES.length; i++) {
-    const st = STAGES[i];
-    const x = gx + (i % cols) * (cw + gapx), y = gy + ((i / cols) | 0) * (chh + gapy);
-    const open = stageOpen(i);
+  const chh = Math.min(H * 0.30, (H * 0.60 - gapy * (rows - 1)) / rows);
+  const gx = H * 0.04, gy = H * 0.175;
+  for (let k = wd.from; k <= wd.to; k++) {
+    const j = k - wd.from;
+    const st = STAGES[k];
+    const x = gx + (j % cols) * (cw + gapx), y = gy + ((j / cols) | 0) * (chh + gapy);
+    const open = stageOpen(k);
     const rk = save.rank[st.key];
     ctx.fillStyle = open ? st.col : 'rgba(255,255,255,0.08)';
     rr(ctx, x, y, cw, chh, 14); ctx.fill();
-    ctx.fillStyle = open ? 'rgba(0,0,0,0.72)' : 'rgba(255,255,255,0.3)';
+    // ばんごう
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = open ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.25)';
+    fitFont(String(k + 1), cw * 0.3, chh * 0.19, 'bold ');
+    ctx.fillText(String(k + 1), x + cw * 0.07, y + chh * 0.07);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    fitFont(open ? st.name : '？？？', cw * 0.9, chh * 0.24, 'bold ');
-    ctx.fillText(open ? st.name : '？？？', x + cw / 2, y + chh * 0.3);
+    ctx.fillStyle = open ? 'rgba(0,0,0,0.78)' : 'rgba(255,255,255,0.32)';
+    if (open) cardName(st.name, x + cw / 2, y + chh * 0.46, cw * 0.86, chh * 0.26);
+    else {
+      fitFont('？？？', cw * 0.7, chh * 0.26, 'bold ');
+      ctx.fillText('？？？', x + cw / 2, y + chh * 0.46);
+    }
     if (open) {
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      fitFont(st.desc, cw * 0.94, chh * 0.145);
-      ctx.fillText(st.desc, x + cw / 2, y + chh * 0.56);
       if (rk !== undefined) {
         ctx.fillStyle = rk === 2 ? '#7A4A00' : 'rgba(0,0,0,0.6)';
-        fitFont(RANK_NAME[rk], cw * 0.8, chh * 0.17, 'bold ');
-        ctx.fillText(RANK_NAME[rk], x + cw / 2, y + chh * 0.78);
+        fitFont(RANK_NAME[rk], cw * 0.86, chh * 0.17, 'bold ');
+        ctx.fillText(RANK_NAME[rk], x + cw / 2, y + chh * 0.80);
       }
-      button(x, y, cw, chh, ((k) => () => { enterFullscreen(); showRule(k); })(i));
+      button(x, y, cw, chh, ((n) => () => { enterFullscreen(); showRule(n); })(k));
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      fitFont('前を クリアすると あくよ', cw * 0.9, chh * 0.15);
-      ctx.fillText('前を クリアすると あくよ', x + cw / 2, y + chh * 0.58);
+      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      fitFont('前を クリアすると あく', cw * 0.9, chh * 0.14);
+      ctx.fillText('前を クリアすると あく', x + cw / 2, y + chh * 0.80);
     }
   }
+
+  // ワールドの まる（いま どこか）
+  const dy = gy + rows * chh + (rows - 1) * gapy + H * 0.045;
+  for (let i = 0; i < WORLDS.length; i++) {
+    const cx = W / 2 + (i - (WORLDS.length - 1) / 2) * H * 0.055;
+    ctx.fillStyle = i === w ? WORLDS[i].col : 'rgba(255,255,255,0.22)';
+    ctx.beginPath(); ctx.arc(cx, dy, H * (i === w ? 0.014 : 0.010), 0, 7); ctx.fill();
+    button(cx - H * 0.026, dy - H * 0.026, H * 0.052, H * 0.052,
+           ((n) => () => { RG.world = n; })(i));
+  }
+
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  drawButton(button(W - H * 0.42, H * 0.04, H * 0.36, H * 0.09,
+  drawButton(button(W - H * 0.40, H - H * 0.115, H * 0.34, H * 0.085,
                     () => { RG.screen = 'title'; }), 'もどる', '#D8D4F0');
 }
 
@@ -376,7 +441,7 @@ function drawResult() {
   drawButton(button(W / 2 - bw * 1.55, H * 0.83, bw, bh,
                     () => { startStage(RG.st.gi); }), 'もう一度', '#FFD166');
   drawButton(button(W / 2 - bw * 0.5, H * 0.83, bw, bh,
-                    () => { RG.screen = 'select'; }), 'えらぶ', '#D8D4F0');
+                    () => { openSelect(RG.st.gi); }), 'えらぶ', '#D8D4F0');
   if (canNext) {
     drawButton(button(W / 2 + bw * 0.55, H * 0.83, bw, bh,
                       () => { showRule(nx); }), 'つぎへ →', '#7FE0A0');
@@ -479,7 +544,7 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 // ほかの アプリに 行くと 画面の コマ送りが 止まるが、曲は 鳴りつづける。
 // もどってきたら もう ぐちゃぐちゃ なので、いったん やめる。
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && RG.screen === 'play') { stopStage(); RG.screen = 'select'; }
+  if (document.hidden && RG.screen === 'play') { stopStage(); openSelect(RG.st ? RG.st.gi : 0); }
 });
 
 window.addEventListener('keydown', (e) => {

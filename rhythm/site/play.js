@@ -37,6 +37,24 @@ function clearedCount() {
   for (const st of STAGES) if ((save.rank[st.key] || -1) >= 1) n++;
   return n;
 }
+// 何面 クリアしたか（from〜to の あいだ だけ）
+function countCleared(from, to) {
+  let n = 0;
+  for (let i = from; i <= to && i < STAGES.length; i++) {
+    if ((save.rank[STAGES[i].key] || -1) >= 1) n++;
+  }
+  return n;
+}
+
+// つぎに あそぶ 面。まだ クリアしていない いちばん 前の 面。
+function nextStageIndex() {
+  for (let i = 0; i < STAGES.length; i++) {
+    if (stageOpen(i) && (save.rank[STAGES[i].key] || -1) < 1) return i;
+  }
+  for (let i = STAGES.length - 1; i >= 0; i--) if (stageOpen(i)) return i;
+  return 0;
+}
+
 function stageOpen(i) {
   if (i === 0) return true;
   const k = STAGES[i - 1].key;
@@ -80,6 +98,7 @@ const RG = {
   rank: 0,
   cal: null,          // ずれ合わせ の とちゅうの データ
   pending: 0,         // 「あそびかた」を 出している ミニゲーム
+  world: 0,           // ミニゲームえらび で 見ている ワールド
   errs: [],           // さいきん の ずれ（＋は おそい）。じどうで 合わせる ため
   autoFixed: 0,
   assist: 0,
@@ -294,7 +313,12 @@ function rTap() {
     return;
   }
   if (best && sec < 0.7) {
-    // 音符が ない ところで たたいた
+    // 音符が ない ところで たたいた。
+    // ここも ずれの 手がかりに する。音が 300ms 以上 おくれる 端末
+    // （Bluetooth の イヤホン）だと、いつも ここに 来て しまうため。
+    // でたらめに たたく 子は ずれの むきが そろわないので、
+    // 中央値の しくみ（むきが 4分の3 そろわないと 動かない）で はじかれる。
+    autoFixLatency((b - best.b) * 60 / S.bpm);
     RG.extra++;
     RG.combo = 0;
     RG.missB = beatNow();

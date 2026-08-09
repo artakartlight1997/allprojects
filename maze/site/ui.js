@@ -7,7 +7,7 @@
 
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
-let W = 0, H = 0, SC = 1, VW = 800, VOY = 0, VOB = 0, DPR = 1;
+let W = 0, H = 0, SC = 1, VW = 800, VOY = 0, VOB = 0, DPR = 1, ROT = false;
 
 // ★ たて長の 画面（スマホを たてに 持った とき）だと よこが せまく なりすぎて、
 //   右がわの ボタンや 数字が 画面の 外に 出て しまう。
@@ -23,14 +23,43 @@ function layout() {
   W = canvas.clientWidth; H = canvas.clientHeight;
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
-  SC = Math.min(H / VH, W / VW_MIN);
-  VW = W / SC;
-  // ★ たて長の ときは、あまった たての ぶんを 上に すこし・下に たっぷり 分ける。
-  //   下の 広い ところに 大きな 十字ボタンを おく ため。
-  const extra = Math.max(0, H / SC - VH);
-  VOY = extra * 0.12;
+
+  // ★ この ゲームは よこ長の 絵づくり。たてに 持った スマホに そのまま
+  //   入れると、まん中の ほそい ところにしか 出ず、絵も ボタンも 小さい。
+  //   そこで たて長の ときは 中みを 90度 まわして 画面いっぱいに 使う。
+  //   （スマホの 画面回転ロックが 入って いても 大きく あそべる）
+  //   よこ長の ときは まわさず、これまでどおり。
+  const sN = Math.min(H / VH, W / VW_MIN);      // まわさない ときの 縮尺
+  const sR = Math.min(W / VH, H / VW_MIN);      // まわした ときの 縮尺
+  ROT = sR > sN * 1.15;
+  SC = ROT ? sR : sN;
+
+  const long = ROT ? H : W;                     // ゲームの よこに あたる 画面の へん
+  const short = ROT ? W : H;                    // ゲームの たてに あたる 画面の へん
+  VW = long / SC;
+  const extra = Math.max(0, short / SC - VH);
+  VOY = extra / 2;
   VOB = extra - VOY;
-  ctx.setTransform(DPR * SC, 0, 0, DPR * SC, 0, Math.round(DPR * SC * VOY));
+
+  if (ROT) {
+    // かそう(vx, vy) -> 画面(x, y):  x = W - (vy + VOY) * SC,  y = vx * SC
+    ctx.setTransform(0, DPR * SC, -DPR * SC, 0, Math.round(DPR * (W - VOY * SC)), 0);
+  } else {
+    ctx.setTransform(DPR * SC, 0, 0, DPR * SC, 0, Math.round(DPR * SC * VOY));
+  }
+  // 上の おび（ゲームをえらぶ）にも まわして いる ことを しらせる
+  document.documentElement.setAttribute('data-game-rot', ROT ? '1' : '0');
+}
+
+// 画面の ざひょう -> かそう画面の ざひょう（まわして いる ときも 正しく）
+function toV(px, py) {
+  if (ROT) return { x: py / SC, y: (W - px) / SC - VOY };
+  return { x: px / SC, y: py / SC - VOY };
+}
+
+// ゆびを うごかした むき（画面）を、ゲームの むきに なおす
+function toVd(dx, dy) {
+  return ROT ? { x: dy, y: -dx } : { x: dx, y: dy };
 }
 window.addEventListener('resize', layout);
 window.addEventListener('orientationchange', () => setTimeout(layout, 200));
@@ -66,7 +95,7 @@ function drawButton(b, label, col, textCol) {
 }
 
 function hitBtn(px, py) {
-  const x = px / SC, y = py / SC - VOY;
+  const p = toV(px, py), x = p.x, y = p.y;
   for (let i = ui.buttons.length - 1; i >= 0; i--) {
     const b = ui.buttons[i];
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
@@ -298,7 +327,7 @@ function drawHud(B) {
 //   まえは「よこはばの 4.5%」きめうちで、たて向きの スマホでは
 //   14px ほどしか なく、ねらっても なかなか 当たらなかった。
 //   たて長で 下に すきまが ある ときは、そこに でんと 大きく おく。
-const PAD_TOUCH = 62;   // ゆびで 押したい 大きさ（CSS ピクセル）
+const PAD_TOUCH = 74;   // ゆびで 押したい 大きさ（CSS ピクセル）
 let padHit = '', padHitT = 0;
 
 function padBox() {
@@ -307,7 +336,7 @@ function padBox() {
     const c = Math.max(want, Math.min(VW * 0.22, VOB * 0.30, 110 / SC));
     return { c: c, x: (VW - c * 3) / 2, y: VH + Math.max(8, (VOB - c * 3) / 2), band: true };
   }
-  const c = Math.min(Math.max(want, 30), VH * 0.24, VW * 0.13);
+  const c = Math.min(Math.max(want, 30), VH * 0.28, VW * 0.14);
   return { c: c, x: VW - c * 3 - 12, y: (VH - c * 3) / 2 + 8, band: false };
 }
 
@@ -458,7 +487,8 @@ canvas.addEventListener('touchend', (e) => {
     delete touchAt[t.identifier];
     // 十字ボタンから 始まった ゆびは、はらい（スワイプ）として あつかわない
     if (!s || s.pad) continue;
-    const dx = (t.clientX - r.left) - s.x, dy = (t.clientY - r.top) - s.y;
+    const d = toVd((t.clientX - r.left) - s.x, (t.clientY - r.top) - s.y);
+    const dx = d.x, dy = d.y;
     if (Math.abs(dx) > 24 || Math.abs(dy) > 24) {
       if (Math.abs(dx) > Math.abs(dy)) turn(dx > 0 ? 1 : -1, 0);
       else turn(0, dy > 0 ? 1 : -1);
@@ -483,6 +513,7 @@ window.addEventListener('keydown', (e) => {
 
 // たて長の ときだけ、下の あいた ところに あんないを 出す
 function portraitTip() {
+  if (ROT) return;               // まわして いる ときは 画面いっぱいなので いらない
   if (VOY < 26) return;
   if (VOB >= 120 && G.screen === 'play') return;   // そこは 十字ボタンの ばしょ
   ctx.save();

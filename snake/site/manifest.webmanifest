@@ -1,0 +1,16 @@
+{
+  "name": "あおいのにょろにょろ",
+  "short_name": "にょろにょろ",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#08140B",
+  "theme_color": "#08140B",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

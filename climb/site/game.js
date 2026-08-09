@@ -78,6 +78,23 @@ function floorAt(x, y) {
   }
   return best;
 }
+
+// ★ 1コマの あいだに 「またいで しまった」ゆかを さがす。
+//   まえは「いまの ばしょの すぐ 下」だけを 見て いた ので、
+//   1コマの 落ちる きょりが 0.5 より 大きい と ゆかを すりぬけて
+//   そのまま 下まで 落ちて いた（画面が 60コマ/びょう より おそい
+//   スマホや、ひらいた ちょくごの 1コマ目で かならず 起きる）。
+//   はじめから 落ちる、の げんいん は これ。
+function landOn(x, y0, y1) {
+  let best = null;
+  for (const f of FLOORS) {
+    if (x < f.x0 - 6 || x > f.x1 + 6) continue;
+    if (y0 + 0.6 < f.y) continue;      // もとから 下に いた
+    if (y1 > f.y) continue;            // まだ とどいて いない
+    if (!best || f.y > best.y) best = f;
+  }
+  return best;
+}
 function ladderAt(x, y) {
   for (const L of LADDERS) {
     if (Math.abs(x - L.x) > 13) continue;
@@ -153,12 +170,13 @@ function update(dt) {
     if ((IN.fireTap || KEYS.Space) && me.coyote > 0 && me.vy <= 0.1) {
       me.vy = 168; me.onGround = false; me.coyote = 0; sfxJump();
     }
+    const prevY = me.y;
     me.vy -= 520 * dt;
     me.y += me.vy * dt;
-    const f = floorAt(me.x, me.y);
-    if (me.vy <= 0 && f && me.y <= f.y) { me.y = f.y; me.vy = 0; me.onGround = true; }
-    else if (!f && me.y < -20) { me.dead = 1.1; sfxDead(); }
-    else if (me.vy !== 0) me.onGround = false;
+    const f = me.vy <= 0 ? landOn(me.x, prevY, me.y) : null;
+    if (f) { me.y = f.y; me.vy = 0; me.onGround = true; }
+    else if (me.y < -20) { me.dead = 1.1; sfxDead(); }
+    else me.onGround = false;
   }
   me.x = clamp(me.x, 14, WW - 14);
   if (me.hammer > 0) me.hammer -= dt;
@@ -198,10 +216,11 @@ function update(dt) {
       }
       if (drop) { b.fl = -1; b.vy = 0; }
     } else {
+      const pY = b.y;
       b.vy -= 520 * dt;
       b.y += b.vy * dt;
-      const f = floorAt(b.x, b.y);
-      if (f && b.y <= f.y) {
+      const f = landOn(b.x, pY, b.y);
+      if (f) {
         b.y = f.y; b.vy = 0;
         b.fl = FLOORS.indexOf(f);
         b.vx = (b.x < WW / 2) ? Math.abs(b.vx) : -Math.abs(b.vx);

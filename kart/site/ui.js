@@ -5,7 +5,7 @@
 //   坂もカーブもそれらしく見える。道が向こうから流れてくるので
 //   速さがそのまま画面に出る＝スピード感。
 //
-// ★ 操作は画面の **左半分＝左、右半分＝右**。指を置いている間ずっと曲がる。
+// ★ 操作は 左半分＝ハンドル（ゆびを置いたところが中心）、右下＝アクセル、その左＝ブレーキ。
 //   小さい子でも迷わない。パソコンはやじるしキー。
 
 'use strict';
@@ -429,22 +429,49 @@ function drawHud(t) {
   drawButton(button(VW - 94, 8, 84, 26, () => { bgmStop(); engStop(); G.screen = 'title'; }),
              'コースをえらぶ', 'rgba(255,255,255,0.85)');
 
-  // 左右のボタン（画面の下半分ぜんぶが当たる。絵は目じるし）
-  const bh = 84, by = VH - bh - 10;
+  // --- ハンドル（左がわ・ゆびの ところに 出る） ---
+  const sr = steerRadius();
+  const shx = steerPtr.id !== null ? steerPtr.cx : VW * 0.17;
+  const shy = VH - sr * 0.72 - 16;
+  ctx.save();
+  ctx.globalAlpha = steerPtr.id !== null ? 1 : 0.42;
+  ctx.fillStyle = 'rgba(10,10,20,0.28)';
+  rr(ctx, shx - sr, shy - sr * 0.34, sr * 2, sr * 0.68, sr * 0.34); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
   for (const dir of [-1, 1]) {
-    const bx2 = dir < 0 ? 12 : VW - 100;
-    const on = G.steer === dir;
-    ctx.fillStyle = on ? 'rgba(255,224,102,0.45)' : 'rgba(255,255,255,0.16)';
-    rr(ctx, bx2, by, 88, bh, 20); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = on ? '#FFFFFF' : 'rgba(255,255,255,0.75)';
+    ctx.fillStyle = (G.steer * dir > 0.12) ? '#FFE066' : 'rgba(255,255,255,0.5)';
     ctx.beginPath();
-    const cx = bx2 + 44, cy = by + bh / 2;
-    ctx.moveTo(cx + dir * 20, cy);
-    ctx.lineTo(cx - dir * 12, cy - 22);
-    ctx.lineTo(cx - dir * 12, cy + 22);
+    const ax = shx + dir * sr * 0.78;
+    ctx.moveTo(ax + dir * sr * 0.14, shy);
+    ctx.lineTo(ax - dir * sr * 0.08, shy - sr * 0.20);
+    ctx.lineTo(ax - dir * sr * 0.08, shy + sr * 0.20);
     ctx.closePath(); ctx.fill();
   }
+  ctx.fillStyle = steerPtr.id !== null ? '#FFE066' : 'rgba(255,255,255,0.7)';
+  ctx.beginPath(); ctx.arc(shx + G.steer * sr, shy, sr * 0.26, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+
+  // --- アクセル と ブレーキ（右がわ） ---
+  const gb = gasBox(), bb = brkBox();
+  const pedal = (b2, on, label, col) => {
+    ctx.beginPath(); ctx.arc(b2.x, b2.y, b2.r, 0, Math.PI * 2);
+    ctx.fillStyle = on ? col : 'rgba(255,255,255,0.16)'; ctx.fill();
+    ctx.lineWidth = Math.max(2, b2.r * 0.08);
+    ctx.strokeStyle = col; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let fs = Math.round(b2.r * 0.5);
+    for (let i = 0; i < 12; i++) {
+      ctx.font = 'bold ' + fs + 'px system-ui, sans-serif';
+      if (ctx.measureText(label).width <= b2.r * 1.5 || fs <= 8) break;
+      fs = Math.max(8, Math.floor(fs * 0.9));
+    }
+    ctx.fillStyle = on ? '#20182E' : col;
+    ctx.fillText(label, b2.x, b2.y);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  };
+  pedal(bb, G.throttle < 0, 'ブレーキ', '#FF7A8A');
+  pedal(gb, G.throttle > 0, 'アクセル', '#7ADC80');
 
   // ★ 草に出たら「もどって！」と やじるしを 出す
   if (Math.abs(me.px) > 1.02 && !G.over && G.started) {
@@ -505,7 +532,7 @@ function drawTitle(t) {
   const fs = fitFont(TITLE, VW * 0.42, 34, 'bold ');
   ctx.fillText(TITLE, 24, 12);
   ctx.fillStyle = '#8FD6FF';
-  const sub = '左半分で左、右半分で右。アクセルは自動';
+  const sub = '左でハンドル、右下でアクセル、その左がブレーキ';
   fitFont(sub, VW * 0.42, 14);
   ctx.fillText(sub, 26, 16 + fs + 4);
 
@@ -599,8 +626,9 @@ function drawHowto() {
   ctx.font = 'bold 26px system-ui, sans-serif';
   ctx.fillText('遊びかた', 24, 12);
   const lines = [
-    '① 画面の 左半分を さわると左、右半分を さわると右に曲がる',
-    '　 アクセルは自動。パソコンは ← → でも動く',
+    '① 画面の 左半分を さわると ハンドルが 出る。左右に すべらせて 曲がる',
+    '　 アクセルは 右下。その左が ブレーキ。何も おさなくても ほどよく 走る',
+    '　 パソコンは ← → ハンドル、↑ アクセル、↓ ブレーキ',
     '② 同じ向きに曲がりつづけると 火花がたまる。',
     '　 指をはなした しゅんかんに **ダッシュ**（ドリフト）',
     '③ 道の上のオレンジのパネルを ふむと ダッシュ',
@@ -656,17 +684,41 @@ function drawResult() {
 
 // --- 操作 ---------------------------------------------------------------------------
 
-const touches = {};
+// ★ 左半分 … ハンドル（ゆびを置いたところが中心。左右にすべらせると
+//   切れぐあいが かわる）。右半分 … 下が アクセル、上が ブレーキ。
+//   まえは「左半分＝左に いっぱい／右半分＝右に いっぱい」で、
+//   アクセルは ずっと ぜんかいだった ため、きつい カーブで かならず
+//   草に 出て しまって いた。
 
-function applySteer() {
-  let l = false, r = false;
-  for (const k in touches) {
-    if (touches[k] === -1) l = true;
-    if (touches[k] === 1) r = true;
-  }
-  if (keys.ArrowLeft) l = true;
-  if (keys.ArrowRight) r = true;
-  G.steer = (l && r) ? 0 : (l ? -1 : (r ? 1 : 0));
+const STEER_R = 92;                 // ハンドルを いっぱいに 切る までの きょり(CSS px)
+const steerPtr = { id: null, cx: 0, val: 0 };
+const gasPtr = { id: null }, brkPtr = { id: null };
+const keys = {};
+
+function steerRadius() { return STEER_R / SC; }
+
+// 右がわの ボタンの ばしょ
+function gasBox() {
+  const r = Math.max(38, 62 / SC);
+  return { x: VW - r - 22, y: VH - r - 22, r: r };
+}
+function brkBox() {
+  const g = gasBox(), r = g.r * 0.74;
+  return { x: g.x - g.r - r - 12, y: g.y - g.r * 0.22, r: r };
+}
+function inCircle(b, x, y) { return Math.hypot(x - b.x, y - b.y) <= b.r * 1.15; }
+
+function applyInput() {
+  let st = steerPtr.id !== null ? steerPtr.val : 0;
+  if (keys.ArrowLeft) st = -1;
+  if (keys.ArrowRight) st = 1;
+  if (keys.ArrowLeft && keys.ArrowRight) st = 0;
+  G.steer = Math.max(-1, Math.min(1, st));
+
+  let th = 0;
+  if (gasPtr.id !== null || keys.ArrowUp || keys[' '] || keys.Space) th = 1;
+  if (brkPtr.id !== null || keys.ArrowDown) th = -1;
+  G.throttle = th;
 }
 
 function down(id, px, py) {
@@ -675,15 +727,34 @@ function down(id, px, py) {
   if (G.screen === 'play' && !G.over) {
     const b = hitBtn(px, py);
     if (b && b.on && y < VH * 0.35) { b.on(); return; }
-    // ★ 画面の左半分＝左、右半分＝右
-    touches[id] = x < VW / 2 ? -1 : 1;
-    applySteer();
+    if (inCircle(gasBox(), x, y)) { gasPtr.id = id; applyInput(); return; }
+    if (inCircle(brkBox(), x, y)) { brkPtr.id = id; applyInput(); return; }
+    if (x < VW * 0.55 && steerPtr.id === null) {
+      steerPtr.id = id; steerPtr.cx = x; steerPtr.val = 0;
+      applyInput();
+      return;
+    }
     return;
   }
   const b = hitBtn(px, py);
   if (b && b.on) b.on();
 }
-function up(id) { delete touches[id]; applySteer(); }
+function move(id, px, py) {
+  const x = px / SC;
+  if (steerPtr.id === id) {
+    const r = steerRadius();
+    let d = x - steerPtr.cx;
+    if (Math.abs(d) > r) { steerPtr.cx += Math.sign(d) * (Math.abs(d) - r); d = Math.sign(d) * r; }
+    steerPtr.val = d / r;
+    applyInput();
+  }
+}
+function up(id) {
+  if (steerPtr.id === id) { steerPtr.id = null; steerPtr.val = 0; }
+  if (gasPtr.id === id) gasPtr.id = null;
+  if (brkPtr.id === id) brkPtr.id = null;
+  applyInput();
+}
 
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
@@ -693,11 +764,7 @@ canvas.addEventListener('touchstart', (e) => {
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
   const r = canvas.getBoundingClientRect();
-  for (const t of e.changedTouches) {
-    if (touches[t.identifier] === undefined) continue;
-    touches[t.identifier] = (t.clientX - r.left) / SC < VW / 2 ? -1 : 1;
-  }
-  applySteer();
+  for (const t of e.changedTouches) move(t.identifier, t.clientX - r.left, t.clientY - r.top);
 }, { passive: false });
 canvas.addEventListener('touchend', (e) => {
   e.preventDefault();
@@ -710,19 +777,22 @@ canvas.addEventListener('mousedown', (e) => {
   down('m', e.clientX - r.left, e.clientY - r.top);
 });
 window.addEventListener('mousemove', (e) => {
-  if (touches.m === undefined) return;
   const r = canvas.getBoundingClientRect();
-  touches.m = (e.clientX - r.left) / SC < VW / 2 ? -1 : 1;
-  applySteer();
+  move('m', e.clientX - r.left, e.clientY - r.top);
 });
 window.addEventListener('mouseup', () => up('m'));
 
-const keys = {};
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { keys[e.key] = true; applySteer(); e.preventDefault(); }
+  const k = e.key === ' ' ? 'Space' : e.key;
+  keys[k] = true;
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].indexOf(k) >= 0) {
+    applyInput(); e.preventDefault();
+  }
 });
 window.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { keys[e.key] = false; applySteer(); }
+  const k = e.key === ' ' ? 'Space' : e.key;
+  keys[k] = false;
+  applyInput();
 });
 
 document.addEventListener('visibilitychange', () => {

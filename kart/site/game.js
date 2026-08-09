@@ -5,7 +5,14 @@
 //   カートは道にそって pos（何メートル進んだか）と px（左右のずれ）で持つ。
 //   道そのものが向こうから流れてくるので、速さがそのまま画面に出る。
 //
-// ★ 操作は「左・右」だけ。アクセルは自動。
+// ★ 操作（作り直し）
+//   左半分 … ハンドル。ゆびを置いたところが中心で、左右にすべらせると
+//            切れぐあいが かわる（すこしだけ 曲げる、が できる）。
+//   右半分 … 下が アクセル、上が ブレーキ。
+//   なにも おさない ときは「ほどよい 速さ」で 走りつづける ので、
+//   小さい子でも 止まって しまわない。
+//   まえは アクセル ぜんかい 固定だった ため、きつい カーブを
+//   ハンドルだけでは まがりきれず、かならず 草に 出て しまって いた。
 //   同じ向きに曲がりつづけると火花がたまり、はなすとダッシュ（ドリフト）。
 
 'use strict';
@@ -69,7 +76,13 @@ const TURN = 2.7;        // ハンドルの効き（左右のずれ／秒）
 // ★ カーブで外へふくらむ力。強すぎるとハンドルを最大に切っても
 //   曲がりきれず、ずっと草の上になる。いちばんきついカーブ（7）でも
 //   ハンドル（2.7）の6割くらいで止める。
+// ★ 速いほど 外へ ふくらむ。速さの 2じょうで きく ように した ので、
+//   ブレーキで 落とすと はっきり 曲がれる ように なる。
 const CENTRIF = 0.20;
+// アクセル / なにもしない / ブレーキ の ときの 出せる 速さ（わりあい）
+// ★ なにも おさない ときも そこそこ 速い（0.85）。おそすぎると
+//   ずっと びり に なって しまう。ブレーキは カーブの ための どうぐ。
+const THR_TOP = { 1: 1.00, 0: 0.85, '-1': 0.35 };
 const BOOST = 1.42;      // ダッシュ中の最高速度のばい率
 
 const G = {
@@ -86,7 +99,8 @@ const G = {
   place: 1,
   shake: 0,
   msg: '', msgT: 0,
-  steer: 0,              // -1 / 0 / +1
+  steer: 0,              // -1.0 〜 +1.0（アナログ）
+  throttle: 0,           // 1 アクセル / 0 そのまま / -1 ブレーキ
   best: 0, lapT: 0, lapTimes: [],
 };
 
@@ -131,7 +145,7 @@ function startStage(i) {
   G.t = 0; G.count = 3.2; G.started = false;
   G.over = false; G.win = false; G.endT = 0;
   G.place = 6;
-  G.shake = 0; G.msg = ''; G.msgT = 0; G.steer = 0;
+  G.shake = 0; G.msg = ''; G.msgT = 0; G.steer = 0; G.throttle = 0;
   G.lapT = 0; G.lapTimes = [];
   G.screen = 'play';
   save.plays++;
@@ -195,7 +209,9 @@ function kartTop(f) {
 
 function stepKart(f, dt, coast) {
   const seg = segAt(f.pos);
-  const top = kartTop(f);
+  let top = kartTop(f);
+  // ★ じぶんの カートだけ アクセル・ブレーキが きく
+  if (f.isMe) top *= THR_TOP[G.throttle] || 1;
 
   // 加速・減速
   if (coast) f.spd = Math.max(0, f.spd - ACC * 0.5 * dt);
@@ -212,8 +228,8 @@ function stepKart(f, dt, coast) {
   const sp = f.spd / MAXS;
   // ★ 草の上でも ハンドルは しっかり きく（もどれない と こまる）
   f.px += f.steer * TURN * f.drv.grip * (0.62 + sp * 0.38) * dt;
-  // カーブで外へふくらむ
-  f.px -= seg.curve * sp * CENTRIF * dt;
+  // カーブで外へふくらむ（速さの 2じょう。おそく すれば しっかり 曲がれる）
+  f.px -= seg.curve * sp * sp * CENTRIF * dt;
   // ★ 見えない ガードレール。道から 外れた ぶんだけ 内へ もどされる。
   const out = Math.abs(f.px) - 1;
   if (out > 0) f.px -= Math.sign(f.px) * Math.min(out, 0.6) * OFF_PULL * dt;
@@ -221,8 +237,9 @@ function stepKart(f, dt, coast) {
   f.px = Math.max(-OFF_MAX_X, Math.min(OFF_MAX_X, f.px));
 
   // ドリフト（同じ向きにまがりつづけると火花がたまる）
-  if (f.steer !== 0 && f.spd > MAXS * 0.55 && (f.driftDir === 0 || f.driftDir === f.steer)) {
-    f.driftDir = f.steer;
+  const sdir = Math.abs(f.steer) > 0.55 ? Math.sign(f.steer) : 0;
+  if (sdir !== 0 && f.spd > MAXS * 0.55 && (f.driftDir === 0 || f.driftDir === sdir)) {
+    f.driftDir = sdir;
     f.driftT = Math.min(2.4, f.driftT + dt);
   } else if (f.driftT > 0) {
     if (f.driftT > 0.6) {

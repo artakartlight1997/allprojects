@@ -74,28 +74,66 @@ function hitBtn(px, py) {
   return null;
 }
 
-// --- 地図の ばしょ ---------------------------------------------------------------
+
+// ★ 「県の 形と 場所を おぼえる」ための ゲームなので、
+//   地図は 画面いっぱいに、できる かぎり 大きく 出す。
+//   HUD を **左の はしら**に すると たてを まるまる 使え、
+//   **上の おび**に すると よこを まるまる 使える。
+//   面によって どちらが 得か ちがうので、**大きく なるほうを えらぶ**。
+const HUD_W = 130;   // 左の はしらの はば
+const TRAY_W = 108;  // 右の たなの はば
+const PAD = 8;
+
+function fitScale(aw, ah, w0, h0, spin) {
+  if (aw <= 20 || ah <= 20) return 0;
+  // まわる 面は たてと よこが 入れかわるので、短いほうに 合わせる
+  return spin ? Math.min(aw, ah) / Math.max(w0, h0) : Math.min(aw / w0, ah / h0);
+}
 
 function mapBox() {
-  // ★ その面で つかう 県だけで 大きさを 合わせる。
-  //   いつも 沖縄まで 入れて 計算すると、沖縄を つかわない 面で
-  //   九州が 小さく なって しまう。
+  // その面で つかう 県だけで 大きさを 合わせる。
+  // いつも 全部を 入れて 計算すると、つかわない 面で 小さく なって しまう。
   const B = bounds(G.list && G.list.length ? G.list : PREFS);
-  // かけらの たなが 出ている ときだけ 右を あける
-  const needTray = G.bag && G.bag.length;
-  const left = 20, right = VW - (needTray ? 210 : 20);
-  const top = 46, bot = VH - 50;
-  const aw = right - left, ah = bot - top;
-  const w0 = B.x1 - B.x0, h0 = B.y1 - B.y0;
-  // ★ まわる めんでは たてと よこが 入れかわる。
-  //   まわす まえの 大きさで あわせると、まわした とたん はみ出す。
-  const spin = G.S && G.S.spin;
-  const s = spin ? Math.min(aw, ah) / Math.max(w0, h0)
-                 : Math.min(aw / w0, ah / h0);
+  const w0 = Math.max(1, B.x1 - B.x0), h0 = Math.max(1, B.y1 - B.y0);
+  const spin = !!(G.S && G.S.spin);
+  const tray = (G.bag && G.bag.length) ? Math.min(TRAY_W, VW * 0.22) : 0;
+  const right = VW - PAD - (tray ? tray + PAD : 0);
+
+  const cand = [];
+  if (right - PAD * 2 - HUD_W > 200) {
+    cand.push({ hud: 'left', l: PAD * 2 + HUD_W, r: right, t: PAD, b: VH - PAD });
+  }
+  cand.push({ hud: 'top', l: PAD, r: right, t: 44, b: VH - PAD });
+
+  let best = null;
+  for (const c of cand) {
+    const s = fitScale(c.r - c.l, c.b - c.t, w0, h0, spin);
+    if (!best || s > best.s) best = { c: c, s: s };
+  }
+  const c = best.c, s = best.s;
+  const aw = c.r - c.l, ah = c.b - c.t;
   const w = w0 * s, h = h0 * s;
-  const ox = left + (aw - w) / 2 - B.x0 * s;
-  const oy = top + (ah - h) / 2 - B.y0 * s;
-  return { s, ox, oy, w, h, x: left + (aw - w) / 2, y: top + (ah - h) / 2, B };
+  const ox = c.l + (aw - w) / 2 - B.x0 * s;
+  const oy = c.t + (ah - h) / 2 - B.y0 * s;
+  return {
+    s: s, ox: ox, oy: oy, w: w, h: h,
+    x: c.l + (aw - w) / 2, y: c.t + (ah - h) / 2, B: B,
+    hud: c.hud,
+    tray: tray ? { x: VW - PAD - tray, y: PAD, w: tray, h: VH - PAD * 2 } : null,
+  };
+}
+
+// 字が はみ出さない ように 何行かに 分ける
+function wrapLines(s, maxW) {
+  const out = [];
+  let line = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ''; }
+    if (!(ch === ' ' && !line)) line += ch;
+  }
+  if (line) out.push(line);
+  return out;
 }
 function m2s(M, x, y) { return { x: M.ox + x * M.s, y: M.oy + y * M.s }; }
 function s2m(M, x, y) { return { x: (x - M.ox) / M.s, y: (y - M.oy) / M.s }; }
@@ -185,7 +223,8 @@ function drawPlay(t) {
 
   // 名まえは まっすぐ かく
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = 'bold 14px system-ui, sans-serif';
+  // ★ 地図が 大きく なったので 字も 合わせて 大きく
+  ctx.font = 'bold ' + Math.round(Math.max(13, Math.min(24, M.s * 8))) + 'px system-ui, sans-serif';
   for (const L of labels) {
     const showName = G.S.mode !== 'name' || G.askDone.indexOf(L.p.key) >= 0;
     if (!showName) continue;
@@ -196,7 +235,7 @@ function drawPlay(t) {
   }
   ctx.textAlign = 'left';
 
-  drawTop();
+  drawHud(M);
   drawTray(M, t);
 
   // ひっぱっている かけら
@@ -233,68 +272,114 @@ function drawPlay(t) {
   }
 }
 
-function drawTop() {
-  ctx.fillStyle = 'rgba(10,26,44,0.7)';
-  rr(ctx, 8, 6, VW - 16, 34, 10); ctx.fill();
+function ASK_TEXT() { return (G.ask ? G.ask.name + 'けん は どこ？' : ''); }
+
+function drawHud(M) {
+  const askS = ASK_TEXT();
+  if (M.hud === 'left') {
+    // 左の はしら（たてを まるまる 地図に つかえる）
+    const x = PAD, w = HUD_W;
+    ctx.fillStyle = 'rgba(10,26,44,0.72)';
+    rr(ctx, x, PAD, w, VH - PAD * 2, 12); ctx.fill();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    let cy = PAD + 12;
+    ctx.fillStyle = '#FFFFFF';
+    const fs = fitFont(G.S.name, w - 20, 15, 'bold ');
+    for (const L of wrapLines(G.S.name, w - 20)) { ctx.fillText(L, x + 10, cy); cy += fs + 3; }
+    cy += 12;
+    if (askS) {
+      ctx.fillStyle = '#FFE066';
+      const qs = fitFont(askS, w - 20, 19, 'bold ');
+      for (const L of wrapLines(askS, w - 20)) { ctx.fillText(L, x + 10, cy); cy += qs + 3; }
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = 'bold 15px system-ui, sans-serif';
+      ctx.fillText('のこり ' + G.bag.length + ' こ', x + 10, cy);
+      cy += 22;
+    }
+    cy += 10;
+    if (G.S.sec) {
+      ctx.fillStyle = G.left < 15 ? '#FF8FA0' : '#8FD6FF';
+      ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.fillText(Math.ceil(G.left) + 'びょう', x + 10, cy);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = 'bold 14px system-ui, sans-serif';
+      ctx.fillText('まちがい ' + G.miss, x + 10, cy);
+    }
+    drawButton(button(x + 8, VH - PAD - 40, w - 16, 30,
+                      () => { bgmStop(); G.screen = 'title'; }),
+               'めんを えらぶ', 'rgba(255,255,255,0.85)');
+    return;
+  }
+
+  // 上の おび（よこを まるまる 地図に つかえる）
+  ctx.fillStyle = 'rgba(10,26,44,0.72)';
+  rr(ctx, PAD, 6, VW - PAD * 2, 30, 10); ctx.fill();
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FFFFFF';
-  fitFont(G.S.name, VW * 0.26, 16, 'bold ');
-  ctx.fillText(G.S.name, 20, 23);
-
-  if (G.ask) {
+  fitFont(G.S.name, VW * 0.24, 15, 'bold ');
+  ctx.fillText(G.S.name, PAD + 10, 21);
+  ctx.textAlign = 'center';
+  if (askS) {
     ctx.fillStyle = '#FFE066';
-    ctx.textAlign = 'center';
-    fitFont(G.ask.name + 'けん は どこ？', VW * 0.36, 20, 'bold ');
-    ctx.fillText(G.ask.name + 'けん は どこ？', VW * 0.52, 23);
+    fitFont(askS, VW * 0.38, 19, 'bold ');
+    ctx.fillText(askS, VW * 0.52, 21);
   } else {
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.textAlign = 'center';
     ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.fillText('のこり ' + G.bag.length + ' こ', VW * 0.52, 23);
+    ctx.fillText('のこり ' + G.bag.length + ' こ', VW * 0.52, 21);
   }
   ctx.textAlign = 'right';
   if (G.S.sec) {
     ctx.fillStyle = G.left < 15 ? '#FF8FA0' : '#8FD6FF';
-    ctx.font = 'bold 19px system-ui, sans-serif';
-    ctx.fillText(Math.ceil(G.left) + 'びょう', VW - 96, 23);
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.fillText(Math.ceil(G.left) + 'びょう', VW - 96, 21);
   } else {
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillText('まちがい ' + G.miss, VW - 96, 23);
+    ctx.fillText('まちがい ' + G.miss, VW - 96, 21);
   }
   ctx.textAlign = 'left';
-  drawButton(button(VW - 86, 10, 78, 26, () => { bgmStop(); G.screen = 'title'; }),
+  drawButton(button(VW - 88, 8, 80, 26, () => { bgmStop(); G.screen = 'title'; }),
              'めんを えらぶ', 'rgba(255,255,255,0.85)');
 }
 
-// まだ はめて いない かけらを 右に ならべる
-function drawTray(M, t) {
-  if (!G.bag.length) return;
-  const x0 = M.x + M.w + 30;
-  const w = VW - x0 - 16;
-  ctx.fillStyle = 'rgba(10,26,44,0.5)';
-  rr(ctx, x0 - 10, 48, w + 16, VH - 106, 12); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = 'bold 12px system-ui, sans-serif';
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillText('ここから ひっぱってね', x0 - 2, 54);
 
-  const cols = Math.max(1, Math.floor(w / 84));
-  for (let i = 0; i < G.bag.length; i++) {
+// まだ はめて いない かけらを 右の たなに ならべる
+function drawTray(M, t) {
+  if (!G.bag.length || !M.tray) return;
+  const T = M.tray;
+  ctx.fillStyle = 'rgba(10,26,44,0.5)';
+  rr(ctx, T.x, T.y, T.w, T.h, 12); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText('ひっぱってね', T.x + T.w / 2, T.y + 6);
+  ctx.textAlign = 'left';
+
+  // ★ たなを ほそくした ぶん、1れつに ならべて 高さを 数で わる。
+  const top = T.y + 24, avail = T.h - 32;
+  const n = G.bag.length;
+  const th = Math.max(30, Math.min(58, avail / n - 4));
+  const tw = T.w - 12;
+  for (let i = 0; i < n; i++) {
     const p = prefOf(G.bag[i]);
-    const bx = x0 + (i % cols) * 84, by = 74 + Math.floor(i / cols) * 62;
-    const b = button(bx, by, 78, 56, null);
+    const bx = T.x + 6, by = top + i * (th + 4);
+    const b = button(bx, by, tw, th, null);
     b.piece = p.key;
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     rr(ctx, b.x, b.y, b.w, b.h, 8); ctx.fill();
-    // 小さい かたち
+    // 小さい かたち（たなの ますに 入る 大きさに 合わせる）
     const all = [p.poly].concat(p.isles || []);
-    const c = centroid(p);
-    const sc = 0.62;
+    const pb = bounds([p]);
+    const sc = Math.min((th - 8) / Math.max(1, (pb.y1 - pb.y0) * M.s),
+                        (tw * 0.42) / Math.max(1, (pb.x1 - pb.x0) * M.s));
+    const cx = (pb.x0 + pb.x1) / 2, cy = (pb.y0 + pb.y1) / 2;
     ctx.save();
-    ctx.translate(bx + 24, by + 28);
+    ctx.translate(bx + tw * 0.26, by + th / 2);
     ctx.scale(sc, sc);
-    ctx.translate(-(M.ox + c.x * M.s), -(M.oy + c.y * M.s));
+    ctx.translate(-(M.ox + cx * M.s), -(M.oy + cy * M.s));
     for (const poly of all) {
       polyPath(M, poly);
       ctx.fillStyle = p.col; ctx.fill();
@@ -303,8 +388,8 @@ function drawTray(M, t) {
     ctx.restore();
     ctx.fillStyle = '#FFFFFF';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    fitFont(p.name, 30, 13, 'bold ');
-    ctx.fillText(p.name, bx + 44, by + 28);
+    fitFont(p.name, tw * 0.46, Math.min(14, th * 0.4), 'bold ');
+    ctx.fillText(p.name, bx + tw * 0.5, by + th / 2);
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 }

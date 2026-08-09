@@ -87,7 +87,7 @@
 | `mogura/site/` | りなのモグラたたき |
 | `shooter/site/` | まさきの宇宙シューティング |
 | `block/site/` | あおいのブロック崩し |
-| `allstar/site/` | きょうだいオールスター |
+| `allstar/site/` | 小倉っ子オールスター |
 | `dig/site/` | リナパパのほりほり大作戦 |
 | `climb/site/` | リナパパのはしごのぼり |
 | `invader/site/` | リナパパのインベーダー |

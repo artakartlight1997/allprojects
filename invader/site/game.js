@@ -113,9 +113,13 @@ function update(dt) {
 
   // --- そうさ（ゆびの よこの ばしょへ すーっと ついていく） ---
   if (IN.hold) {
+    // ★ ゆびの ところへ 近づく。ただし はやさに 上かぎを つけて、
+    //   はなれた ところを さわった とき「とんだ」ように 見えない ように する。
     const B = box();
     const want = clamp((IN.x - B.x) / B.s, 18, WW - 18);
-    me.x += (want - me.x) * Math.min(1, dt * 13);
+    const d = want - me.x;
+    const step = Math.min(Math.abs(d), 330 * dt);
+    me.x += Math.sign(d) * step;
   }
   if (KEYS.ArrowLeft) me.x -= 240 * dt;
   if (KEYS.ArrowRight) me.x += 240 * dt;

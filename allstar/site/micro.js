@@ -16,7 +16,30 @@
 
 'use strict';
 
-function follow(cur, to, dt, k) { return cur + (to - cur) * Math.min(1, dt * (k || 11)); }
+// ★ ゆびの ところへ「きまった はやさ」で 歩いて 近づく。
+//   まえは「のこりの きょりの 何わり」ずつ 動かして いたので、
+//   はなれた ところを さわると ぴゅっと とんだ ように 見えて いた
+//   （「うごく」では なく「ジャンプ」して 見える）。
+//   よこと たては 目もりの 大きさが ちがうので、たての たんいに そろえて
+//   から 進む。こうすると どの むきでも 同じ はやさに 見える。
+function walkTo(o, tu, tv, dt, sp) {
+  const A = S.w / S.h;
+  const dx = (tu - o.u) * A, dy = tv - o.v;
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return;
+  const step = sp * dt;
+  if (len <= step) { o.u = tu; o.v = tv; return; }
+  o.u += dx / len * step / A;
+  o.v += dy / len * step;
+}
+// よこだけ 歩く（おさら など）
+function walkX(cur, to, dt, sp) {
+  const A = S.w / S.h;
+  const d = (to - cur) * A;
+  const step = sp * dt;
+  if (Math.abs(d) <= step) return to;
+  return cur + Math.sign(d) * step / A;
+}
 
 // ★ うごく ものの 速さ。P.spd を そのまま かけると 上の レベルで
 //   ひとの 手では まにあわない 速さに なるので、6わり だけ ひびかせる。
@@ -43,7 +66,7 @@ const mEat = {
     g.sp = 1.0 + P.lv * 0.3;
   },
   update(g, dt, IN, P) {
-    if (IN.down) { g.u = follow(g.u, IN.u, dt, 7 * g.sp); g.v = follow(g.v, IN.v, dt, 7 * g.sp); }
+    if (IN.down) walkTo(g, IN.u, IN.v, dt, 0.95 * g.sp);
     g.tail.unshift({ u: g.u, v: g.v });
     if (g.tail.length > 14) g.tail.pop();
     if (hit(g.u, g.v, g.fu, g.fv, 0.09)) g.ok = true;
@@ -129,7 +152,7 @@ const mDodge = {
     }
   },
   update(g, dt, IN, P) {
-    if (IN.down) { g.u = follow(g.u, IN.u, dt, 9); g.v = follow(g.v, IN.v, dt, 9); }
+    if (IN.down) walkTo(g, IN.u, IN.v, dt, 0.95);
     g.v = clamp(g.v, 0.06, 0.94); g.u = clamp(g.u, 0.04, 0.96);
     for (const c of g.cars) {
       c.u += c.d * c.s * dt;
@@ -430,7 +453,7 @@ const mCatch = {
     }
   },
   update(g, dt, IN, P) {
-    if (IN.down) g.u = follow(g.u, IN.u, dt, 12);
+    if (IN.down) g.u = walkX(g.u, IN.u, dt, 1.5);
     g.u = clamp(g.u, 0.08, 0.92);
     for (const it of g.it) {
       if (!it.live) continue;
@@ -560,7 +583,7 @@ const mBoss = {
     g.pu += g.pd * 0.30 * sp2(P) * dt;
     if (g.pu > 0.80) { g.pu = 0.80; g.pd = -1; }
     if (g.pu < 0.20) { g.pu = 0.20; g.pd = 1; }
-    if (IN.down) { g.u = follow(g.u, IN.u, dt, 11); g.v = follow(g.v, IN.v, dt, 11); }
+    if (IN.down) walkTo(g, IN.u, IN.v, dt, 1.15);
     g.u = clamp(g.u, 0.05, 0.95); g.v = clamp(g.v, 0.05, 0.95);
 
     g.next -= dt;

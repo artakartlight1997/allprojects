@@ -180,7 +180,7 @@ function drawTitle() {
     ctx.fillRect(u * VW, ((i * 0.311) % 1) * VH, 3, 3);
   }
 
-  bigText('きょうだい', VW * 0.5, 52, 30, '#FFD24A');
+  bigText('小倉っ子', VW * 0.5, 52, 30, '#FFD24A');
   const fs = fitSize('オールスター', VW * 0.66, 58);
   bigText('オールスター', VW * 0.5, 96, fs, '#FF6FA8');
   bigText('みんなの ゲームが 5びょうずつ 出てくる！  ぜんぶで 13しゅるい', VW * 0.5, 138, 16, '#E8DFFF', null);

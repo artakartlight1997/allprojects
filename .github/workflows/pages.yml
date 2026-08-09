@@ -49,6 +49,11 @@ on:
       - 'maze/site/**'
       - 'snake/site/**'
       - 'allstar/site/**'
+      - 'dig/site/**'
+      - 'climb/site/**'
+      - 'invader/site/**'
+      - 'pyramid/site/**'
+      - 'tsumi/site/**'
       - 'frog/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
@@ -112,12 +117,17 @@ jobs:
       #   /snake/      あおいのにょろにょろ（スネーク・全10めん）
       #   /frog/       あおいのカエルわたり（フロッガー・全10めん）
       #   /allstar/    きょうだいオールスター（33本のミニゲーム耐久・スペシャル）
+      #   /dig/       リナパパのほりほり大作戦（土をほってポンプでポン・全8面）
+      #   /climb/     リナパパのはしごのぼり（たるをよけて上のりなを助ける・全8面）
+      #   /invader/   リナパパのインベーダー（ならんだ敵をぜんぶ落とす・全8面）
+      #   /pyramid/   リナパパのぴょんぴょんピラミッド（タップでとぶ・全8面）
+      #   /tsumi/     リナパパのブロックつみ（そろえて消す・エンドレス）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block public/egg public/fish public/drop public/pinball public/dress public/othello public/maze public/snake public/frog public/allstar
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block public/egg public/fish public/drop public/pinball public/dress public/othello public/maze public/snake public/frog public/allstar public/dig public/climb public/invader public/pyramid public/tsumi
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -150,6 +160,11 @@ jobs:
           cp -r maze/site/. public/maze/
           cp -r snake/site/. public/snake/
           cp -r allstar/site/. public/allstar/
+          cp -r dig/site/. public/dig/
+          cp -r climb/site/. public/climb/
+          cp -r invader/site/. public/invader/
+          cp -r pyramid/site/. public/pyramid/
+          cp -r tsumi/site/. public/tsumi/
           cp -r frog/site/. public/frog/
           ls -R public | head -60
 

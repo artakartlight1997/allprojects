@@ -3,23 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#101018">
+<meta name="theme-color" content="#080C1C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>りなの大冒険</title>
+<title>リナパパのインベーダー</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <style>
   html, body {
     margin: 0; height: 100%; overflow: hidden;
-    background: #101018;
-    /* ノッチやホームバーの下に操作ボタンが入り込まないようにする */
+    background: #080C1C;
     padding: env(safe-area-inset-top) env(safe-area-inset-right)
              env(safe-area-inset-bottom) env(safe-area-inset-left);
     box-sizing: border-box;
-    /* ダブルタップ拡大やスクロールでゲームが乱れないようにする */
     touch-action: none; overscroll-behavior: none;
     -webkit-user-select: none; user-select: none;
     -webkit-tap-highlight-color: transparent;
@@ -29,12 +27,9 @@
 </head>
 <body>
 <canvas id="screen"></canvas>
-<!-- ?v= はキャッシュ避け。中身を直したら数字を 1 つ増やすこと。
-     これがないと、前に遊んだ人のブラウザが古い js を使い続けてしまう。 -->
-<script src="levels.js?v=13"></script>
-<script src="game.js?v=13"></script>
-<script src="render.js?v=13"></script>
-<script src="ui.js?v=13"></script>
+<!-- ?v= はキャッシュ避け。中身を直したら数字を 1 つ増やすこと。 -->
+<script src="/allprojects/arcade.js?v=1"></script>
+<script src="game.js?v=1"></script>
 <script src="/allprojects/gamebar.js?v=2"></script>
 <script src="/allprojects/stats.js?v=1"></script>
 </body>

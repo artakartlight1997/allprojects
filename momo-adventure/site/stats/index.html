@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#141020">
+<link rel="icon" href="../allstar/icon.png">
+<title>あそび きろく（管理用）</title>
+<!--
+  ★ 管理人だけが 見る ページ。メニューには のせて いない。
+  ★ かぎ（PIN）は ブラウザの 中で くらべる だけなので、
+    「子どもが うっかり 入らない ため」の 止め木で あって、
+    ほんとうの 錠前では ない（このページの 中みは だれでも 読める）。
+    かぎを かえたい ときは 下の PIN の 数字を 直す。
+  ★ きろくは その 端末の localStorage の 中だけ。どこにも 送って いない。
+-->
+<style>
+  :root { --bg:#141020; --card:#221A38; --line:#3A2E58; --fg:#EDE6FA;
+          --dim:#A99CC4; --accent:#FFD24A; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.6 system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 18px 14px 60px; }
+  h1 { font-size: 1.25rem; margin: 6px 0 2px; }
+  .sub { color: var(--dim); font-size: .82rem; margin: 0 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button, .btn { appearance: none; border: 0; border-radius: 9px; padding: 9px 14px;
+    font: inherit; font-weight: 700; cursor: pointer; background: #4A3C74; color: #F2ECFF; }
+  button.pri { background: var(--accent); color: #2A2038; }
+  button.dim { background: #33294F; color: #C9BEE4; font-weight: 600; }
+  button.warn { background: #7A2B44; color: #FFE3EC; }
+  input, textarea { background:#191330; color:var(--fg); border:1px solid var(--line);
+    border-radius:8px; padding:8px 10px; font: inherit; width: 100%; }
+  textarea { min-height: 110px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .78rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { color: var(--dim); font-weight: 600; cursor: pointer; user-select: none; font-size: .8rem; }
+  th.on { color: var(--accent); }
+  .kpi { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 10px; }
+  .kpi div { background:#191330; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .kpi b { display:block; font-size:1.35rem; color: var(--accent); }
+  .kpi span { color: var(--dim); font-size:.76rem; }
+  canvas { width: 100%; height: 150px; display: block; }
+  .log { max-height: 320px; overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: .76rem; color: #CFC4E8; }
+  .log div { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .note { color: var(--dim); font-size: .78rem; }
+  .gate { max-width: 320px; margin: 16vh auto; text-align: center; }
+  .hide { display: none; }
+  .bar { display:flex; gap:6px; align-items:center; }
+  .bar i { display:block; height:8px; border-radius:4px; background:var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <h1>あそび きろく</h1>
+  <p class="sub">管理用の ページです</p>
+  <input id="pin" type="password" inputmode="numeric" placeholder="ばんごう" autocomplete="off">
+  <p><button class="pri" id="go">ひらく</button></p>
+  <p class="note" id="gateMsg"></p>
+</div>
+
+<div class="wrap hide" id="main">
+  <h1>あそび きろく</h1>
+  <p class="sub" id="range"></p>
+
+  <div class="card">
+    <div class="kpi" id="kpi"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>この 30日</strong><span class="note" id="dayNote"></span>
+    </div>
+    <canvas id="chart" width="1000" height="150"></canvas>
+  </div>
+
+  <div class="card">
+    <strong>子どもべつ</strong>
+    <table id="kids"></table>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>ゲームべつ</strong>
+      <span class="note">見出しを おすと ならびかえ</span>
+    </div>
+    <table id="games"></table>
+  </div>
+
+  <div class="card">
+    <strong>できごと（あたらしい順・200件）</strong>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card">
+    <strong>書き出す／合体する</strong>
+    <p class="note">
+      きろくは 端末ごとに たまります。ほかの 端末の ぶんを 入れたい ときは、
+      その 端末で「コピー」した ものを 下に はりつけて「合体」して ください。
+      おなじ ものを 何回 合体しても ふえません（同じ できごとは 1つに まとめます）。
+    </p>
+    <div class="row">
+      <button id="copy">コピー</button>
+      <button id="dl">ファイルに 保存</button>
+      <button class="warn" id="clr">この端末の きろくを 消す</button>
+    </div>
+    <p></p>
+    <textarea id="io" placeholder="ここに ほかの 端末の きろく（JSON）を はりつけて…"></textarea>
+    <p><button class="pri" id="merge">合体する</button> <span class="note" id="ioMsg"></span></p>
+  </div>
+
+  <p class="note">
+    きろくは この 端末の ブラウザの 中だけに あります。どこにも 送って いません。
+    プレイヤーの 画面には なにも 出ません。
+  </p>
+</div>
+
+<script>
+'use strict';
+
+// ★ かぎ。かえたい ときは ここの 数字を 直す。
+//   （公開ページなので ほんとうの 錠前では なく、子どもよけ）
+var PIN = '7788';
+var KEY = 'allprojects.stats.v1';        // この 端末が ためて いる ぶん
+var OTHERS = 'allprojects.stats.others.v1';  // 合体した ほかの 端末の ぶん
+
+var $ = function (id) { return document.getElementById(id); };
+
+// --- かぎ -------------------------------------------------------------------
+function unlocked() { return sessionStorage.getItem('statsOK') === '1'; }
+function openMain() {
+  sessionStorage.setItem('statsOK', '1');
+  $('gate').classList.add('hide');
+  $('main').classList.remove('hide');
+  render();
+}
+$('go').onclick = function () {
+  if ($('pin').value.trim() === PIN) openMain();
+  else $('gateMsg').textContent = 'ちがいます';
+};
+$('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
+// --- よみこみ ---------------------------------------------------------------
+//
+// ★ 二重に 数えない ように、端末ごとに 分けて しまって おく。
+//   ・この端末の ぶん      … KEY（stats.js が 書く）
+//   ・合体した ほかの ぶん … OTHERS の 中に「端末id ごと」に そのまま しまう
+//   おなじ ものを 何回 合体しても、おなじ 場所に 上書きされる だけ。
+function readJSON(k) {
+  try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; }
+}
+function mine() { return readJSON(KEY); }
+function others() { return readJSON(OTHERS); }
+
+function load() {
+  var me = mine();
+  var box = others();
+  var list = [me];
+  for (var id in box) {
+    if (!Object.prototype.hasOwnProperty.call(box, id)) continue;
+    if (me.dev && id === me.dev) continue;   // じぶんの ぶんは 1回だけ
+    list.push(box[id]);
+  }
+  var out = list[0];
+  for (var i = 1; i < list.length; i++) out = mergeStats(out, list[i]);
+  return out;
+}
+
+function hms(sec) {
+  sec = Math.round(sec || 0);
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  if (h) return h + '時間' + m + '分';
+  if (m) return m + '分' + s + '秒';
+  return s + '秒';
+}
+function ymd(t) {
+  var d = new Date(t), p = function (n) { return ('0' + n).slice(-2); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function hm(t) {
+  var d = new Date(t), p = function (n) { return ('0' + n).slice(-2); };
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+// なまえから だれの ゲームか さがす
+var KIDS = [
+  { k: 'りな', re: /りな|リナ/ },
+  { k: 'まさき', re: /まさき/ },
+  { k: 'あおい', re: /あおい/ },
+  { k: 'ゆい', re: /ゆい/ },
+  { k: 'みんな', re: /きょうだい|みんな|パーティ/ },
+];
+function kidOf(id, name) {
+  if (id === 'menu') return 'メニュー';
+  for (var i = 0; i < KIDS.length; i++) if (KIDS[i].re.test(name || '')) return KIDS[i].k;
+  return 'その他';
+}
+
+var sortKey = 'sec', sortAsc = false;
+
+function render() {
+  var d = load();
+  var games = d.games || {}, ev = d.ev || [];
+  var ids = Object.keys(games);
+
+  var totalSec = 0, totalPlays = 0, first = 0, last = 0, allDays = {};
+  ids.forEach(function (id) {
+    var g = games[id];
+    totalSec += g.sec || 0;
+    totalPlays += g.plays || 0;
+    if (g.first && (!first || g.first < first)) first = g.first;
+    if (g.last && g.last > last) last = g.last;
+    for (var day in g.days || {}) allDays[day] = (allDays[day] || 0) + g.days[day];
+  });
+
+  $('range').textContent = first
+    ? ymd(first) + ' 〜 ' + ymd(last) + ' の きろく（' + ids.length + '本）'
+    : 'まだ きろくが ありません。ゲームを あそぶと たまります。';
+
+  $('kpi').innerHTML =
+    box(totalPlays, 'ひらいた かず') +
+    box(hms(totalSec), 'あそんだ じかん') +
+    box(Object.keys(allDays).length, 'あそんだ 日') +
+    box(ids.length, 'あそんだ ゲーム') +
+    box(last ? hm(last) : '—', 'さいごに あそんだ');
+
+  drawChart(allDays);
+
+  // 子どもべつ
+  var byKid = {};
+  ids.forEach(function (id) {
+    var g = games[id], k = kidOf(id, g.name || id);
+    byKid[k] = byKid[k] || { sec: 0, plays: 0, n: 0 };
+    byKid[k].sec += g.sec || 0; byKid[k].plays += g.plays || 0; byKid[k].n++;
+  });
+  var kidRows = Object.keys(byKid).sort(function (a, b) { return byKid[b].sec - byKid[a].sec; });
+  var maxKid = kidRows.length ? byKid[kidRows[0]].sec : 1;
+  $('kids').innerHTML =
+    '<tr><th>なまえ</th><th>じかん</th><th>ひらいた</th><th>ゲーム数</th><th style="width:34%"></th></tr>' +
+    kidRows.map(function (k) {
+      var v = byKid[k];
+      var w = Math.max(2, Math.round(v.sec / (maxKid || 1) * 100));
+      return '<tr><td>' + esc(k) + '</td><td>' + hms(v.sec) + '</td><td>' + v.plays +
+             '</td><td>' + v.n + '</td><td><div class="bar"><i style="width:' + w + '%"></i></div></td></tr>';
+    }).join('');
+
+  // ゲームべつ
+  var rows = ids.map(function (id) {
+    var g = games[id];
+    var best = g.best || {};
+    var bestTxt = [];
+    if (typeof best.hi === 'number') bestTxt.push('ハイスコア ' + best.hi);
+    if (typeof best.clear === 'number') bestTxt.push('クリア ' + best.clear);
+    if (typeof best.open === 'number') bestTxt.push('かいほう ' + best.open);
+    if (typeof best.day === 'number') bestTxt.push('日 ' + best.day);
+    if (typeof best.best === 'number') bestTxt.push('さいこう ' + best.best);
+    return { id: id, name: g.name || id, plays: g.plays || 0, sec: g.sec || 0,
+             last: g.last || 0, best: bestTxt.join(' / ') };
+  });
+  rows.sort(function (a, b) {
+    var v = (a[sortKey] > b[sortKey]) ? 1 : (a[sortKey] < b[sortKey]) ? -1 : 0;
+    return sortAsc ? v : -v;
+  });
+  var maxSec = rows.reduce(function (m, r) { return Math.max(m, r.sec); }, 1);
+  $('games').innerHTML =
+    '<tr>' + th('name', 'ゲーム') + th('plays', 'ひらいた') + th('sec', 'じかん') +
+    th('last', 'さいご') + '<th>いちばん いい きろく</th><th style="width:20%"></th></tr>' +
+    rows.map(function (r) {
+      var w = Math.max(2, Math.round(r.sec / maxSec * 100));
+      return '<tr><td>' + esc(r.name) + '<br><span class="note">/' + esc(r.id) + '/</span></td>' +
+        '<td>' + r.plays + '</td><td>' + hms(r.sec) + '</td>' +
+        '<td>' + (r.last ? hm(r.last) : '—') + '</td>' +
+        '<td style="text-align:left">' + esc(r.best || '—') + '</td>' +
+        '<td><div class="bar"><i style="width:' + w + '%"></i></div></td></tr>';
+    }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('#games th[data-k]'), function (el) {
+    el.onclick = function () {
+      var k = el.getAttribute('data-k');
+      if (sortKey === k) sortAsc = !sortAsc; else { sortKey = k; sortAsc = (k === 'name'); }
+      render();
+    };
+  });
+
+  // できごと
+  var name = function (id) { return (games[id] && games[id].name) || id; };
+  $('log').innerHTML = ev.slice(-200).reverse().map(function (e) {
+    var t = hm(e.t) + '  ' + name(e.id);
+    if (e.k === 'open') t += '  ひらいた';
+    else if (e.k === 'end') t += '  あそんだ ' + hms(e.s);
+    else if (e.k === 'save') {
+      t += '  セーブ' + (e.d ? ' ' + JSON.stringify(e.d) : '');
+    } else t += '  ' + e.k;
+    return '<div>' + esc(t) + '</div>';
+  }).join('') || '<div class="note">まだ ありません</div>';
+}
+
+function box(v, label) { return '<div><b>' + esc(String(v)) + '</b><span>' + esc(label) + '</span></div>'; }
+function th(k, label) {
+  return '<th data-k="' + k + '" class="' + (sortKey === k ? 'on' : '') + '">' + esc(label) + '</th>';
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+// --- 30日の ぼうグラフ --------------------------------------------------------
+function drawChart(days) {
+  var c = $('chart'), ctx = c.getContext('2d');
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var w = c.clientWidth, h = 150;
+  c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  var list = [];
+  var t = Date.now();
+  for (var i = 29; i >= 0; i--) {
+    var day = ymd(t - i * 86400000);
+    list.push({ day: day, sec: days[day] || 0 });
+  }
+  var max = Math.max(60, list.reduce(function (m, x) { return Math.max(m, x.sec); }, 0));
+  var bw = w / list.length;
+  list.forEach(function (x, i) {
+    var bh = Math.round((h - 24) * (x.sec / max));
+    ctx.fillStyle = x.sec ? '#FFD24A' : 'rgba(255,255,255,0.08)';
+    ctx.fillRect(i * bw + 1.5, h - 18 - bh, Math.max(2, bw - 3), Math.max(x.sec ? 2 : 1, bh));
+    if (i % 5 === 0) {
+      ctx.fillStyle = '#A99CC4'; ctx.font = '10px system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(x.day.slice(5), i * bw + bw / 2, h - 5);
+    }
+  });
+  $('dayNote').textContent = 'いちばん 多い 日: ' + hms(max);
+}
+
+// --- 書き出す／合体する -------------------------------------------------------
+$('copy').onclick = function () {
+  var s = localStorage.getItem(KEY) || '{}';   // 書き出すのは この端末の ぶん だけ
+  if (navigator.clipboard) navigator.clipboard.writeText(s).then(ok, fb); else fb();
+  function ok() { $('ioMsg').textContent = 'コピーしました'; }
+  function fb() { $('io').value = s; $('io').select(); $('ioMsg').textContent = '下の はこに 出しました'; }
+};
+$('dl').onclick = function () {
+  var s = localStorage.getItem(KEY) || '{}';
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([s], { type: 'application/json' }));
+  a.download = 'asobi-kiroku-' + ymd(Date.now()) + '.json';
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+};
+$('clr').onclick = function () {
+  if (!confirm('この 端末の きろくと、合体した ぶんを ぜんぶ 消します。よろしいですか？')) return;
+  localStorage.removeItem(KEY);
+  localStorage.removeItem(OTHERS);
+  render();
+};
+$('merge').onclick = function () {
+  var txt = $('io').value.trim();
+  if (!txt) { $('ioMsg').textContent = 'はりつけて ください'; return; }
+  var inc;
+  try { inc = JSON.parse(txt); } catch (e) { $('ioMsg').textContent = '読めません（JSON では ない）'; return; }
+  if (!inc.games) { $('ioMsg').textContent = 'きろくの かたちでは ありません'; return; }
+  var me = mine();
+  if (inc.dev && me.dev && inc.dev === me.dev) {
+    $('ioMsg').textContent = 'これは この端末の ぶんです（合体の ひつようなし）';
+    return;
+  }
+  var box = others();
+  var id = inc.dev || ('x' + JSON.stringify(inc.games).length + '_' + Object.keys(inc.games).sort().join(','));
+  var again = !!box[id];
+  box[id] = inc;                    // 同じ 端末なら 上書き。だから 何回でも OK
+  localStorage.setItem(OTHERS, JSON.stringify(box));
+  $('io').value = '';
+  $('ioMsg').textContent = again ? '同じ 端末の ぶんを 入れかえました' :
+                                   '合体しました（ほかの 端末 ' + Object.keys(box).length + 'だい）';
+  render();
+};
+
+// おなじ できごとは 1つに まとめる（何回 合体しても ふえない）
+function mergeStats(a, b) {
+  var out = { v: 1, games: {}, ev: [] };
+  var ids = {};
+  [a.games || {}, b.games || {}].forEach(function (gs) { for (var k in gs) ids[k] = 1; });
+  Object.keys(ids).forEach(function (id) {
+    var x = (a.games || {})[id], y = (b.games || {})[id];
+    if (!x) { out.games[id] = JSON.parse(JSON.stringify(y)); return; }
+    if (!y) { out.games[id] = JSON.parse(JSON.stringify(x)); return; }
+    var g = { name: y.name || x.name, plays: (x.plays || 0) + (y.plays || 0),
+              sec: (x.sec || 0) + (y.sec || 0),
+              first: Math.min(x.first || Infinity, y.first || Infinity) || 0,
+              last: Math.max(x.last || 0, y.last || 0), days: {}, best: {} };
+    if (!isFinite(g.first)) g.first = 0;
+    [x.days || {}, y.days || {}].forEach(function (dd) {
+      for (var day in dd) g.days[day] = (g.days[day] || 0) + dd[day];
+    });
+    [x.best || {}, y.best || {}].forEach(function (bb) {
+      for (var f in bb) if (typeof g.best[f] !== 'number' || bb[f] > g.best[f]) g.best[f] = bb[f];
+    });
+    out.games[id] = g;
+  });
+  var seen = {};
+  (a.ev || []).concat(b.ev || []).forEach(function (e) {
+    var k = e.t + '|' + e.id + '|' + e.k + '|' + (e.key || '') + '|' + (e.s || '');
+    if (seen[k]) return;
+    seen[k] = 1; out.ev.push(e);
+  });
+  out.ev.sort(function (p, q) { return p.t - q.t; });
+  if (out.ev.length > 3000) out.ev.splice(0, out.ev.length - 3000);
+  return out;
+}
+
+window.addEventListener('resize', function () { if (!$('main').classList.contains('hide')) render(); });
+
+// ★ じどうで ひらく のは いちばん さいご。
+//   （上の ほうで よぶと、まだ 作って いない へんすうを つかって しまう）
+(function () {
+  var q = new URLSearchParams(location.search).get('pin');
+  if (unlocked() || (q && q === PIN)) openMain();
+})();
+
+</script>
+</body>
+</html>

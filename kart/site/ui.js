@@ -90,6 +90,9 @@ function hitBtn(px, py) {
 // --- 立体の道 -----------------------------------------------------------------------
 
 const CAM_H = 1500;                                  // カメラの高さ
+// カーブの 見ため の 強さ。大きいほど 道が はっきり まがって 見える。
+// 大きく しすぎると 道が 画面の そとへ 出て しまう ので 2 くらいが ちょうどよい。
+const CURVE_VIS = 2.0;
 const FOV = 100;                                     // 視野
 const CAM_D = 1 / Math.tan((FOV / 2) * Math.PI / 180);
 
@@ -251,8 +254,13 @@ function drawPlay(t) {
     // ★ z は「コースの はじめから 何メートル目か」。1しゅう こえても
     //   そのまま のばす（カメラより 先に あるので dz は プラス）。
     const z1 = (baseI + i) * SEG_LEN;
-    const p1 = project({ x: x * ROAD_W, y: seg.y1, z: z1 }, camX, camY, camZ);
-    const p2 = project({ x: (x + dx) * ROAD_W, y: seg.y2, z: z1 + SEG_LEN }, camX, camY, camZ);
+    // ★ ここが ずっと こわれて いた。
+    //   x は「カーブを 1こま ずつ たしこんだ 数」で、そのまま 道の 中しんの
+    //   ばしょ（ワールド座標）に なる。なのに ROAD_W（2200）を かけて いた ため、
+    //   カーブに 入った とたん 道が 画面の 2万ピクセル 右へ すっとんで 消えて いた。
+    //   「カーブが 曲がれない」の 正体は これ。道が 見えなければ 曲がれない。
+    const p1 = project({ x: x * CURVE_VIS, y: seg.y1, z: z1 }, camX, camY, camZ);
+    const p2 = project({ x: (x + dx) * CURVE_VIS, y: seg.y2, z: z1 + SEG_LEN }, camX, camY, camZ);
     x += dx; dx += seg.curve;
 
     if (p1.dz <= 40 || p2.y >= maxy || p2.y >= VH + 40) continue;
@@ -473,6 +481,53 @@ function drawHud(t) {
   pedal(bb, G.throttle < 0, 'ブレーキ', '#FF7A8A');
   pedal(gb, G.throttle > 0, 'アクセル', '#7ADC80');
 
+  // ★ まだ 一度も アクセルを おして いない 子には、どこを おすかを 見せる。
+  //   じゃまに ならない ように、うすい わく と ことばだけ。
+  if (!gasSeen && G.started && !G.over) {
+    ctx.save();
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 5);
+    ctx.strokeStyle = '#7ADC80';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(gb.x, gb.y, gb.r + 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.fillStyle = '#7ADC80';
+    ctx.fillText('右がわを おしっぱなしで すすむ', VW * 0.72, gb.y - gb.r - 16);
+    ctx.textAlign = 'left';
+  }
+
+  // ★ この先の カーブを 先に しらせる。
+  //   きつい カーブは「ブレーキ！」。これが ないと 気づいた ときには 手おくれ。
+  if (G.started && !G.over) {
+    const ca = curveAhead();
+    const am = Math.abs(ca);
+    if (am >= 2) {
+      const dir = ca > 0 ? 1 : -1;              // ＋は 右まわり
+      const hard = am >= 4;
+      const slip = G.slip > 0.10;               // いま タイヤが はっきり すべって いる
+      const cx = VW / 2, cy = VH * 0.20;
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * (hard ? 10 : 5));
+      ctx.fillStyle = slip ? '#FF7A8A' : (hard ? '#FFC46A' : '#FFE066');
+      for (let k = 0; k < (hard ? 3 : 2); k++) {
+        const ax = cx + dir * (26 + k * 26);
+        ctx.beginPath();
+        ctx.moveTo(ax + dir * 18, cy);
+        ctx.lineTo(ax - dir * 6, cy - 15);
+        ctx.lineTo(ax - dir * 6, cy + 15);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.fillStyle = slip ? '#FF7A8A' : (hard ? '#FFC46A' : '#FFE066');
+      ctx.fillText(slip ? 'はやすぎ！ スピード おとして' : (hard ? 'きついカーブ' : 'カーブ'),
+                   cx, cy - 34);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.restore();
+    }
+  }
+
   // ★ 草に出たら「もどって！」と やじるしを 出す
   if (Math.abs(me.px) > 1.02 && !G.over && G.started) {
     const dir = me.px > 0 ? -1 : 1;      // もどる むき
@@ -626,13 +681,15 @@ function drawHowto() {
   ctx.font = 'bold 26px system-ui, sans-serif';
   ctx.fillText('遊びかた', 24, 12);
   const lines = [
-    '① 画面の 左半分を さわると ハンドルが 出る。左右に すべらせて 曲がる',
-    '　 アクセルは 右下。その左が ブレーキ。何も おさなくても ほどよく 走る',
+    '① 左半分を さわると ハンドルが 出る。すこし すべらせるだけで いっぱいに 切れる',
+    '② 右がわは どこを おしても アクセル。おしっぱなしで すすむ',
+    '　 その 左どなりの まるが ブレーキ。ゆびを すべらせて 行き来できる',
     '　 パソコンは ← → ハンドル、↑ アクセル、↓ ブレーキ',
-    '② 同じ向きに曲がりつづけると 火花がたまる。',
-    '　 指をはなした しゅんかんに **ダッシュ**（ドリフト）',
-    '③ 道の上のオレンジのパネルを ふむと ダッシュ',
-    '④ 草の上に出ると ガタガタして おそくなる',
+    '　 ハンドルは「道の どこを 走るか」。切ったままでも 草には 出ない',
+    '③ 同じ向きに曲がりつづけると 火花がたまる。はなすと **ダッシュ**',
+    '④ 道の上のオレンジのパネルを ふむと ダッシュ',
+    '⑤ きついカーブを 速すぎる 速さで 通ると タイヤが すべって おそくなる。',
+    '　 「はやすぎ！」と 出たら アクセルを はなすか ブレーキ',
     '',
     '3位までに入れば クリア。3回まけると 自分だけ少し速くなるよ。',
   ];
@@ -687,24 +744,27 @@ function drawResult() {
 // ★ 左半分 … ハンドル（ゆびを置いたところが中心。左右にすべらせると
 //   切れぐあいが かわる）。右半分 … 下が アクセル、上が ブレーキ。
 //   まえは「左半分＝左に いっぱい／右半分＝右に いっぱい」で、
-//   アクセルは ずっと ぜんかいだった ため、きつい カーブで かならず
-//   草に 出て しまって いた。
+//   まえは アクセルを おさなくても ほぼ ぜんかいで 走って いた ため
+//   「かってに アクセル ぜんかい」に なって いた。いまは はなすと おそくなる。
 
-const STEER_R = 92;                 // ハンドルを いっぱいに 切る までの きょり(CSS px)
+// ★ まえは 92px ゆびを すべらせないと いっぱいに 切れず、
+//   親ゆびが とどかなくて「曲がれない」に なって いた。半分に する。
+const STEER_R = 46;                 // ハンドルを いっぱいに 切る までの きょり(CSS px)
 const steerPtr = { id: null, cx: 0, val: 0 };
 const gasPtr = { id: null }, brkPtr = { id: null };
+let gasSeen = false;      // 一度でも アクセルを おしたか
 const keys = {};
 
 function steerRadius() { return STEER_R / SC; }
 
 // 右がわの ボタンの ばしょ
 function gasBox() {
-  const r = Math.max(38, 62 / SC);
-  return { x: VW - r - 22, y: VH - r - 22, r: r };
+  const r = Math.max(42, 72 / SC);
+  return { x: VW - r - 18, y: VH - r - 16, r: r };
 }
 function brkBox() {
-  const g = gasBox(), r = g.r * 0.74;
-  return { x: g.x - g.r - r - 12, y: g.y - g.r * 0.22, r: r };
+  const g = gasBox(), r = g.r * 0.82;
+  return { x: g.x - g.r - r - 10, y: g.y - g.r * 0.30, r: r };
 }
 function inCircle(b, x, y) { return Math.hypot(x - b.x, y - b.y) <= b.r * 1.15; }
 
@@ -716,7 +776,7 @@ function applyInput() {
   G.steer = Math.max(-1, Math.min(1, st));
 
   let th = 0;
-  if (gasPtr.id !== null || keys.ArrowUp || keys[' '] || keys.Space) th = 1;
+  if (gasPtr.id !== null || keys.ArrowUp || keys[' '] || keys.Space) { th = 1; gasSeen = true; }
   if (brkPtr.id !== null || keys.ArrowDown) th = -1;
   G.throttle = th;
 }
@@ -727,8 +787,12 @@ function down(id, px, py) {
   if (G.screen === 'play' && !G.over) {
     const b = hitBtn(px, py);
     if (b && b.on && y < VH * 0.35) { b.on(); return; }
-    if (inCircle(gasBox(), x, y)) { gasPtr.id = id; applyInput(); return; }
-    if (inCircle(brkBox(), x, y)) { brkPtr.id = id; applyInput(); return; }
+    // ★ 右がわは どこを おしても アクセル。まえは 小さな まるを
+    //   きっちり おさないと 進まなかった。ブレーキの まるだけ べつあつかい。
+    if (x >= VW * 0.55) {
+      if (inCircle(brkBox(), x, y)) brkPtr.id = id; else { gasPtr.id = id; gasSeen = true; }
+      applyInput(); return;
+    }
     if (x < VW * 0.55 && steerPtr.id === null) {
       steerPtr.id = id; steerPtr.cx = x; steerPtr.val = 0;
       applyInput();
@@ -740,7 +804,15 @@ function down(id, px, py) {
   if (b && b.on) b.on();
 }
 function move(id, px, py) {
-  const x = px / SC;
+  const x = px / SC, y = py / SC - VOY;
+  // 右がわの ゆびは、すべらせる だけで アクセル と ブレーキを 行き来できる
+  if (gasPtr.id === id || brkPtr.id === id) {
+    const onBrk = inCircle(brkBox(), x, y);
+    if (onBrk && brkPtr.id !== id) { gasPtr.id = null; brkPtr.id = id; applyInput(); }
+    else if (!onBrk && gasPtr.id !== id && x >= VW * 0.55) { brkPtr.id = null; gasPtr.id = id; applyInput(); }
+    else if (!onBrk && x < VW * 0.55) { gasPtr.id = null; brkPtr.id = null; applyInput(); }
+    return;
+  }
   if (steerPtr.id === id) {
     const r = steerRadius();
     let d = x - steerPtr.cx;

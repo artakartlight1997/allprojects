@@ -5,14 +5,16 @@
 //   カートは道にそって pos（何メートル進んだか）と px（左右のずれ）で持つ。
 //   道そのものが向こうから流れてくるので、速さがそのまま画面に出る。
 //
-// ★ 操作（作り直し）
-//   左半分 … ハンドル。ゆびを置いたところが中心で、左右にすべらせると
-//            切れぐあいが かわる（すこしだけ 曲げる、が できる）。
-//   右半分 … 下が アクセル、上が ブレーキ。
-//   なにも おさない ときは「ほどよい 速さ」で 走りつづける ので、
-//   小さい子でも 止まって しまわない。
-//   まえは アクセル ぜんかい 固定だった ため、きつい カーブを
-//   ハンドルだけでは まがりきれず、かならず 草に 出て しまって いた。
+// ★ 操作（作り直し その2）
+//   左半分 … ハンドル。ゆびを置いたところが中心。46px すべらせれば いっぱい。
+//            ハンドルは「よこに 動く 速さ」では なく「道の どこを 走るか」。
+//            いっぱいに 切ると 道のはしで ぴたっと 止まる ので、
+//            ハンドルの せいで 草に 出る ことは ない。
+//   右半分 … どこを おしても アクセル。その 左どなりの まるが ブレーキ。
+//            はなすと 40% まで おちる。まえは はなしても 85% で 走り
+//            つづけて いた ため「かってに アクセル ぜんかい」だった。
+//   きつい カーブを 速すぎる 速さで 通ると タイヤが すべり、
+//   外へ ふくらんで 速さも けずられる。だから 手前で 速さを おとす。
 //   同じ向きに曲がりつづけると火花がたまり、はなすとダッシュ（ドリフト）。
 
 'use strict';
@@ -66,23 +68,47 @@ const DRIVERS = [
 const MAXS = 13000;      // 道の上での最高速度（1秒に進むきょり）
 const ACC = 5200;        // 加速
 const BRK = 9000;        // 草の上での減速
+// ★ アクセルを はなした ときと ブレーキを ふんだ ときで
+//   おそく なりかたを 分ける。はなす=ゆっくり／ブレーキ=きゅうに。
+const COAST_DEC = 3400;
+const BRAKE_DEC = 12000;
 const OFF_MAX = 0.55;    // 草の上での最高速度（わりあい）
 // ★ 草に出すぎて 道が 画面から 消え、どっちへ もどれば いいか 分からなく
 //   なる、と 言われた。外に 出られる はばを せまくして、さらに
 //   外にいるほど 内へ もどす 力（見えない ガードレール）を かける。
 const OFF_MAX_X = 1.42;  // これより 外へは 出られない
 const OFF_PULL = 2.2;    // 草の上で 内へ もどる 力
-const TURN = 2.7;        // ハンドルの効き（左右のずれ／秒）
+
+// ★ ハンドルの かんがえかたを 変えた。
+//   まえは「ハンドル＝よこに 動く 速さ」だった ので、カーブで いっぱいに
+//   切って おさえて いると そのまま よこに 走りぬけて 草に 出て しまい、
+//   「曲がれない ゲーム」に なって いた。
+//   いまは「ハンドル＝道の どこを 走るか」。いっぱいに 切ると 道のはしで
+//   ぴたっと 止まる ので、ハンドルの せいで 草に 出る ことは ない。
+const LINE_MAX = 0.86;   // いっぱいに 切った ときの 道の上の ばしょ
+const LINE_RATE = 3.2;   // そこへ 動く いちばん 速い はやさ
+const LINE_K = 5.0;      // ちかづく はやさ（大きいほど きびきび）
+const TURN = 3.4;        // （むかしの ていすう。ドリフトの はんてい で つかう）
 // ★ カーブで外へふくらむ力。強すぎるとハンドルを最大に切っても
 //   曲がりきれず、ずっと草の上になる。いちばんきついカーブ（7）でも
 //   ハンドル（2.7）の6割くらいで止める。
 // ★ 速いほど 外へ ふくらむ。速さの 2じょうで きく ように した ので、
 //   ブレーキで 落とすと はっきり 曲がれる ように なる。
-const CENTRIF = 0.20;
+// カーブで 外へ もって いかれる りょう（道の はば を 1 とした ばしょ）。
+// 速さの 2じょうで きく ので、ブレーキで おとせば ほとんど 流されない。
+const CENTRIF = 0.10;
+// ★ カーブごとの「これ以上 速いと タイヤが すべる」速さ（わりあい）。
+//   こえた ぶんだけ 外へ ふくらみ、速さも けずられる。
+//   だから きつい カーブの 前で 速さを おとすのが いちばん たしか。
+const SLIP_K = 0.072;    // カーブ 1 ごとに 出せる 速さが どれだけ おちるか
+const SLIP_OUT = 1.2;    // こえた ぶんが どれだけ 外へ ふくらむか
+const SLIP_DEC = 2.4;    // こえた ぶんが どれだけ 速さを けずるか
 // アクセル / なにもしない / ブレーキ の ときの 出せる 速さ（わりあい）
-// ★ なにも おさない ときも そこそこ 速い（0.85）。おそすぎると
-//   ずっと びり に なって しまう。ブレーキは カーブの ための どうぐ。
-const THR_TOP = { 1: 1.00, 0: 0.85, '-1': 0.35 };
+// ★ まえは はなして いても 0.85（ほとんど ぜんかい）だった ため
+//   「かってに アクセル ぜんかい」に なって いた。
+//   はなしたら はっきり おそく なる ように する。
+//   0 に しないのは、小さい子が とまった まま に ならない ため。
+const THR_TOP = { 1: 1.00, 0: 0.40, '-1': 0.18 };
 const BOOST = 1.42;      // ダッシュ中の最高速度のばい率
 
 const G = {
@@ -101,7 +127,7 @@ const G = {
   msg: '', msgT: 0,
   steer: 0,              // -1.0 〜 +1.0（アナログ）
   throttle: 0,           // 1 アクセル / 0 そのまま / -1 ブレーキ
-  best: 0, lapT: 0, lapTimes: [],
+  best: 0, lapT: 0, lapTimes: [], slip: 0,
 };
 
 function say(s) { G.msg = s; G.msgT = 2.0; }
@@ -207,6 +233,11 @@ function kartTop(f) {
   return top;
 }
 
+// カーブに 流される ぶん（道の はば を 1 とした ばしょ）
+function drift(seg, sp) { return seg.curve * sp * sp * CENTRIF; }
+// このカーブで タイヤが すべらない ぎりぎりの 速さ（わりあい）
+function slipCap(seg) { return 1 - Math.min(0.55, Math.abs(seg.curve) * SLIP_K); }
+
 function stepKart(f, dt, coast) {
   const seg = segAt(f.pos);
   let top = kartTop(f);
@@ -216,7 +247,12 @@ function stepKart(f, dt, coast) {
   // 加速・減速
   if (coast) f.spd = Math.max(0, f.spd - ACC * 0.5 * dt);
   else if (f.spd < top) f.spd = Math.min(top, f.spd + ACC * f.drv.acc * (f.boostT > 0 ? 2.4 : 1) * dt);
-  else f.spd = Math.max(top, f.spd - BRK * dt);
+  else {
+    // ★ おそく なりかた。ブレーキは きゅうに、はなした ときは ゆっくり。
+    let dec = BRK;
+    if (f.isMe) dec = G.throttle < 0 ? BRAKE_DEC : (G.throttle > 0 ? BRK : COAST_DEC);
+    f.spd = Math.max(top, f.spd - dec * dt);
+  }
 
   if (f.hitT > 0) { f.hitT -= dt; f.spd = Math.min(f.spd, MAXS * 0.45); }
   f.boostT = Math.max(0, f.boostT - dt);
@@ -226,13 +262,23 @@ function stepKart(f, dt, coast) {
   else f.steer = G.steer;
 
   const sp = f.spd / MAXS;
-  // ★ 草の上でも ハンドルは しっかり きく（もどれない と こまる）
-  f.px += f.steer * TURN * f.drv.grip * (0.62 + sp * 0.38) * dt;
-  // カーブで外へふくらむ（速さの 2じょう。おそく すれば しっかり 曲がれる）
-  f.px -= seg.curve * sp * sp * CENTRIF * dt;
+  // 速すぎる ぶん（タイヤが すべって いる りょう）
+  const ex = Math.max(0, sp - slipCap(seg) * f.drv.grip);
+  // ハンドルの ばしょ ＋ カーブに 流される ぶん ＝ 行きたい ばしょ
+  const dr = drift(seg, sp) + Math.sign(seg.curve) * ex * SLIP_OUT;
+  const target = Math.max(-1.25, Math.min(1.25, f.steer * LINE_MAX - dr));
+  const d = target - f.px;
+  const rate = LINE_RATE * f.drv.grip * (0.62 + sp * 0.38);
+  f.px += Math.max(-rate, Math.min(rate, d * LINE_K)) * dt;
   // ★ 見えない ガードレール。道から 外れた ぶんだけ 内へ もどされる。
   const out = Math.abs(f.px) - 1;
   if (out > 0) f.px -= Math.sign(f.px) * Math.min(out, 0.6) * OFF_PULL * dt;
+  // すべって いる あいだは 速さも けずられる
+  if (f.isMe) G.slip = ex;
+  if (ex > 0) {
+    f.spd = Math.max(MAXS * 0.28, f.spd - ex * MAXS * SLIP_DEC * dt);
+    if (f.isMe) G.shake = Math.max(G.shake, Math.min(0.45, ex * 1.6));
+  }
   // 道の外へは出すぎない
   f.px = Math.max(-OFF_MAX_X, Math.min(OFF_MAX_X, f.px));
 
@@ -276,6 +322,16 @@ function stepKart(f, dt, coast) {
   }
 }
 
+// この先の カーブ。ui が「みぎ！」「ブレーキ！」を 出す ために つかう。
+function curveAhead() {
+  let worst = 0;
+  for (let k = 4; k <= 16; k++) {
+    const c = segAt(G.karts[G.me].pos + SEG_LEN * k).curve;
+    if (Math.abs(c) > Math.abs(worst)) worst = c;
+  }
+  return worst;
+}
+
 // AI … 先のカーブを見て内側を通る。速さは difficulty で決まる。
 function aiSteer(f, dt) {
   f.aiT -= dt;
@@ -296,8 +352,12 @@ function aiSteer(f, dt) {
     if (s2.pad) { want = s2.pad * 0.5; break; }
   }
   want = Math.max(-0.85, Math.min(0.85, want + f.aiX));
-  const d = want - f.px;
-  f.steer = Math.abs(d) < 0.06 ? 0 : (d > 0 ? 1 : -1);
+  // ★ ハンドルは「道の どこを 走るか」なので、行きたい ばしょから 逆算する。
+  const sp = f.spd / MAXS;
+  const seg = segAt(f.pos);
+  const ex = Math.max(0, sp - slipCap(seg) * f.drv.grip);
+  f.steer = Math.max(-1, Math.min(1,
+    (want + drift(seg, sp) + Math.sign(seg.curve) * ex * SLIP_OUT) / LINE_MAX));
   // ★ 火花がたまったら 手をはなして ダッシュ（人と同じことをする）
   if (f.driftT > 1.1) { f.steer = 0; f.aiRel = 0.12; }
   if (f.aiRel > 0) { f.aiRel -= dt; f.steer = 0; }

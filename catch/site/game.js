@@ -14,7 +14,7 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const HUD = 26;
 const STEPS = 5;             // といの 上を 何カチで すべり落ちるか
 const MISS_MAX = 3;
@@ -40,6 +40,7 @@ const G = {
   slot: 1, eggs: [], tick: 0.6, tickLen: 0.6, phase: 0,
   score: 0, caught: 0, miss: 0, level: 0, over: false,
   msg: '', msgT: 0, hurt: 0, joy: 0, forgive: FORGIVE, warned: false,
+  tickNo: 0, lastSpawn: null, nextSlot: -1,
 };
 
 // --- ばしょ の けいさん -------------------------------------------------------------
@@ -96,7 +97,25 @@ function eggPos(e) {
 // --- はやさ -------------------------------------------------------------------------
 
 function tickLenOf(lv) { return Math.max(0.20, 0.60 - lv * 0.042); }
-function spawnP(lv) { return Math.min(0.94, 0.46 + lv * 0.055); }
+function spawnP(lv) { return Math.min(0.88, 0.46 + lv * 0.050); }
+
+// ★ ゆびが とどく までに かかる 時間（ばしょの くみあわせ ごと）。
+//   たて（同じ がわ）は 近い。よこは 画面を またぐ ので 遠い。ななめは いちばん 遠い。
+//   これより みじかい 間で ちがう ばしょに 落とすと、
+//   どんなに うまくても ぜったいに とれない。
+const MOVE_V = 0.34, MOVE_H = 0.50, MOVE_D = 0.60;
+// ★ 「前の たまごを うけて から でないと 動きだせない」ので、
+//   ぴったり だと 気づく ぶんの ひと呼吸で まにあわなく なる。
+//   その ひと呼吸を さいしょから 足して おく。
+const MOVE_SLACK = 0.18;
+function moveNeed(a, b) {
+  if (a === b) return 0;
+  const sameSide = (a >= 2) === (b >= 2);
+  const sameLevel = (a % 2) === (b % 2);
+  if (sameSide) return MOVE_V;
+  if (sameLevel) return MOVE_H;
+  return MOVE_D;
+}
 
 // --- ゲームの なかみ ----------------------------------------------------------------
 
@@ -122,20 +141,40 @@ function readInput() {
 }
 
 function trySpawn() {
-  // ★ たいせつ：1カチに 出す たまごは かならず 1つだけ。
+  // ★ たいせつ 1：1カチに 出す たまごは かならず 1つだけ。
   //   おなじ カチで 2つ 落ちて くると、どんなに うまくても 片方は とれない。
   //   たまごは みんな 同じ 速さで 進む ので、出す ときに ずらせば ずっと ずれた まま。
-  for (const e of G.eggs) if (e.k === 0) return;
-  if (Math.random() > spawnP(G.level)) return;
-  const free = [];
-  for (let i = 0; i < 4; i++) {
-    let busy = false;
-    for (const e of G.eggs) if (e.i === i && e.k <= 1) busy = true;
-    if (!busy) free.push(i);
+  //
+  // ★ たいせつ 2：さきに「つぎは どこに 出すか」を きめて から、
+  //   そこへ ゆびが とどく 時間が たつまで 出さずに 待つ。
+  //   たまごは 出した じゅんに そのまま 落ちる ので、
+  //   出す ときの 間 ＝ 落ちる ときの 間。ここで きめれば ずっと 守られる。
+  //
+  //   「出せる ところを えらぶ」やりかたに すると、はやい レベルでは
+  //   いつも 同じ といしか えらべなく なって、ずっと 同じ ばしょに
+  //   たまるだけの つまらない ならびに なる。だから 先に きめる。
+  const tl = tickLenOf(Math.min(9, G.level + 1));
+  if (G.nextSlot < 0) pickNext();
+  if (G.lastSpawn) {
+    const since = (G.tickNo - G.lastSpawn.tick) * tl;
+    if (since < moveNeed(G.lastSpawn.slot, G.nextSlot) + MOVE_SLACK) return;
   }
-  if (!free.length) return;
-  const i = free[Math.floor(Math.random() * free.length)];
+  if (Math.random() > spawnP(G.level)) return;
+  const i = G.nextSlot;
   G.eggs.push({ i: i, k: 0, chick: Math.random() < 0.13 });
+  G.lastSpawn = { tick: G.tickNo, slot: i };
+  pickNext();
+}
+
+// つぎの たまごを どの といに 出すか（ときどき 同じ といに つづけて 出す）
+const SAME_P = 0.28;
+function pickNext() {
+  const last = G.lastSpawn ? G.lastSpawn.slot : Math.floor(Math.random() * 4);
+  if (!G.lastSpawn) { G.nextSlot = last; return; }
+  if (Math.random() < SAME_P) { G.nextSlot = last; return; }
+  const others = [];
+  for (let i = 0; i < 4; i++) if (i !== last) others.push(i);
+  G.nextSlot = others[Math.floor(Math.random() * others.length)];
 }
 
 function resolve(e) {
@@ -160,6 +199,7 @@ function resolve(e) {
 }
 
 function doTick() {
+  G.tickNo++;
   G.tickLen = tickLenOf(G.level);
   for (let i = G.eggs.length - 1; i >= 0; i--) {
     const e = G.eggs[i];
@@ -180,6 +220,7 @@ function startRun() {
   G.slot = 1; G.score = 0; G.caught = 0; G.miss = 0; G.level = 0;
   G.over = false; G.forgive = FORGIVE; G.msgT = 0; G.hurt = 0; G.joy = 0;
   G.tickLen = tickLenOf(0); G.tick = G.tickLen; G.phase = 0;
+  G.tickNo = 0; G.lastSpawn = null; G.nextSlot = -1;
   G.screen = 'play';
   save.plays++; storeSave();
   bgmStart(1); bgmHeat(0);
@@ -373,6 +414,33 @@ function drawPlay() {
     drawBasket(b.x, b.y, true);
   }
 
+  // ★ つぎに 落ちる たまごの「行き先」を 光らせる。
+  //   といの どこに いるかを 数える 前に、どこへ 行けば いいかが ひと目で わかる。
+  let nx = null;
+  for (const e of G.eggs) if (!nx || e.k > nx.k) nx = e;
+  if (nx) {
+    const b = basketPt(nx.i);
+    const soon = nx.k >= STEPS;
+    ctx.save();
+    ctx.globalAlpha = soon ? (0.55 + 0.45 * Math.sin(G.t * 14)) : 0.45;
+    ctx.strokeStyle = soon ? '#E8544A' : '#3A7ACC';
+    ctx.lineWidth = soon ? 5 : 3;
+    circle(b.x, b.y + 2, 34); ctx.stroke();
+    ctx.restore();
+    if (nx.i !== G.slot) {
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      const yy = b.y - 44 - (soon ? Math.abs(Math.sin(G.t * 10)) * 5 : 0);
+      ctx.fillStyle = soon ? '#E8544A' : '#3A7ACC';
+      ctx.beginPath();
+      ctx.moveTo(b.x, yy + 18);
+      ctx.lineTo(b.x - 11, yy);
+      ctx.lineTo(b.x + 11, yy);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+
   // たまご
   for (const e of G.eggs) {
     const p = eggPos(e);
@@ -393,7 +461,8 @@ function drawPlay() {
   drawBasket(bp.x, bp.y, false);
   if (G.joy > 0) {
     ctx.globalAlpha = clamp(G.joy * 3, 0, 1);
-    bigText('セーフ！', bp.x, bp.y - 34, 18, '#FFD24A');
+    // 画面の はしで 切れない ように 中へ よせる
+    bigText('セーフ！', clamp(bp.x, 44, VW - 44), bp.y - 34, 18, '#FFD24A');
     ctx.globalAlpha = 1;
   }
 

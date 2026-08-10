@@ -14,12 +14,12 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const HUD = 26;
 
 const P_SPD = 196;           // ひこうきの はやさ
 const P_TURN = 5.0;          // 1びょうに 曲がれる おおきさ
-const P_R = 15;
+const P_R = 13;
 const SHOT_SPD = 430, SHOT_GAP = 0.19;
 const E_SHOT = 170;
 const SPAWN_R = 560;         // てきが 出て くる きょり
@@ -33,6 +33,15 @@ const STAGES = [
   { name: 'オーロラ', sky: ['#0E2A3A', '#2E7A72'], cloud: '#9EE8D0', need: 22, esp: 140, ehp: 2, boss: 34 },
   { name: 'せいそう圏', sky: ['#101838', '#4A3A78'], cloud: '#B8A8E8', need: 24, esp: 148, ehp: 3, boss: 38 },
   { name: 'うちゅう', sky: ['#05060F', '#1A1440'], cloud: '#6A6A9A', need: 26, esp: 156, ehp: 3, boss: 42 },
+];
+
+// ★ おとしもの（てきを 3たい たおす ごとに 1つ 出る）
+//   これが ないと ボスは かたすぎた。たまが ふえると はっきり 勝てる。
+const ITEM_KIND = [
+  { k: 'p', col: '#FF7A3A', label: 'P', ja: 'たまが ふえる' },
+  { k: 'b', col: '#8AD8F0', label: 'B', ja: 'バリア（1回 まもる）' },
+  { k: 's', col: '#7ADC80', label: 'S', ja: 'よく まがれる' },
+  { k: 'l', col: '#FF6FA8', label: '1', ja: 'のこりが 1つ ふえる' },
 ];
 
 const KIDS = [
@@ -58,6 +67,7 @@ const G = {
   screen: 'title', t: 0, stage: 0,
   me: null, foes: [], shots: [], eshots: [], kids: [], pops: [],
   kills: 0, need: 0, boss: null, bombs: 3, lives: 3, score: 0, rescued: 0,
+  items: [], pow: 1, shield: 0, spdUp: 0, dropN: 0,
   over: false, won: false, ready: 0, inv: 0, shotT: 0, spawnT: 0, kidT: 0, flash: 0,
   msg: '', msgT: 0,
 };
@@ -82,12 +92,15 @@ function say(s) { G.msg = s; G.msgT = 1.3; }
 
 // --- はじめる -----------------------------------------------------------------------
 
-function startStage(n) {
+function startStage(n, keep) {
   const S = STAGES[n];
   G.stage = n;
   G.me = { x: 0, y: 0, a: -Math.PI / 2, want: -Math.PI / 2 };
-  G.foes = []; G.shots = []; G.eshots = []; G.kids = []; G.pops = [];
+  G.foes = []; G.shots = []; G.eshots = []; G.kids = []; G.pops = []; G.items = [];
   G.kills = 0; G.need = S.need; G.boss = null;
+  // ★ クリアして つぎへ 行く ときは、あつめた 力を そのまま もって いける
+  if (!keep) { G.pow = 1; G.shield = 0; G.spdUp = 0; }
+  G.dropN = 0;
   G.bombs = 3; G.lives = 5; G.score = 0; G.rescued = 0;
   G.over = false; G.won = false; G.ready = 1.2; G.inv = 2;
   G.shotT = 0; G.spawnT = 0.6; G.kidT = 4; G.flash = 0;
@@ -129,13 +142,47 @@ function spawnBoss() {
   if (A.ctx) { const t = anow(); bleep(t, [48, 43, 48, 55], 0.14, 0.24, 0.18); nz(t, 0.6, 0.16, 60, 700); }
 }
 
+function spawnItem(x, y) {
+  const r = Math.random();
+  const k = r < 0.50 ? 'p' : r < 0.72 ? 'b' : r < 0.88 ? 's' : 'l';
+  G.items.push({ x: x, y: y, k: k, t: 15, ph: Math.random() * 6 });
+  if (A.ctx) bleep(anow(), [76, 83], 0.05, 0.09, 0.09);
+}
+function onKill(f) {
+  G.dropN++;
+  if (G.dropN % 3 === 0) spawnItem(f.x, f.y);
+}
+function takeItem(it) {
+  const K = ITEM_KIND.find((z) => z.k === it.k);
+  if (it.k === 'p') {
+    if (G.pow < 4) { G.pow++; say('たまが ふえた！ ' + G.pow + 'だんめ'); }
+    else { G.score += 300; say('もう さいこう！ +300てん'); }
+  } else if (it.k === 'b') { G.shield = 1; say('バリア！ 1回 まもって くれる'); }
+  else if (it.k === 's') {
+    if (G.spdUp < 2) { G.spdUp++; say('よく まがれる ように なった！'); }
+    else { G.score += 200; say('+200てん'); }
+  } else { G.lives++; say('1UP！ のこりが ふえた'); }
+  G.score += 150;
+  sfxGet();
+  boom(it.x, it.y, K ? K.col : '#FFF', 6);
+}
+
 function boom(x, y, col, n) {
   G.pops.push({ x: x, y: y, t: 0.5, col: col, n: n || 8 });
 }
 
 function hitMe(why) {
   if (G.inv > 0 || G.over || G.won) return;
+  if (G.shield > 0) {
+    // ★ バリアが 1回 まもる。力は へらない
+    G.shield = 0; G.inv = 1.6; G.flash = 0.25;
+    boom(G.me.x, G.me.y, '#8AD8F0', 12);
+    say('バリアが まもった！');
+    sfxPop();
+    return;
+  }
   G.lives--;
+  if (G.pow > 1) G.pow--;      // ぜんぶ なくならない。1だん だけ おちる
   G.inv = 2.6;
   G.flash = 0.3;
   boom(G.me.x, G.me.y, '#FFD24A', 14);
@@ -157,7 +204,7 @@ function useBomb() {
   G.eshots.length = 0;
   for (const f of G.foes) {
     if (Math.hypot(f.x - G.me.x, f.y - G.me.y) < 300) {
-      f.hp = 0; boom(f.x, f.y, f.col, 10); G.score += 100; G.kills++;
+      f.hp = 0; boom(f.x, f.y, f.col, 10); onKill(f); G.score += 100; G.kills++;
     }
   }
   G.foes = G.foes.filter((f) => f.hp > 0);
@@ -192,7 +239,8 @@ function update(dt) {
   if (kd === 'd') want = Math.PI / 2;
   if (want !== null) {
     const d = angDiff(me.a, want);
-    me.a += clamp(d, -P_TURN * dt, P_TURN * dt);
+    const turn = P_TURN * (1 + G.spdUp * 0.14);
+    me.a += clamp(d, -turn * dt, turn * dt);
   }
   me.x += Math.cos(me.a) * P_SPD * dt;
   me.y += Math.sin(me.a) * P_SPD * dt;
@@ -200,11 +248,18 @@ function update(dt) {
   if (IN.fireTap || (KEYS.Space && !G.ks)) useBomb();
   G.ks = KEYS.Space;
 
-  // たまは じどう
+  // たまは じどう。力が 上がると ふえる／速く なる
   G.shotT -= dt;
   if (G.shotT <= 0) {
-    G.shotT = SHOT_GAP;
-    G.shots.push({ x: me.x + Math.cos(me.a) * 18, y: me.y + Math.sin(me.a) * 18, a: me.a, t: 1.5 });
+    G.shotT = G.pow >= 4 ? SHOT_GAP * 0.7 : SHOT_GAP;
+    const nx = Math.cos(me.a), ny = Math.sin(me.a);
+    const ox = -ny, oy = nx;
+    const add = (side, da) => G.shots.push({
+      x: me.x + nx * 18 + ox * side, y: me.y + ny * 18 + oy * side, a: me.a + da, t: 1.5,
+    });
+    if (G.pow <= 1) add(0, 0);
+    else if (G.pow === 2) { add(-9, 0); add(9, 0); }
+    else { add(0, 0); add(-10, -0.17); add(10, 0.17); }
     if (A.ctx) tone(anow(), 92, 0.04, 0.05, 'square', null, 78);
   }
 
@@ -280,6 +335,7 @@ function update(dt) {
       f.hp--;
       if (f.hp <= 0) {
         boom(f.x, f.y, f.col, 10);
+        onKill(f);
         G.foes.splice(i, 1);
         G.score += 100; G.kills++;
         sfxHit();
@@ -332,6 +388,19 @@ function update(dt) {
         return;
       }
       break;
+    }
+  }
+
+  // おとしもの
+  for (let i = G.items.length - 1; i >= 0; i--) {
+    const it = G.items[i];
+    it.t -= dt;
+    it.x += Math.sin(G.t * 1.1 + it.ph) * 16 * dt;
+    it.y += 20 * dt;
+    if (it.t <= 0) { G.items.splice(i, 1); continue; }
+    if (Math.hypot(it.x - me.x, it.y - me.y) < P_R + 26) {
+      G.items.splice(i, 1);
+      takeItem(it);
     }
   }
 
@@ -493,12 +562,34 @@ function drawBoss(b) {
   rr(x - bw / 2, y - 48, bw * clamp(b.hp / b.max, 0, 1), 9, 4); ctx.fill();
 }
 
+function drawItem(it) {
+  const K = ITEM_KIND.find((z) => z.k === it.k) || ITEM_KIND[0];
+  const x = sx(it), y = sy(it);
+  const s = 15 + Math.sin(G.t * 5 + it.ph) * 1.6;
+  const fade = it.t < 3 ? (Math.sin(G.t * 14) > 0 ? 0.35 : 1) : 1;
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.translate(x, y);
+  ctx.rotate(Math.sin(G.t * 2 + it.ph) * 0.25);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  rr(-s + 2, -s + 3, s * 2, s * 2, s * 0.42); ctx.fill();
+  ctx.fillStyle = K.col;
+  rr(-s, -s, s * 2, s * 2, s * 0.42); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  rr(-s, -s, s * 2, s * 0.8, s * 0.3); ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  rr(-s, -s, s * 2, s * 2, s * 0.42); ctx.stroke();
+  bigText(K.label, 0, 1, Math.round(s * 1.2), '#2A1C34', null);
+  ctx.restore();
+}
+
 function drawPlay() {
   const S = STAGES[G.stage];
   drawSky();
 
-  // たすける 子
+  // たすける 子 と おとしもの
   for (const k of G.kids) if (onScreen(k, 80)) drawKid(sx(k), sy(k), k.k, k.t);
+  for (const it of G.items) if (onScreen(it, 40)) drawItem(it);
 
   // てきの たま
   for (const s of G.eshots) {
@@ -526,6 +617,13 @@ function drawPlay() {
     drawPlane(VW / 2, VH / 2, G.me.a, '#E8543A', 23, false);
     drawMeHead(VW / 2, VH / 2);
   }
+  if (G.shield > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(G.t * 5);
+    ctx.strokeStyle = '#8AD8F0'; ctx.lineWidth = 3.5;
+    circle(VW / 2, VH / 2, 34); ctx.stroke();
+    ctx.restore();
+  }
 
   for (const p of G.pops) {
     const a = clamp(p.t / 0.5, 0, 1);
@@ -540,8 +638,8 @@ function drawPlay() {
     ctx.globalAlpha = 1;
   }
 
-  // 画面の そとの てきを ふちで しらせる
-  for (const f of G.foes) {
+  // 画面の そとの てき と おとしものを ふちで しらせる
+  for (const f of G.foes.concat(G.items)) {
     if (onScreen(f, 20)) continue;
     const dx = f.x - G.me.x, dy = f.y - G.me.y;
     const a = Math.atan2(dy, dx);
@@ -549,7 +647,7 @@ function drawPlay() {
     const k = Math.min(rx / Math.max(1e-3, Math.abs(Math.cos(a))), ry / Math.max(1e-3, Math.abs(Math.sin(a))));
     const px = VW / 2 + Math.cos(a) * k, py = VH / 2 + Math.sin(a) * k;
     ctx.globalAlpha = 0.7;
-    ctx.fillStyle = f.col;
+    ctx.fillStyle = f.col || (ITEM_KIND.find((z) => z.k === f.k) || ITEM_KIND[0]).col;
     ctx.save();
     ctx.translate(px, py); ctx.rotate(a);
     ctx.beginPath();
@@ -580,7 +678,7 @@ function drawPlay() {
       ['スコア ' + G.score + '　たすけた ' + G.rescued + '人',
        last ? 'うちゅうまで 行った！ すごい！' : 'つぎの 空へ'],
       last ? [{ label: 'タイトルへ', on: () => { G.screen = 'title'; } }]
-           : [{ label: 'つぎへ', on: () => startStage(G.stage + 1) },
+           : [{ label: 'つぎへ', on: () => startStage(G.stage + 1, true) },
               { label: 'タイトルへ', on: () => { G.screen = 'title'; }, col: '#8AD8F0' }]);
   }
   if (G.over) {
@@ -603,6 +701,10 @@ function drawHud() {
   ctx.fillText('スコア ' + G.score, 96, HUD / 2);
   ctx.fillText(G.boss ? 'ボスと たたかい中！' : 'あと ' + Math.max(0, G.need - G.kills) + 'たいで ボス',
                200, HUD / 2);
+  ctx.fillStyle = '#FF9A5A';
+  ctx.fillText('たま ' + G.pow + 'だん', 336, HUD / 2);
+  if (G.shield > 0) { ctx.fillStyle = '#8AD8F0'; ctx.fillText('バリア', 404, HUD / 2); }
+  ctx.fillStyle = '#E8F0FF';
   ctx.textAlign = 'right';
   ctx.fillText('のこり ' + G.lives + '　たすけた ' + G.rescued, VW - 12, HUD / 2);
   ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -618,7 +720,7 @@ function drawTitle() {
   bigText('リナパパの', VW / 2, 40, 22, '#FFF2C0');
   bigText('ぐるぐるひこうき', VW / 2, 78, fitSize('ぐるぐるひこうき', VW * 0.6, 46), '#FFD24A');
   bigText('どっちへでも 飛べる 空。てきを たおして ボスを やっつけろ', VW / 2, 118, 16, '#F0F8FF', null);
-  bigText('左で むきを かえる（たまは じどう）／右で バリア', VW / 2, 142, 15, '#DCE8FF', null);
+  bigText('てきを 3たい たおすと おとしもの。あつめると たまが ふえる', VW / 2, 142, 15, '#DCE8FF', null);
   drawPlane(VW * 0.12, 120, Math.sin(G.t * 0.6) * 0.5, '#E8543A', 23, false);
   drawMeHead(VW * 0.12, 120);
   drawKid(VW * 0.88, 108, Math.floor(G.t / 2) % 4, G.t);
@@ -644,7 +746,10 @@ function drawHowto() {
     '② きゅうには 曲がらない。まわりこむ ように 飛ぶと あたらない',
     '③ たまは じどうで 出る。ねらう ことだけ かんがえよう',
     '④ 画面の ふちの 小さな やじるしは、そとに いる てきの ばしょ',
-    '⑤ パラシュートの 子を たすけると てんすう。4人で のこりが 1つ ふえる',
+    '⑤ てきを 3たい たおすと おとしもの。P=たまが ふえる（さいだい 3本＋速い）',
+    '　 B=バリア（1回 まもる）　S=よく まがれる　1=のこりが ふえる',
+    '⑥ ボスは かたい。P を あつめて から いどむと はっきり 勝てる',
+    '⑦ パラシュートの 子を たすけると てんすう。4人で のこりが 1つ ふえる',
   ];
   lines.forEach((s, i) => bigText(s, VW / 2, 90 + i * 34, fitSize(s, VW * 0.88, 17), '#0E1E3A', null));
   const bw = Math.min(180, VW * 0.22);

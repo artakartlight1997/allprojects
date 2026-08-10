@@ -1,0 +1,16 @@
+{
+  "name": "りなのカードめくり",
+  "short_name": "カードめくり",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2E2450",
+  "theme_color": "#2E2450",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

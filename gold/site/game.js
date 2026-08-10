@@ -5,7 +5,7 @@
 //
 // ★ そうさ（気もちよさの ために）
 //     ・左がわ … スティック（よこ＝走る、上下＝はしご）
-//     ・右がわ … どこを おしても「ほる」。スティックを たおして いる むきを ほる
+//     ・右がわ … 「◀ほる」「ほる▶」の 2つの ボタン。どっちを ほるか まよわない
 //   ますの まん中へ 自分から そろえる ので、はしごに すっと 入れる。
 //
 // ★ 金貨を ぜんぶ とると、上へ のぼれる はしごが 出る。
@@ -13,7 +13,7 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const HUD = 26;
 const COLS = 26, ROWS = 13;
 
@@ -272,6 +272,19 @@ function stepActor(a, dir, dt, sp) {
 
 // --- ほる --------------------------------------------------------------------------
 
+// その むきが ほれるか どうか
+function canDig(sign) {
+  const me = G.me;
+  if (me.falling) return false;
+  const cx = Math.round(me.x), cy = Math.round(me.y);
+  if (tl(cx, cy) === '-') return false;
+  const i = cx + sign, j = cy + 1;
+  if (i < 0 || i >= COLS || j >= ROWS) return false;
+  if (G.map[j][i] !== '#') return false;
+  if (solid(i, cy)) return false;
+  return true;
+}
+
 function digAt(sign) {
   const me = G.me;
   if (me.falling) return;
@@ -383,10 +396,13 @@ function update(dt) {
   if (!dir) dir = keyDir();
   stepActor(G.me, dir, dt, SPD);
 
-  if (IN.fireTap || (KEYS.Space && !G.ks)) {
-    digAt(dir === 'l' ? -1 : dir === 'r' ? 1 : G.me.face);
-  }
-  G.ks = KEYS.Space;
+  // ★ ほる むきは ボタンで はっきり わける。
+  //   まえは ボタン 1つで「スティックの むき／むいて いる ほう」を ほって いた ので、
+  //   おす まえに どっちが ほれるのか 見て わからなかった。
+  if (KEYS.KeyZ && !G.kz) digAt(-1);
+  if (KEYS.KeyX && !G.kx) digAt(1);
+  if (KEYS.Space && !G.ks) digAt(G.me.face);
+  G.ks = KEYS.Space; G.kz = KEYS.KeyZ; G.kx = KEYS.KeyX;
 
   // 金貨
   const mi = Math.round(G.me.x), mj = Math.round(G.me.y);
@@ -576,8 +592,26 @@ function drawPlay() {
     ctx.globalAlpha = 1;
   }
 
+  // ★ どの ますを ほるのか、その場に 出して 見せる
+  if (G.dead <= 0 && G.ready <= 0 && !G.won && !G.over) {
+    const cx = Math.round(G.me.x), cy = Math.round(G.me.y);
+    for (const sg of [-1, 1]) {
+      if (!canDig(sg)) continue;
+      const x = B.x + (cx + sg) * B.c, y = B.y + (cy + 1) * B.c;
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(G.t * 6);
+      ctx.strokeStyle = sg < 0 ? '#8AD8F0' : '#FFD24A';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 4]);
+      rr(x + 2, y + 2, B.c - 4, B.c - 4, 4); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = sg < 0 ? '#8AD8F0' : '#FFD24A';
+      bigText(sg < 0 ? '◀' : '▶', x + B.c / 2, y + B.c / 2, Math.max(11, B.c * 0.5), null, null);
+    }
+  }
+
   drawStick();
-  drawFire('ほる', '#E8A040');
+  drawDigButtons();
   drawHud();
 
   if (G.ready > 0) bigText(LV[G.stage].name + '　スタート！', VW / 2, VH * 0.42, 32, '#FFD24A');
@@ -602,6 +636,32 @@ function drawPlay() {
   }
 }
 
+// ほる ボタン（左を ほる／右を ほる）
+function digBox(sg) {
+  const r = Math.max(38, 62 / SC);
+  const y = VH - r - 14;
+  return sg < 0 ? { x: VW - r * 3 - 30, y: y, r: r } : { x: VW - r - 16, y: y, r: r };
+}
+function drawDigButtons() {
+  if (G.won || G.over || G.dead > 0) return;
+  for (const sg of [-1, 1]) {
+    const b = digBox(sg);
+    const ok = canDig(sg);
+    const col = sg < 0 ? '#8AD8F0' : '#FFD24A';
+    button(b.x - b.r, b.y - b.r, b.r * 2, b.r * 2, () => digAt(sg));
+    ctx.save();
+    ctx.globalAlpha = ok ? 0.95 : 0.35;
+    circle(b.x, b.y, b.r);
+    ctx.fillStyle = ok ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)';
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, b.r * 0.08);
+    ctx.strokeStyle = col; ctx.stroke();
+    bigText(sg < 0 ? '◀ほる' : 'ほる▶', b.x, b.y, fitSize('◀ほる', b.r * 1.55, Math.round(b.r * 0.42)),
+            col, null);
+    ctx.restore();
+  }
+}
+
 function drawHud() {
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fillRect(-VW, -VOY - 4, VW * 3, HUD + VOY + 4);
@@ -622,7 +682,7 @@ function drawTitle() {
   bigText('リナパパの', VW / 2, 40, 22, '#FFC0DC');
   bigText('おたからランナー', VW / 2, 78, fitSize('おたからランナー', VW * 0.6, 46), '#FFD24A');
   bigText('金貨を ぜんぶ あつめて、出て きた はしごで 上へ にげろ', VW / 2, 118, 16, '#DDE4FF', null);
-  bigText('左で 動く／右を おすと ゆかに あなを ほる', VW / 2, 142, 15, '#B8C4E8', null);
+  bigText('左で 動く／右下の 2つの ボタンで 左右の ゆかを ほる', VW / 2, 142, 15, '#B8C4E8', null);
   const y = stagePicker(LV.length, save.open, save.clear, LV.map((s) => s.name), 168,
                         (i) => startStage(i), '#FFD24A');
   const sw = Math.min(150, VW * 0.18);
@@ -638,7 +698,8 @@ function drawHowto() {
   bigText('あそびかた', VW / 2, 40, 28, '#FFD24A');
   const lines = [
     '① 左がわの スティックで 走る・はしごを のぼる・ロープを わたる',
-    '② 右がわを おすと 足もとの となりの ゆかに あなを ほる',
+    '② 右下の「◀ほる」「ほる▶」で、足もとの 左／右の ゆかに あなを ほる',
+    '　 ほれる ますは その場に 光って 出る。ほれない ときは ボタンが うすく なる',
     '③ あなに てきを 落とすと しばらく 出て こない。上を 走って こえよう',
     '④ あなは しばらくすると もどる。中に いると つぶれるので 気をつけて',
     '⑤ 金貨を ぜんぶ とると はしごが 出る。いちばん 上まで のぼれば クリア',

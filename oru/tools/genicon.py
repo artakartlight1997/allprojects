@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""アイコン（192x192 の png）を 作る。おる（グレーの ペルシャねこ）。"""
+"""アイコン（192x192 の png）を 作る。おる（グレーの ねこ）。"""
 
 import os
 import struct

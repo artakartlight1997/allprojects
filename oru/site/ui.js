@@ -256,7 +256,7 @@ function overlayText() {
   switch (game.phase) {
     case 'TITLE':
       return ['おるの大冒険', [
-        'ペルシャねこの おるが チュールを あつめて すすむ',
+        'グレーの ねこ おるが チュールを あつめて すすむ',
         'じゅうじボタンで うごく（↑↓で はしご、↓で どかんに 入る）',
         'ごほうびチュールで もふもふ。もう1こで にゃー／しゃー／ねこパンチ',
         `ぜんぶで ${LEVELS.length} ステージ。さいごは りなちゃんたちから にげろ！`,
@@ -415,7 +415,7 @@ function creditLines() {
   return [
     '■ おるの大冒険', '',
     '■ とうじょう',
-    'おる（ペルシャねこ・グレー）',
+    'おる（グレーの ねこ）',
     'リノ（白に 茶色の ねこ・気さく）',
     'りなちゃん（あそぼ〜）',
     'まりちゃん（ブラッシングしましょー！）',
@@ -472,7 +472,7 @@ function drawSleeper(cx, cy, s, kind, t, fluffy) {
   } else {
     const hr = s * 0.52;
     if (kind === 'AA') fillArc(cx - hr * 1.15, cy - hr * 1.35 + br, hr * 2.3, hr * 1.9, 180, 180, HAIR);
-    else fillRoundRect(cx - hr * 1.2, cy - hr * 0.95 + br, hr * 2.4, hr * 2.2, hr * 0.8, '#6A4A3A');
+    else kutanBob(cx, cy + br, hr, t, true, false);
     fillCircle(cx, cy + br, hr, SKIN);
     for (const sd of [-1, 1]) strokeArc(cx + sd * hr * 0.38 - hr * 0.18, cy - hr * 0.06 + br,
       hr * 0.36, hr * 0.2, 200, 140, INK, hr * 0.07);
@@ -480,6 +480,7 @@ function drawSleeper(cx, cy, s, kind, t, fluffy) {
     fillCircle(cx + hr * 0.62, cy + hr * 0.28 + br, hr * 0.16, rgba(CHEEK, 0.45));
     strokeArc(cx - hr * 0.18, cy + hr * 0.36 + br, hr * 0.36, hr * 0.22, 20, 140, INK, hr * 0.07);
     if (kind === 'AA') fillArc(cx - hr * 1.15, cy - hr * 1.35 + br, hr * 2.3, hr * 1.8, 180, 180, HAIR);
+    else kutanBob(cx, cy + br, hr, t, true, true);
   }
   // zzz
   const zt = (t * 0.7 + (kind === 'ORU' ? 0 : kind === 'RINO' ? 0.4 : 0.8)) % 3;
@@ -494,11 +495,59 @@ function drawSleeper(cx, cy, s, kind, t, fluffy) {
   }
 }
 
-// エンディングの ながれ
-//   0〜7.5秒 … あーたんと くーたんが まほうを かけて、おるの 毛が 生える
-//   7.5秒〜  … 4人と 1ぴきで ベッドで ねむる
-const MAGIC_END = 7.5;
+// エンディングの ながれ。★ 何が おきて いるか わかる ように 4つの ばめんに 分けた。
+//   ①  0.0〜 3.6秒 … おるが おうちに ついた（下半身の 毛が ない ことを 見せる）
+//   ②  3.6〜 6.6秒 … あーたんと くーたんが まほうを かける
+//   ③  6.6〜11.4秒 … 毛が どんどん 生える（ゲージで どれだけ 生えたか 見せる）
+//   ④ 11.4〜14.0秒 … ふわふわの ねこに もどって よろこぶ
+//     14.0秒〜     … 4人と 1ぴきで ベッドで ねむる
+const SC1 = 3.6, SC2 = 6.6, SC3 = 11.4, MAGIC_END = 14.0;
 let endMagicSfx = 0;
+
+/** エンディングの ふきだし。だれが しゃべって いるか わかる ように 大きく。 */
+function endBubble(text, x, y, s, alpha, col) {
+  if (alpha <= 0) return;
+  const fs = clamp(s * 0.46, 13, 24);
+  setFont(fs);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(text).width + fs * 1.4;
+  const bh = fs * 1.9;
+  const cx = clamp(x, tw / 2 + 6, viewW - tw / 2 - 6);
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  fillRoundRect(cx - tw / 2, y - bh / 2, tw, bh, bh * 0.45, 'rgba(255,255,255,0.96)');
+  poly([[x - fs * 0.28, y + bh / 2 - 2], [x + fs * 0.28, y + bh / 2 - 2],
+    [x, y + bh / 2 + fs * 0.7]], 'rgba(255,255,255,0.96)');
+  ctx.strokeStyle = col || '#C8A8F0';
+  ctx.lineWidth = Math.max(2, s * 0.05);
+  rectPath(cx - tw / 2, y - bh / 2, tw, bh, bh * 0.45);
+  ctx.stroke();
+  ctx.fillStyle = '#33283C';
+  setFont(fs);
+  ctx.fillText(text, cx, y + fs * 0.06);
+  ctx.restore();
+}
+
+/** 画面の 上に 出る せつめい。①②③④ と ばめんの 名前を 出す。 */
+function endCaption(step, title, s, alpha) {
+  const fs = clamp(s * 0.66, 16, 32);
+  setFont(fs);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const label = step + ' ' + title;
+  const tw = ctx.measureText(label).width + fs * 2.0;
+  const y = viewH * 0.07;
+  ctx.save();
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  fillRoundRect(viewW / 2 - tw / 2, y, tw, fs * 2.1, fs, 'rgba(30,20,45,0.86)');
+  ctx.strokeStyle = 'rgba(255,224,150,0.9)';
+  ctx.lineWidth = Math.max(2, s * 0.05);
+  rectPath(viewW / 2 - tw / 2, y, tw, fs * 2.1, fs);
+  ctx.stroke();
+  ctx.fillStyle = '#FFF0F5';
+  setFont(fs);
+  ctx.fillText(label, viewW / 2, y + fs * 1.05);
+  ctx.restore();
+}
 
 /** よるの へやの かべと まど。まほうの ばめんと ベッドの ばめんで つかう。 */
 function drawNightRoom(s, t) {
@@ -518,73 +567,132 @@ function drawNightRoom(s, t) {
   line(wx + s * 0.16, wy + s * 1.4, wx + s * 3.24, wy + s * 1.4, '#3A3260', s * 0.09);
 }
 
-/** まほうの ばめん。おるの 毛が だんだん 生えてくる。 */
+/** まほうの ばめん。①〜④の ばめんに 分けて、いま 何が おきて いるか 出す。 */
 function drawMagic(s, t) {
   drawNightRoom(s, t);
   const floorY = viewH * 0.86;
   fillRect(0, floorY, viewW, viewH - floorY, '#3A2E58');
   fillRect(0, floorY, viewW, s * 0.16, '#5A4A80');
 
-  // 毛が どれだけ 生えたか（2.0秒から 5.2秒に かけて 0→1）
-  const fur = clamp((t - 2.0) / 3.2, 0, 1);
   const cx = viewW * 0.5;
   const ow = s * 2.7, oh = s * 3.4;
-  const oy = floorY - oh;
+  const casting = t >= SC1;                       // まほうを かけて いる さいちゅう
+  // 毛が どれだけ 生えたか（③の あいだに 0 → 1）
+  const fur = clamp((t - SC2) / (SC3 - SC2), 0, 1);
 
-  // まほうの わ（足もとで まわる）
-  ctx.save();
-  ctx.globalAlpha = 0.45 + Math.sin(t * 4) * 0.15;
-  for (let i = 0; i < 3; i++) {
-    const rr = s * (1.1 + i * 0.45);
-    ctx.strokeStyle = i % 2 ? '#FFE9A8' : '#C8A8F0';
-    ctx.lineWidth = s * 0.07;
-    ctx.beginPath();
-    ctx.ellipse(cx, floorY - s * 0.1, rr, rr * 0.3, 0, t * (1 + i * 0.4), t * (1 + i * 0.4) + 4.2);
-    ctx.stroke();
-  }
-  ctx.restore();
+  // ① おるは 左から あるいて 入ってくる
+  const walk = clamp(t / 2.2, 0, 1);
+  const ox = cx * walk + (-ow) * (1 - walk);
+  const hop = t > SC3 ? Math.abs(Math.sin((t - SC3) * 7)) * s * 0.5 : 0;
+  const oy = floorY - oh - hop;
 
-  // おるに あつまる きらきら
-  for (let i = 0; i < 26; i++) {
-    const k = ((t * 0.7 + i / 26) % 1);
-    const a = (i / 26) * Math.PI * 2 + t * 0.8;
-    const r = s * (4.2 * (1 - k) + 0.3);
-    const px = cx + Math.cos(a) * r;
-    const py = floorY - oh * 0.5 + Math.sin(a) * r * 0.55;
+  if (casting) {
+    // まほうの わ（足もとで まわる）
     ctx.save();
-    ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
-    starPoly(px, py, s * (0.1 + (1 - k) * 0.12), 4, 0.3,
-      i % 3 === 0 ? '#FFE9A8' : '#DFF6FF', t * 3 + i);
+    ctx.globalAlpha = 0.45 + Math.sin(t * 4) * 0.15;
+    for (let i = 0; i < 3; i++) {
+      const rr = s * (1.1 + i * 0.45);
+      ctx.strokeStyle = i % 2 ? '#FFE9A8' : '#C8A8F0';
+      ctx.lineWidth = s * 0.07;
+      ctx.beginPath();
+      ctx.ellipse(cx, floorY - s * 0.1, rr, rr * 0.3, 0, t * (1 + i * 0.4), t * (1 + i * 0.4) + 4.2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // おるに あつまる きらきら
+    for (let i = 0; i < 26; i++) {
+      const k = ((t * 0.7 + i / 26) % 1);
+      const a = (i / 26) * Math.PI * 2 + t * 0.8;
+      const r = s * (4.2 * (1 - k) + 0.3);
+      ctx.save();
+      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
+      starPoly(cx + Math.cos(a) * r, floorY - oh * 0.5 + Math.sin(a) * r * 0.55,
+        s * (0.1 + (1 - k) * 0.12), 4, 0.3, i % 3 === 0 ? '#FFE9A8' : '#DFF6FF', t * 3 + i);
+      ctx.restore();
+    }
+  }
+
+  // あーたんと くーたん。②から 手を あげて まほうを かける。
+  // ★ おとななので、おるより 大きく 見えるように した。
+  const gw = s * 2.5, gh = s * 5.0;
+  const ax = cx - s * 5.6, kx = cx + s * 3.7;
+  drawGrownup(ax, floorY - gh, gw, gh, t, 'AA', casting);
+  drawGrownup(kx, floorY - gh, gw, gh, t, 'KU', casting);
+
+  // おる。毛が 生えるにつれて 光る。
+  if (casting) {
+    const glow = fur < 1 ? Math.abs(Math.sin(t * 6)) * 0.5 : 0.25;
+    fillCircle(cx, floorY - oh * 0.5, s * (2.1 + glow), `rgba(255,240,200,${0.18 + glow * 0.2})`);
+  }
+  oruSprite(ox - ow / 2, oy, ow, oh, true, walk < 1 ? t * 8 : 0,
+    1 + Math.sin(t * 3) * 0.02, false, fur);
+
+  // リノも いっしょに 見て いる（おるの ひだりがわ）
+  drawRino(cx - s * 3.0, floorY - s * 2.0, s * 2.2, s * 2.0, t, true);
+
+  // ① どこの 毛が ない のか、やじるしで はっきり 見せる
+  if (t < SC1 && walk >= 1) {
+    const a = clamp((t - 2.2) / 0.4, 0, 1) * clamp((SC1 - t) / 0.4, 0, 1);
+    const ay = floorY - oh * 0.24;
+    ctx.save(); ctx.globalAlpha = a;
+    const wob = Math.sin(t * 6) * s * 0.1;
+    const tipX = cx + s * 1.1 + wob, tailX = cx + s * 2.3 + wob;
+    line(tailX, ay - s * 0.55, tipX + s * 0.2, ay - s * 0.06, '#FFE066', s * 0.12);
+    poly([[tipX, ay], [tipX + s * 0.55, ay - s * 0.3], [tipX + s * 0.42, ay + s * 0.3]],
+      '#FFE066');
+    // 字が キャラに かぶって 読めなく ならない ように、下じきを しく
+    const lf = clamp(s * 0.44, 12, 22);
+    setFont(lf);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const lt = 'ここの 毛が ない';
+    const lw = ctx.measureText(lt).width;
+    const lx = Math.min(tailX - s * 0.2, viewW - lw - lf * 1.4);
+    fillRoundRect(lx - lf * 0.5, ay - s * 0.85 - lf * 0.85, lw + lf, lf * 1.7, lf * 0.85,
+      'rgba(30,20,45,0.86)');
+    ctx.fillStyle = '#FFE066';
+    ctx.fillText(lt, lx, ay - s * 0.85);
     ctx.restore();
   }
 
-  // あーたんと くーたん（手を あげて まほうを かける）
-  const gw = s * 2.0, gh = s * 3.9;
-  drawGrownup(cx - s * 5.2, floorY - gh, gw, gh, t, 'AA', true);
-  drawGrownup(cx + s * 3.2, floorY - gh, gw, gh, t, 'KU', true);
+  // ③ 毛が どれだけ 生えたか ゲージで 見せる
+  if (t >= SC2 && t < SC3 + 0.6) {
+    const bw = Math.min(viewW * 0.5, s * 8), bh2 = s * 0.44;
+    const bx = viewW / 2 - bw / 2, by = viewH * 0.9;
+    fillRoundRect(bx, by, bw, bh2, bh2 / 2, 'rgba(20,14,34,0.8)');
+    fillRoundRect(bx + s * 0.05, by + s * 0.05, (bw - s * 0.1) * fur, bh2 - s * 0.1,
+      bh2 / 2, fur >= 1 ? '#FFE066' : '#C8A8F0');
+    setFont(clamp(s * 0.38, 11, 19));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFF0F5';
+    ctx.fillText('けの もふもふ  ' + Math.round(fur * 100) + '%', viewW / 2, by + bh2 / 2);
+  }
 
-  // おる。毛が 生えるにつれて 光る。
-  const glow = fur < 1 ? Math.abs(Math.sin(t * 6)) * 0.5 : 0.25;
-  fillCircle(cx, floorY - oh * 0.5, s * (2.1 + glow), `rgba(255,240,200,${0.18 + glow * 0.2})`);
-  oruSprite(cx - ow / 2, oy, ow, oh, true, 0, 1 + Math.sin(t * 3) * 0.02, false, fur);
+  // ばめんの せつめい と せりふ
+  const gy = floorY - gh - s * 0.5;
+  if (t < SC1) {
+    endCaption('①', 'おるが おうちに ついた！', s, clamp(t / 0.5, 0, 1));
+    endBubble('おかえり おる〜', ax + gw / 2, gy, s, clamp((t - 1.6) / 0.4, 0, 1), '#5A82BF');
+    endBubble('よく がんばったね！', kx + gw / 2, gy, s, clamp((t - 2.4) / 0.4, 0, 1), '#4FA88A');
+  } else if (t < SC2) {
+    endCaption('②', 'ふたりが まほうを かける！', s, clamp((t - SC1) / 0.4, 0, 1));
+    endBubble('まほうを かけるよ！', ax + gw / 2, gy, s, clamp((t - SC1 - 0.2) / 0.4, 0, 1),
+      '#5A82BF');
+    endBubble('ふわふわに なぁれ〜', kx + gw / 2, gy, s, clamp((t - SC1 - 1.1) / 0.4, 0, 1),
+      '#4FA88A');
+  } else if (t < SC3) {
+    endCaption('③', 'おるの 毛が 生えてきた！', s, clamp((t - SC2) / 0.4, 0, 1));
+    endBubble('もう ちょっと〜', kx + gw / 2, gy, s, clamp((t - SC2 - 1.6) / 0.4, 0, 1),
+      '#4FA88A');
+  } else {
+    endCaption('④', 'ふわふわの ねこに もどった！', s, clamp((t - SC3) / 0.4, 0, 1));
+    endBubble('にゃ〜！', cx, floorY - oh - s * 0.9 - hop, s,
+      clamp((t - SC3 - 0.4) / 0.4, 0, 1), '#8B8B99');
+  }
 
-  // リノも いっしょに 見て いる
-  drawRino(cx + s * 1.7, floorY - s * 2.0, s * 2.2, s * 2.0, t, false);
-
-  // ことば
-  const line1 = t < 2.0 ? 'あーたんと くーたんが まほうを かけて くれた…'
-    : fur < 1 ? 'おるの 毛が どんどん 生えてくる…'
-      : 'ふわふわの グレーの ねこに もどった！';
-  const fs = clamp(s * 0.62, 15, 30);
-  setFont(fs);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const tw = ctx.measureText(line1).width + fs * 1.6;
-  fillRoundRect(viewW / 2 - tw / 2, viewH * 0.09, tw, fs * 2.0, fs, 'rgba(30,20,45,0.8)');
-  ctx.fillStyle = '#FFF0F5';
-  ctx.fillText(line1, viewW / 2, viewH * 0.09 + fs);
-
-  if (fur >= 1) {
-    const k = clamp((t - 5.2) / 0.8, 0, 1);
+  // ④に なった しゅんかんの きらきら
+  if (t >= SC3) {
+    const k = clamp((t - SC3) / 0.8, 0, 1);
     ctx.save();
     ctx.globalAlpha = Math.sin(Math.min(k, 1) * Math.PI) * 0.9;
     for (let i = 0; i < 20; i++) {
@@ -603,8 +711,8 @@ function drawEnding() {
 
   // 音は 1回だけ
   if (t < 0.2) endMagicSfx = 0;
-  if (t > 2.0 && endMagicSfx === 0) { endMagicSfx = 1; sfxGrow(); }
-  if (t > 5.2 && endMagicSfx === 1) { endMagicSfx = 2; sfxWin(); }
+  if (t > SC1 && endMagicSfx === 0) { endMagicSfx = 1; sfxGrow(); }
+  if (t > SC3 && endMagicSfx === 1) { endMagicSfx = 2; sfxWin(); }
   if (t > MAGIC_END && endMagicSfx === 2) { endMagicSfx = 3; sfxSleep(); }
 
   if (t < MAGIC_END) { drawMagic(s, t); return; }
@@ -670,7 +778,7 @@ function drawEnding() {
 }
 
 function drawEndingButton() {
-  if (game.endingT < MAGIC_END + 2) { ui.overlayBtn = null; return; }
+  if (game.endingT < MAGIC_END + 1.5) { ui.overlayBtn = null; return; }
   const h = clamp(viewH * 0.1, 32, 46);
   setFont(clamp(viewH * 0.04, 12, 16));
   const label = 'けっかを みる';

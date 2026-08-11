@@ -1,7 +1,7 @@
 'use strict';
 // 絵。ぜんぶ canvas に その場で かく（画像ファイルは 1つも つかわない）。
 //
-// おる … ペルシャねこ。全身グレーで、下半身だけ 毛が ない（サマーカット）。
+// おる … 全身グレーの ねこ。下半身だけ 毛が ない（サマーカット）。
 //        目は 大きくて まんまる。ぶきっちょな 顔。
 // リノ … 毛の みじかい ふつうの ねこ。白に 茶色が ところどころ。
 //        いつも しっぽを 立てて ごきげん。
@@ -19,7 +19,7 @@ const ui = {
 };
 
 // --- 色 -------------------------------------------------------------------
-// おる（ペルシャねこ・グレー・下半身は 毛なし）
+// おる（グレー・下半身は 毛なし）
 const ORU_FUR = '#ABABB8', ORU_FUR_D = '#8B8B99', ORU_FUR_L = '#CFCFDA';
 const ORU_SKIN = '#E6C6C6', ORU_SKIN_D = '#C9A5A5';
 const ORU_NOSE = '#FF9AB0';
@@ -964,7 +964,7 @@ function drawMinion(x, y, w, h, t, right) {
 // --- ボス（りな・まり）ほか 人 -------------------------------------------
 // りな…小さい 女の子。ふたつむすび。だっこ しようと 手を ひろげてくる。
 // まり…りなの ママ。エプロンと ブラシ。ブラッシングしようと おいかけてくる。
-function drawFace(cx, cy, r, look, happy) {
+function drawFace(cx, cy, r, look, happy, lash) {
   fillCircle(cx, cy, r, SKIN);
   fillCircle(cx - r * 0.36 + look, cy - r * 0.05, r * 0.24, '#FFFFFF');
   fillCircle(cx + r * 0.36 + look, cy - r * 0.05, r * 0.24, '#FFFFFF');
@@ -972,6 +972,15 @@ function drawFace(cx, cy, r, look, happy) {
   fillCircle(cx + r * 0.39 + look, cy - r * 0.02, r * 0.13, INK);
   fillCircle(cx - r * 0.38 + look, cy - r * 0.1, r * 0.05, '#FFFFFF');
   fillCircle(cx + r * 0.34 + look, cy - r * 0.1, r * 0.05, '#FFFFFF');
+  if (lash) {
+    // まつげ。目の そとがわに ちょこんと つけると かわいく なる。
+    for (const sd of [-1, 1]) {
+      const ex = cx + sd * r * 0.36 + look;
+      strokeArc(ex - r * 0.26, cy - r * 0.4, r * 0.52, r * 0.42, 190, 110, INK, r * 0.05);
+      line(ex + sd * r * 0.24, cy - r * 0.18, ex + sd * r * 0.4, cy - r * 0.3, INK, r * 0.06);
+      line(ex + sd * r * 0.26, cy - r * 0.08, ex + sd * r * 0.44, cy - r * 0.14, INK, r * 0.05);
+    }
+  }
   fillCircle(cx - r * 0.62, cy + r * 0.28, r * 0.16, rgba(CHEEK, 0.55));
   fillCircle(cx + r * 0.62, cy + r * 0.28, r * 0.16, rgba(CHEEK, 0.55));
   if (happy) {
@@ -1024,65 +1033,133 @@ function drawRina(x, y, w, h, t, right, stunned) {
   ctx.restore();
 }
 
-/** まりちゃん（りなの ママ）。ブラシを 持っている。 */
+/** まりちゃん（りなの ママ）。ブラシを 持っている。
+ *  ★ かわいい おとな … ふんわり ウェーブの かみ、カチューシャ、
+ *    フリルの エプロン、ぱふ そで。 */
 function drawMari(x, y, w, h, t, right, stunned) {
   const cx = x + w / 2, d = right ? 1 : -1;
   const run = Math.sin(t * 10);
+  const bounce = stunned ? 0 : Math.abs(Math.sin(t * 10)) * h * 0.02;
   ctx.save();
   ctx.translate(cx, y + h); ctx.rotate(stunned ? 0 : d * 0.09); ctx.translate(-cx, -(y + h));
-  fillRoundRect(cx - w * 0.2 + run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#5A4A62');
-  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#5A4A62');
+  fillRoundRect(cx - w * 0.2 + run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#F0D8E4');
+  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#F0D8E4');
+  // ワンピース（すそが ふんわり ひろがる）
   poly([[cx - w * 0.2, y + h * 0.36], [cx + w * 0.2, y + h * 0.36],
-    [cx + w * 0.3, y + h * 0.8], [cx - w * 0.3, y + h * 0.8]], MARI_DRESS);
-  poly([[cx - w * 0.12, y + h * 0.42], [cx + w * 0.12, y + h * 0.42],
-    [cx + w * 0.18, y + h * 0.78], [cx - w * 0.18, y + h * 0.78]], 'rgba(255,255,255,0.85)');
-  // うで（ブラシを ふりあげて いる）
+    [cx + w * 0.34, y + h * 0.8], [cx - w * 0.34, y + h * 0.8]], MARI_DRESS);
+  // すその フリル
+  for (let i = 0; i < 5; i++) {
+    fillCircle(cx - w * 0.3 + i * w * 0.15, y + h * 0.8, w * 0.085, MARI_DRESS_D);
+  }
+  // エプロン（ハートの ポケットつき）
+  poly([[cx - w * 0.13, y + h * 0.42], [cx + w * 0.13, y + h * 0.42],
+    [cx + w * 0.2, y + h * 0.76], [cx - w * 0.2, y + h * 0.76]], 'rgba(255,255,255,0.92)');
+  for (let i = 0; i < 4; i++) {
+    fillCircle(cx - w * 0.17 + i * w * 0.113, y + h * 0.76, w * 0.055, 'rgba(255,255,255,0.92)');
+  }
+  const px = cx, py = y + h * 0.6, pr = w * 0.055;
+  fillCircle(px - pr * 0.55, py - pr * 0.3, pr, '#FF8FBB');
+  fillCircle(px + pr * 0.55, py - pr * 0.3, pr, '#FF8FBB');
+  poly([[px - pr * 1.5, py - pr * 0.1], [px + pr * 1.5, py - pr * 0.1],
+    [px, py + pr * 1.5]], '#FF8FBB');
+  // むねもとの リボン
+  poly([[cx, y + h * 0.4], [cx - w * 0.1, y + h * 0.35], [cx - w * 0.09, y + h * 0.45]], '#FF8FBB');
+  poly([[cx, y + h * 0.4], [cx + w * 0.1, y + h * 0.35], [cx + w * 0.09, y + h * 0.45]], '#FF8FBB');
+  fillCircle(cx, y + h * 0.4, w * 0.035, '#FF6BA0');
+  // うで（ブラシを ふりあげて いる）・ぱふ そで
   const armY = stunned ? 0.56 : 0.26;
-  fillRoundRect(cx - w * 0.4, y + h * 0.4, w * 0.14, h * 0.26, w * 0.06, MARI_DRESS_D);
-  fillRoundRect(cx + w * 0.22, y + h * armY, w * 0.14, h * 0.26, w * 0.06, MARI_DRESS_D);
+  fillRoundRect(cx - w * 0.4, y + h * 0.4, w * 0.14, h * 0.26, w * 0.07, SKIN);
+  fillRoundRect(cx + w * 0.22, y + h * armY, w * 0.14, h * 0.26, w * 0.07, SKIN);
+  fillCircle(cx - w * 0.29, y + h * 0.42, w * 0.11, MARI_DRESS);
+  fillCircle(cx + w * 0.29, y + h * (armY + 0.02), w * 0.11, MARI_DRESS);
   // ブラシ
   const bx = cx + w * 0.3, by = y + h * (armY - 0.06);
-  fillRoundRect(bx - w * 0.05, by - h * 0.14, w * 0.1, h * 0.2, w * 0.04, '#8A5A2A');
-  fillRoundRect(bx - w * 0.14, by - h * 0.24, w * 0.28, h * 0.12, w * 0.04, '#E8E8F0');
+  fillRoundRect(bx - w * 0.05, by - h * 0.14, w * 0.1, h * 0.2, w * 0.04, '#E8A0C0');
+  fillRoundRect(bx - w * 0.14, by - h * 0.24, w * 0.28, h * 0.12, w * 0.05, '#FFF0F6');
   for (let i = 0; i < 5; i++) {
     line(bx - w * 0.11 + i * w * 0.055, by - h * 0.24,
       bx - w * 0.11 + i * w * 0.055, by - h * 0.32, '#8AD8F0', w * 0.02);
   }
-  // かお と かみ（セミロング）
-  const hy = y + h * 0.18, hr = w * 0.2;
-  fillRoundRect(cx - hr * 1.3, hy - hr * 0.9, hr * 2.6, hr * 2.7, hr * 0.8, HAIR);
-  drawFace(cx, hy, hr, d * hr * 0.08, !stunned);
-  fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.9, 180, 180, HAIR);
+  // かお と かみ（ふんわり ウェーブ）
+  const hy = y + h * 0.18 - bounce, hr = w * 0.2;
+  const sway = stunned ? 0 : Math.sin(t * 6) * hr * 0.12;
+  // うしろがみ … さきが くるんと まいた ウェーブ
+  fillRoundRect(cx - hr * 1.3, hy - hr * 0.9, hr * 2.6, hr * 2.5, hr * 0.85, HAIR);
+  for (const sd of [-1, 1]) {
+    fillCircle(cx + sd * hr * 1.12 + sway * sd, hy + hr * 1.35, hr * 0.5, HAIR);
+    fillCircle(cx + sd * hr * 0.82 + sway * sd, hy + hr * 1.75, hr * 0.42, HAIR);
+    fillCircle(cx + sd * hr * 1.16, hy + hr * 0.45, hr * 0.44, HAIR);
+  }
+  drawFace(cx, hy, hr, d * hr * 0.08, !stunned, true);
+  // まえがみ（まんなかで ふんわり わけて いる）
+  fillArc(cx - hr * 1.15, hy - hr * 1.32, hr * 2.3, hr * 1.9, 180, 180, HAIR);
+  fillCircle(cx - hr * 0.62, hy - hr * 0.5, hr * 0.5, HAIR);
+  fillCircle(cx + hr * 0.62, hy - hr * 0.5, hr * 0.5, HAIR);
+  // カチューシャ と リボン
+  strokeArc(cx - hr * 1.06, hy - hr * 1.12, hr * 2.12, hr * 1.7, 190, 160, '#FF8FBB', hr * 0.17);
+  const rx = cx - d * hr * 0.85, ry = hy - hr * 0.78;
+  poly([[rx, ry], [rx - hr * 0.5, ry - hr * 0.34], [rx - hr * 0.46, ry + hr * 0.24]], '#FF8FBB');
+  poly([[rx, ry], [rx + hr * 0.5, ry - hr * 0.34], [rx + hr * 0.46, ry + hr * 0.24]], '#FF8FBB');
+  fillCircle(rx, ry, hr * 0.17, '#FF6BA0');
   ctx.restore();
 }
 
-/** エンディングに 出てくる おとな（あーたん・くーたん）。 */
+/** エンディングに 出てくる おとな（あーたん・くーたん）。
+ *  ゲーム中の すがたと そろえて、あーたんは まるい おなかと めがね、
+ *  くーたんは かわいい ボブと ワンピース。 */
 function drawGrownup(x, y, w, h, t, who, magic) {
   const cx = x + w / 2;
-  const top = who === 'AA' ? '#7FA9E8' : '#7ADCB0';
-  const topD = who === 'AA' ? '#5A82BF' : '#4FA88A';
-  if (who === 'AA') fillOval(cx - w * 0.38, y + h * 0.38, w * 0.76, h * 0.5, top);
-  else fillRoundRect(cx - w * 0.3, y + h * 0.38, w * 0.6, h * 0.5, w * 0.14, top);
+  const aa = who === 'AA';
+  const top = aa ? '#7FA9E8' : '#7ADCB0';
+  const topD = aa ? '#5A82BF' : '#4FA88A';
+  // あし
+  const legC = aa ? '#4A5064' : '#DFF3EA';
+  fillRoundRect(cx - w * 0.24, y + h * 0.79, w * 0.19, h * 0.21, w * 0.08, legC);
+  fillRoundRect(cx + w * 0.05, y + h * 0.79, w * 0.19, h * 0.21, w * 0.08, legC);
+  // からだ
+  if (aa) {
+    fillOval(cx - w * 0.42, y + h * 0.36, w * 0.84, h * 0.48, top);
+    fillOval(cx - w * 0.28, y + h * 0.5, w * 0.56, h * 0.28, 'rgba(255,255,255,0.28)');
+  } else {
+    poly([[cx - w * 0.22, y + h * 0.38], [cx + w * 0.22, y + h * 0.38],
+      [cx + w * 0.34, y + h * 0.82], [cx - w * 0.34, y + h * 0.82]], top);
+    for (let i = 0; i < 5; i++) {
+      fillCircle(cx - w * 0.3 + i * w * 0.15, y + h * 0.82, w * 0.085, topD);
+    }
+    fillRect(cx - w * 0.24, y + h * 0.56, w * 0.48, h * 0.04, topD);
+    // まるい えりと リボン
+    fillCircle(cx - w * 0.1, y + h * 0.4, w * 0.1, '#FFFFFF');
+    fillCircle(cx + w * 0.1, y + h * 0.4, w * 0.1, '#FFFFFF');
+    poly([[cx, y + h * 0.42], [cx - w * 0.11, y + h * 0.37],
+      [cx - w * 0.1, y + h * 0.47]], '#FF8FBB');
+    poly([[cx, y + h * 0.42], [cx + w * 0.11, y + h * 0.37],
+      [cx + w * 0.1, y + h * 0.47]], '#FF8FBB');
+    fillCircle(cx, y + h * 0.42, w * 0.04, '#FF6BA0');
+  }
   if (magic) {
     // まほうを かける ポーズ。手を 上に あげて、ゆびさきが 光る。
     const sw = Math.sin(t * 3) * h * 0.03;
     for (const sd of [-1, 1]) {
-      fillRoundRect(cx + sd * w * 0.3 - w * 0.07, y + h * 0.06 + sw, w * 0.14, h * 0.36,
-        w * 0.06, topD);
-      const gx = cx + sd * w * 0.3, gy = y + h * 0.04 + sw;
+      fillRoundRect(cx + sd * w * 0.34 - w * 0.07, y + h * 0.1 + sw, w * 0.14, h * 0.34,
+        w * 0.07, SKIN);
+      fillCircle(cx + sd * w * 0.34, y + h * 0.42 + sw, w * 0.1, topD);
+      const gx = cx + sd * w * 0.32, gy = y + h * 0.08 + sw;
       const g2 = Math.abs(Math.sin(t * 5 + sd));
       fillCircle(gx, gy, w * (0.1 + g2 * 0.05), 'rgba(255,245,190,0.85)');
       starPoly(gx, gy, w * (0.16 + g2 * 0.06), 4, 0.3, 'rgba(255,255,255,0.9)', t * 2);
     }
   } else {
-    fillRoundRect(cx - w * 0.42, y + h * 0.42, w * 0.14, h * 0.3, w * 0.06, topD);
-    fillRoundRect(cx + w * 0.28, y + h * 0.42, w * 0.14, h * 0.3, w * 0.06, topD);
+    // ぶらんと 下げた うで。からだに かぶらない ように そとがわに 出す。
+    const ax2 = aa ? 0.46 : 0.34;
+    for (const sd of [-1, 1]) {
+      fillRoundRect(cx + sd * w * ax2 - w * 0.07, y + h * 0.42, w * 0.14, h * 0.3, w * 0.07, SKIN);
+      fillCircle(cx + sd * w * ax2, y + h * 0.44, w * 0.1, topD);
+    }
   }
-  const hy = y + h * 0.2, hr = w * 0.2;
-  if (who === 'AA') fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
-  else fillRoundRect(cx - hr * 1.35, hy - hr * 1.05, hr * 2.7, hr * 2.35, hr * 0.95, '#6A4A3A');
-  drawFace(cx, hy, hr, 0, true);
-  if (who === 'AA') {
+  const hy = y + h * 0.19, hr = w * 0.27;
+  if (aa) {
+    fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
+    drawFace(cx, hy, hr, 0, true);
     fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
     // めがね（あーたん）
     for (const sd of [-1, 1]) {
@@ -1090,8 +1167,10 @@ function drawGrownup(x, y, w, h, t, who, magic) {
       strokeCircle(cx + sd * hr * 0.4, hy + hr * 0.02, hr * 0.36, HAIR, hr * 0.09);
     }
   } else {
-    // ボブの まえがみ（くーたん）
-    fillRoundRect(cx - hr * 1.35, hy - hr * 1.1, hr * 2.7, hr * 0.8, hr * 0.3, '#6A4A3A');
+    // かわいい ボブ（くーたん）
+    kutanBob(cx, hy, hr, t, false, false);
+    drawFace(cx, hy, hr, 0, true, true);
+    kutanBob(cx, hy, hr, t, false, true);
   }
 }
 
@@ -1102,12 +1181,16 @@ function drawAatan(x, y, w, h, t, right, stunned) {
   const run = Math.sin(t * 8);
   ctx.save();
   ctx.translate(cx, y + h); ctx.rotate(stunned ? 0 : d * 0.07); ctx.translate(-cx, -(y + h));
-  // あし
-  fillRoundRect(cx - w * 0.24 + run * w * 0.1, y + h * 0.78, w * 0.19, h * 0.22, w * 0.08, '#4A5064');
-  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.19, h * 0.22, w * 0.08, '#4A5064');
+  // あし（かさならない ように 少し ひろめ）
+  fillRoundRect(cx - w * 0.28 + run * w * 0.06, y + h * 0.8, w * 0.2, h * 0.2, w * 0.08, '#4A5064');
+  fillRoundRect(cx + w * 0.08 - run * w * 0.06, y + h * 0.8, w * 0.2, h * 0.2, w * 0.08, '#4A5064');
   // おなか（まるい）
-  fillOval(cx - w * 0.4, y + h * 0.36, w * 0.8, h * 0.48, '#7FA9E8');
+  fillOval(cx - w * 0.4, y + h * 0.34, w * 0.8, h * 0.5, '#7FA9E8');
   fillOval(cx - w * 0.26, y + h * 0.5, w * 0.52, h * 0.3, 'rgba(255,255,255,0.28)');
+  // シャツの えりと ボタン
+  poly([[cx - w * 0.14, y + h * 0.34], [cx + w * 0.14, y + h * 0.34],
+    [cx, y + h * 0.46]], '#DCE8FA');
+  for (let i = 0; i < 3; i++) fillCircle(cx, y + h * (0.5 + i * 0.09), w * 0.03, '#DCE8FA');
   // うで（だっこの ポーズ）
   const armY = stunned ? 0.62 : 0.44;
   fillRoundRect(cx - w * 0.52, y + h * armY, w * 0.26, h * 0.12, w * 0.06, '#5A82BF');
@@ -1115,10 +1198,13 @@ function drawAatan(x, y, w, h, t, right, stunned) {
   fillCircle(cx - w * 0.54, y + h * (armY + 0.06), w * 0.09, SKIN);
   fillCircle(cx + w * 0.54, y + h * (armY + 0.06), w * 0.09, SKIN);
   // かお（みじかい かみ・めがね）
-  const hy = y + h * 0.19, hr = w * 0.23;
-  fillArc(cx - hr * 1.12, hy - hr * 1.3, hr * 2.24, hr * 1.9, 180, 180, HAIR);
+  const hy = y + h * 0.18, hr = w * 0.27;
+  fillArc(cx - hr * 1.1, hy - hr * 1.24, hr * 2.2, hr * 2.0, 180, 180, HAIR);
   drawFace(cx, hy, hr, d * hr * 0.08, !stunned);
-  fillArc(cx - hr * 1.12, hy - hr * 1.3, hr * 2.24, hr * 1.9, 180, 180, HAIR);
+  fillArc(cx - hr * 1.1, hy - hr * 1.24, hr * 2.2, hr * 1.85, 180, 180, HAIR);
+  // よこの かみ（もみあげ）
+  for (const sd of [-1, 1]) fillOval(cx + sd * hr * 0.98 - hr * 0.16, hy - hr * 0.5,
+    hr * 0.32, hr * 0.9, HAIR);
   // めがね
   const gy = hy + hr * 0.02, gr = hr * 0.36;
   for (const sd of [-1, 1]) {
@@ -1139,34 +1225,74 @@ function drawAatan(x, y, w, h, t, right, stunned) {
   }
 }
 
-/** くーたん。ボブの かみがた。つめきりを 持って おいかけてくる。 */
+/** くーたんの ボブ。さきが うちがわに くるんと まいた かわいい ボブ。
+ *  ふりむいた ときの ゆれも つける。 */
+const KU_HAIR = '#6A4A3A', KU_HAIR_L = '#8A6248';
+function kutanBob(cx, hy, hr, t, stunned, front) {
+  const sway = stunned ? 0 : Math.sin(t * 6) * hr * 0.08;
+  if (!front) {
+    fillRoundRect(cx - hr * 1.32, hy - hr * 1.05, hr * 2.64, hr * 2.1, hr * 0.9, KU_HAIR);
+    // さきが うちがわに まいて いる（まるを ならべて カール）
+    for (const sd of [-1, 1]) {
+      fillCircle(cx + sd * hr * 1.14 + sway * sd, hy + hr * 0.92, hr * 0.46, KU_HAIR);
+      fillCircle(cx + sd * hr * 0.86 + sway * sd, hy + hr * 1.2, hr * 0.38, KU_HAIR);
+    }
+    return;
+  }
+  // まえがみ … まんなか あたりで ふんわり、はしは ほっぺに かかる
+  fillArc(cx - hr * 1.12, hy - hr * 1.3, hr * 2.24, hr * 1.75, 180, 180, KU_HAIR);
+  fillRoundRect(cx - hr * 1.12, hy - hr * 1.05, hr * 2.24, hr * 0.66, hr * 0.3, KU_HAIR);
+  fillCircle(cx - hr * 0.72, hy - hr * 0.42, hr * 0.46, KU_HAIR);
+  fillCircle(cx + hr * 0.72, hy - hr * 0.42, hr * 0.46, KU_HAIR);
+  // つやつやの ハイライト
+  strokeArc(cx - hr * 0.8, hy - hr * 0.92, hr * 1.6, hr * 1.1, 200, 60, rgba(KU_HAIR_L, 0.9),
+    hr * 0.12);
+  // ぱっちん どめ（ハート）
+  const px = cx + hr * 0.78, py = hy - hr * 0.72, pr = hr * 0.19;
+  fillCircle(px - pr * 0.5, py - pr * 0.25, pr * 0.85, '#FFC44A');
+  fillCircle(px + pr * 0.5, py - pr * 0.25, pr * 0.85, '#FFC44A');
+  poly([[px - pr * 1.3, py], [px + pr * 1.3, py], [px, py + pr * 1.5]], '#FFC44A');
+}
+
+/** くーたん。かわいい ボブ。つめきりを 持って おいかけてくる。 */
 function drawKutan(x, y, w, h, t, right, stunned) {
   const cx = x + w / 2, d = right ? 1 : -1;
   const run = Math.sin(t * 10);
+  const bounce = stunned ? 0 : Math.abs(Math.sin(t * 10)) * h * 0.02;
   ctx.save();
   ctx.translate(cx, y + h); ctx.rotate(stunned ? 0 : d * 0.09); ctx.translate(-cx, -(y + h));
-  fillRoundRect(cx - w * 0.2 + run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#4A6458');
-  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#4A6458');
+  fillRoundRect(cx - w * 0.2 + run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#DFF3EA');
+  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#DFF3EA');
+  // ワンピース（すそが ふんわり）
   poly([[cx - w * 0.2, y + h * 0.36], [cx + w * 0.2, y + h * 0.36],
-    [cx + w * 0.3, y + h * 0.8], [cx - w * 0.3, y + h * 0.8]], '#7ADCB0');
-  fillRect(cx - w * 0.22, y + h * 0.5, w * 0.44, h * 0.05, '#4FA88A');
-  // うで（つめきりを ふりあげて いる）
+    [cx + w * 0.32, y + h * 0.8], [cx - w * 0.32, y + h * 0.8]], '#7ADCB0');
+  for (let i = 0; i < 5; i++) {
+    fillCircle(cx - w * 0.28 + i * w * 0.14, y + h * 0.8, w * 0.08, '#4FA88A');
+  }
+  fillRect(cx - w * 0.22, y + h * 0.54, w * 0.44, h * 0.045, '#4FA88A');
+  fillCircle(cx, y + h * 0.565, w * 0.05, '#FFF0F6');
+  // まるい えりと リボン
+  fillCircle(cx - w * 0.09, y + h * 0.38, w * 0.09, '#FFFFFF');
+  fillCircle(cx + w * 0.09, y + h * 0.38, w * 0.09, '#FFFFFF');
+  poly([[cx, y + h * 0.4], [cx - w * 0.1, y + h * 0.35], [cx - w * 0.09, y + h * 0.45]], '#FF8FBB');
+  poly([[cx, y + h * 0.4], [cx + w * 0.1, y + h * 0.35], [cx + w * 0.09, y + h * 0.45]], '#FF8FBB');
+  fillCircle(cx, y + h * 0.4, w * 0.035, '#FF6BA0');
+  // うで（つめきりを ふりあげて いる）・ぱふ そで
   const armY = stunned ? 0.58 : 0.24;
-  fillRoundRect(cx - w * 0.4, y + h * 0.4, w * 0.14, h * 0.26, w * 0.06, '#4FA88A');
-  fillRoundRect(cx + w * 0.22, y + h * armY, w * 0.14, h * 0.28, w * 0.06, '#4FA88A');
+  fillRoundRect(cx - w * 0.4, y + h * 0.4, w * 0.14, h * 0.26, w * 0.07, SKIN);
+  fillRoundRect(cx + w * 0.22, y + h * armY, w * 0.14, h * 0.28, w * 0.07, SKIN);
+  fillCircle(cx - w * 0.29, y + h * 0.42, w * 0.11, '#7ADCB0');
+  fillCircle(cx + w * 0.29, y + h * (armY + 0.02), w * 0.11, '#7ADCB0');
   // つめきり
   const bx = cx + w * 0.3, by = y + h * (armY - 0.04);
   fillRoundRect(bx - w * 0.06, by - h * 0.16, w * 0.12, h * 0.2, w * 0.04, '#C8CCD8');
   fillRoundRect(bx - w * 0.1, by - h * 0.2, w * 0.2, h * 0.07, w * 0.03, '#9AA0B0');
   line(bx - w * 0.02, by - h * 0.24, bx + w * 0.06, by - h * 0.3, '#E8ECF4', w * 0.035);
   // かお と ボブの かみ
-  const hy = y + h * 0.18, hr = w * 0.2;
-  // ボブ … 耳の 下で まっすぐ そろえた かみ
-  fillRoundRect(cx - hr * 1.35, hy - hr * 1.05, hr * 2.7, hr * 2.35, hr * 0.95, '#6A4A3A');
-  drawFace(cx, hy, hr, d * hr * 0.08, !stunned);
-  // まえがみ（まっすぐ）
-  fillRect(cx - hr * 1.05, hy - hr * 1.05, hr * 2.1, hr * 0.85, '#6A4A3A');
-  fillRoundRect(cx - hr * 1.35, hy - hr * 1.1, hr * 2.7, hr * 0.8, hr * 0.3, '#6A4A3A');
+  const hy = y + h * 0.18 - bounce, hr = w * 0.2;
+  kutanBob(cx, hy, hr, t, stunned, false);
+  drawFace(cx, hy, hr, d * hr * 0.08, !stunned, true);
+  kutanBob(cx, hy, hr, t, stunned, true);
   ctx.restore();
 }
 
@@ -1181,27 +1307,60 @@ function drawBossShape(who, x, y, w, h, t, right, col, col2, stunned) {
  *  画面の そとに はみ出さない ように よこの ばしょも おさえる。 */
 function drawBubble(e, cam, camY, s) {
   if (!e.bubble || e.bubbleT <= 0) return;
-  const a = clamp(e.bubbleT * 1.4, 0, 1);
   const fs = Math.max(s * 0.62, 17);
   setFont(fs);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const tw = ctx.measureText(e.bubble).width + fs * 1.5;
   const bh = fs * 1.9;
-  let cx = (e.x + e.w / 2 - cam) * s;
-  cx = clamp(cx, tw / 2 + 6, viewW - tw / 2 - 6);
-  let cy = (e.y - camY) * s - bh * 0.8;
+
+  // 出てから どれだけ たったか（0 = 出たばかり、1 = きえる ちょくぜん）
+  const life = e.bubbleMax || 2.6;
+  const k = clamp(1 - e.bubbleT / life, 0, 1);
+  const ease = k * k * (3 - 2 * k);   // ゆっくり 出て、すーっと ながれる
+
+  // 出た ばしょ（キャラの 頭の上）から、画面の 右がわへ ながしていく。
+  // 左ばかりで しゃべっていると 見のがすので、右に むかって うごかす。
+  const homeX = (e.x + e.w / 2 - cam) * s;
+  const startX = clamp(homeX, tw / 2 + 6, viewW - tw / 2 - 6);
+  const goalX = viewW - tw / 2 - 10;
+  const cx = startX + Math.max(0, goalX - startX) * ease;
+
+  let cy = (e.y - camY) * s - bh * 0.8 - ease * bh * 0.55;
   // HUD（のこり・チュール）の 下に おさめる
   cy = Math.max(cy, viewH * 0.19 + bh * 0.5);
-  const tipX = clamp((e.x + e.w / 2 - cam) * s, cx - tw / 2 + fs, cx + tw / 2 - fs);
+
+  // 出た しゅんかんは ぽんと 大きく、さいごは すっと きえる
+  const pop = 1 + Math.sin(clamp(k / 0.18, 0, 1) * Math.PI) * 0.12;
+  const a = clamp(e.bubbleT * 1.6, 0, 1) * clamp(k / 0.08, 0, 1);
+
   ctx.save();
   ctx.globalAlpha = a;
+  ctx.translate(cx, cy); ctx.scale(pop, pop); ctx.translate(-cx, -cy);
+
+  // しっぽ（キャラと つながって いる あいだだけ）
+  const tail = 1 - clamp(ease / 0.3, 0, 1);
+  if (tail > 0) {
+    const tipX = clamp(homeX, cx - tw / 2 + fs, cx + tw / 2 - fs);
+    ctx.save(); ctx.globalAlpha = a * tail;
+    poly([[tipX - fs * 0.32, cy + bh / 2 - 2], [tipX + fs * 0.32, cy + bh / 2 - 2],
+      [tipX, cy + bh / 2 + fs * 0.8 * tail]], 'rgba(255,255,255,0.96)');
+    ctx.restore();
+  }
   fillRoundRect(cx - tw / 2, cy - bh / 2, tw, bh, bh * 0.45, 'rgba(255,255,255,0.96)');
-  poly([[tipX - fs * 0.32, cy + bh / 2 - 2], [tipX + fs * 0.32, cy + bh / 2 - 2],
-    [tipX, cy + bh / 2 + fs * 0.8]], 'rgba(255,255,255,0.96)');
   ctx.strokeStyle = rgba((e.boss && e.boss.col2) || '#C98A50', 0.8);
   ctx.lineWidth = Math.max(2, s * 0.05);
   rectPath(cx - tw / 2, cy - bh / 2, tw, bh, bh * 0.45);
   ctx.stroke();
+
+  // ながれて いく むきが わかる ように、右がわに しるしを つける
+  ctx.save(); ctx.globalAlpha = a * (0.35 + Math.sin(game.elapsed * 8) * 0.25);
+  for (let i = 0; i < 3; i++) {
+    poly([[cx - tw / 2 - fs * (0.5 + i * 0.42), cy - fs * 0.3],
+      [cx - tw / 2 - fs * (0.18 + i * 0.42), cy],
+      [cx - tw / 2 - fs * (0.5 + i * 0.42), cy + fs * 0.3]], 'rgba(255,255,255,0.8)');
+  }
+  ctx.restore();
+
   ctx.fillStyle = '#33283C';
   setFont(fs);
   ctx.fillText(e.bubble, cx, cy + fs * 0.06);
@@ -1329,7 +1488,7 @@ function drawBolts(cam, camY, s) {
 }
 
 // --- おる -----------------------------------------------------------------
-// ペルシャねこ。全身グレー。下半身だけ 毛が ない（サマーカット）。
+// 全身グレーの ねこ。下半身だけ 毛が ない（サマーカット）。
 // 目は とても 大きく まんまる。ぶきっちょな 顔。
 // furK … 0 = いつもの おる（下半身は 毛なし）、1 = 全身 もふもふ
 //        エンディングで あーたん・くーたんが まほうを かけると 0→1 に なる
@@ -1398,7 +1557,7 @@ function oruSprite(x, y, w, h, faceRight, stepPhase, stretch, puff, furK) {
     }
   }
 
-  // あたま（まんまる・ぺちゃんこ鼻の ペルシャ）
+  // あたま（まんまる・ぺちゃんこ鼻）
   const hy = y + h * 0.24, hr = w * 0.36 * pw;
   // ほっぺの 毛
   fillCircle(cx - hr * 0.78, hy + hr * 0.36, hr * 0.52, ORU_FUR_L);

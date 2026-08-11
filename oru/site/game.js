@@ -1,7 +1,7 @@
 'use strict';
 // おるの大冒険 — あそびの中身（物理・てき・ボス・アイテム）
 //
-// 主人公は ペルシャねこの「おる」。全身グレーで、下半身だけ 毛が ない。
+// 主人公は ねこの「おる」。全身グレーで、下半身だけ 毛が ない。
 // ぶきっちょで ひとりあそびが すき。チュールを あつめて すすむ。
 // 友だちの「リノ」は 白に 茶色が すこし 入った 毛の みじかい ねこ。
 // 気さくで、カリカリを 横どりしたり 前を ふさいだり してくる（わるぎは ない）。
@@ -309,6 +309,7 @@ class Game {
     this.introBoss = null;
     this.introDone = false;
     this.bossAlive = false;
+    this.bubbleLockT = 0;   // ふきだしが かさならない ように する じゅんばん まち
 
     this.inputLeft = false;
     this.inputRight = false;
@@ -421,6 +422,7 @@ class Game {
     this.introT = 0;
     this.introBoss = null;
     this.introDone = false;
+    this.bubbleLockT = 0;
 
     const p = this.player;
     p.x = px; p.y = py;
@@ -1005,6 +1007,7 @@ class Game {
   updateEnemies(dt) {
     const p = this.player;
     const view = this.viewTilesX || 24;
+    if (this.bubbleLockT > 0) this.bubbleLockT -= dt;
     for (const e of this.enemies) {
       if (!e.alive) { e.squashT += dt; continue; }
       e.t += dt;
@@ -1227,7 +1230,9 @@ class Game {
     e.y += e.vy * dt;
     this.landOn(e);
     e.x = clamp(e.x, 0, this.area.width - e.w);
-    if (e.callT > 2.8) { e.callT = 0; this.bossCall(e); }
+    // ボスが 何人も いる ステージでは、ふきだしが かさなって 読めなく なる。
+    // だれか しゃべって いる あいだは じゅんばん まちに する。
+    if (e.callT > 2.8 && this.bubbleLockT <= 0) { e.callT = 0; this.bossCall(e); }
     if (e.throwT > b.gap && Math.abs(dx) < 15) { e.throwT = 0; this.bossThrow(e, dir); }
   }
 
@@ -1247,8 +1252,8 @@ class Game {
     const line = e.boss.calls[(e.callN || 0) % e.boss.calls.length];
     e.callN = (e.callN || 0) + 1;
     e.bubble = line;
-    e.bubbleT = 2.6;
-    this.pops.push({ x: e.x + e.w / 2, y: e.y - 0.2, text: line, t: 0 });
+    e.bubbleT = e.bubbleMax = 3.2;
+    this.bubbleLockT = 3.4;
     sfxCall();
   }
 
@@ -1406,7 +1411,8 @@ class Game {
         e.bumpT = 2.6;
         p.vy = -6.5;
         e.bubble = 'あそぼ〜！';
-        e.bubbleT = 2.2;
+        e.bubbleT = e.bubbleMax = 2.8;
+        this.bubbleLockT = 3.0;
         sfxRino();
         continue;
       }

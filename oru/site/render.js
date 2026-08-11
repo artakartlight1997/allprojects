@@ -1057,13 +1057,26 @@ function drawMari(x, y, w, h, t, right, stunned) {
 }
 
 /** エンディングに 出てくる おとな（あーたん・くーたん）。 */
-function drawGrownup(x, y, w, h, t, who) {
+function drawGrownup(x, y, w, h, t, who, magic) {
   const cx = x + w / 2;
   const top = who === 'AA' ? '#7FA9E8' : '#7ADCB0';
   const topD = who === 'AA' ? '#5A82BF' : '#4FA88A';
   fillRoundRect(cx - w * 0.3, y + h * 0.38, w * 0.6, h * 0.5, w * 0.14, top);
-  fillRoundRect(cx - w * 0.42, y + h * 0.42, w * 0.14, h * 0.3, w * 0.06, topD);
-  fillRoundRect(cx + w * 0.28, y + h * 0.42, w * 0.14, h * 0.3, w * 0.06, topD);
+  if (magic) {
+    // まほうを かける ポーズ。手を 上に あげて、ゆびさきが 光る。
+    const sw = Math.sin(t * 3) * h * 0.03;
+    for (const sd of [-1, 1]) {
+      fillRoundRect(cx + sd * w * 0.3 - w * 0.07, y + h * 0.06 + sw, w * 0.14, h * 0.36,
+        w * 0.06, topD);
+      const gx = cx + sd * w * 0.3, gy = y + h * 0.04 + sw;
+      const g2 = Math.abs(Math.sin(t * 5 + sd));
+      fillCircle(gx, gy, w * (0.1 + g2 * 0.05), 'rgba(255,245,190,0.85)');
+      starPoly(gx, gy, w * (0.16 + g2 * 0.06), 4, 0.3, 'rgba(255,255,255,0.9)', t * 2);
+    }
+  } else {
+    fillRoundRect(cx - w * 0.42, y + h * 0.42, w * 0.14, h * 0.3, w * 0.06, topD);
+    fillRoundRect(cx + w * 0.28, y + h * 0.42, w * 0.14, h * 0.3, w * 0.06, topD);
+  }
   const hy = y + h * 0.2, hr = w * 0.2;
   if (who === 'AA') fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
   else fillRoundRect(cx - hr * 1.25, hy - hr * 0.9, hr * 2.5, hr * 2.4, hr * 0.8, '#6A4A3A');
@@ -1228,33 +1241,61 @@ function drawBolts(cam, camY, s) {
 // --- おる -----------------------------------------------------------------
 // ペルシャねこ。全身グレー。下半身だけ 毛が ない（サマーカット）。
 // 目は とても 大きく まんまる。ぶきっちょな 顔。
-function oruSprite(x, y, w, h, faceRight, stepPhase, stretch, puff) {
+// furK … 0 = いつもの おる（下半身は 毛なし）、1 = 全身 もふもふ
+//        エンディングで あーたん・くーたんが まほうを かけると 0→1 に なる
+function oruSprite(x, y, w, h, faceRight, stepPhase, stretch, puff, furK) {
+  const fk = furK || 0;
   const cx = x + w / 2;
   const d = faceRight ? 1 : -1;
   const pw = puff ? 1.18 : 1;
   ctx.save();
   ctx.translate(cx, y + h); ctx.scale(1 / stretch, stretch); ctx.translate(-cx, -(y + h));
 
-  // しっぽ … つけねは つるつる、さきだけ ふさふさ
+  // しっぽ … つけねは つるつる、さきだけ ふさふさ（毛が 生えると 全部 ふさふさ）
   const sway = Math.sin(stepPhase * 1.6 + 1) * h * 0.06;
   line(cx - d * w * 0.28, y + h * 0.66, cx - d * w * 0.5, y + h * 0.44 + sway,
-    ORU_SKIN_D, w * 0.085);
-  fillCircle(cx - d * w * 0.55, y + h * 0.38 + sway, w * 0.13, ORU_FUR);
+    ORU_SKIN_D, w * (0.085 + fk * 0.12));
+  if (fk > 0) {
+    line(cx - d * w * 0.28, y + h * 0.66, cx - d * w * 0.5, y + h * 0.44 + sway,
+      ORU_FUR, w * (0.06 + fk * 0.16));
+  }
+  fillCircle(cx - d * w * 0.55, y + h * 0.38 + sway, w * (0.13 + fk * 0.06), ORU_FUR);
 
-  // うしろあし・まえあし（毛が ない）
+  // うしろあし・まえあし（毛が ない → まほうで もふもふ）
   const st = Math.sin(stepPhase) * w * 0.1;
-  fillRoundRect(cx - w * 0.28 + st, y + h * 0.76, w * 0.16, h * 0.24, w * 0.07, ORU_SKIN);
-  fillRoundRect(cx + w * 0.12 - st, y + h * 0.76, w * 0.16, h * 0.24, w * 0.07, ORU_SKIN);
+  const legW = w * (0.16 + fk * 0.12);
+  const legC = fk > 0.5 ? ORU_FUR : ORU_SKIN;
+  fillRoundRect(cx - w * 0.28 + st - (legW - w * 0.16) / 2, y + h * 0.76, legW, h * 0.24,
+    legW * 0.45, legC);
+  fillRoundRect(cx + w * 0.12 - st - (legW - w * 0.16) / 2, y + h * 0.76, legW, h * 0.24,
+    legW * 0.45, legC);
+  if (fk > 0 && fk <= 0.5) {
+    ctx.save(); ctx.globalAlpha = fk * 2;
+    fillRoundRect(cx - w * 0.28 + st, y + h * 0.76, w * 0.16, h * 0.24, w * 0.07, ORU_FUR);
+    fillRoundRect(cx + w * 0.12 - st, y + h * 0.76, w * 0.16, h * 0.24, w * 0.07, ORU_FUR);
+    ctx.restore();
+  }
   fillOval(cx - w * 0.3 + st, y + h * 0.94, w * 0.2, h * 0.09, ORU_SKIN_D);
   fillOval(cx + w * 0.1 - st, y + h * 0.94, w * 0.2, h * 0.09, ORU_SKIN_D);
 
-  // 下半身（つるん）
+  // 下半身（つるん → まほうで もふもふに なる）
   fillOval(cx - w * 0.32, y + h * 0.5, w * 0.64, h * 0.36, ORU_SKIN);
   fillOval(cx - w * 0.24, y + h * 0.56, w * 0.36, h * 0.18, rgba(ORU_SKIN_D, 0.45));
+  if (fk > 0) {
+    // 毛が 生えてくる。だんだん こく、だんだん 大きく なる。
+    fillOval(cx - w * (0.32 + fk * 0.08), y + h * (0.5 - fk * 0.04),
+      w * (0.64 + fk * 0.16), h * (0.38 + fk * 0.16), rgba(ORU_FUR, Math.min(1, fk * 1.5)));
+    for (let i = 0; i < 10; i++) {
+      const a = Math.PI * (i / 9);
+      fillCircle(cx + Math.cos(a) * w * (0.3 + fk * 0.06),
+        y + h * 0.7 + Math.sin(a) * h * 0.2, w * 0.1 * fk, rgba(ORU_FUR_L, fk));
+    }
+  }
 
   // 毛の さかいめ（もこもこの ふち）
   for (let i = 0; i < 6; i++) {
-    fillCircle(cx - w * 0.33 + (w * 0.66 * (i + 0.5)) / 6, y + h * 0.5, w * 0.1, ORU_FUR);
+    fillCircle(cx - w * 0.33 + (w * 0.66 * (i + 0.5)) / 6, y + h * (0.5 - fk * 0.03),
+      w * (0.1 + fk * 0.04), ORU_FUR);
   }
 
   // 上半身（もふもふ）

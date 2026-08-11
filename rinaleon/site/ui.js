@@ -71,6 +71,16 @@ function hit(px, py) {
     const b = ui.buttons[i];
     if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) return b;
   }
+  // ★ 小さい ボタンは ゆびで 当てにくい、と 言われた。どれにも あたらなかった
+  //   ときだけ、まわりを 少し ひろげて もう一度 さがす（見た目は そのまま）。
+  const need = 40;
+  for (let i = ui.buttons.length - 1; i >= 0; i--) {
+    const b = ui.buttons[i];
+    const mx = Math.max(0, (need - b.w) / 2), my = Math.max(0, (need - b.h) / 2);
+    if (!mx && !my) continue;
+    if (px >= b.x - mx && px <= b.x + b.w + mx &&
+        py >= b.y - my && py <= b.y + b.h + my) return b;
+  }
   return null;
 }
 

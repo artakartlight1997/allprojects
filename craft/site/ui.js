@@ -328,6 +328,19 @@ function hitButton(x, y) {
       if (Math.hypot(x - b.x, y - b.y) <= b.r) return b;
     } else if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
   }
+  // ★ 小さい ボタンは ゆびで 当てにくい、と 言われた。どれにも あたらなかった
+  //   ときだけ、まわりを 少し ひろげて もう一度 さがす（見た目は そのまま）。
+  for (let i = UI.buttons.length - 1; i >= 0; i--) {
+    const b = UI.buttons[i];
+    if (b.r !== undefined) {
+      if (b.r < 20 && Math.hypot(x - b.x, y - b.y) <= 20) return b;
+      continue;
+    }
+    const mx = Math.max(0, (40 - b.w) / 2), my = Math.max(0, (40 - b.h) / 2);
+    if (!mx && !my) continue;
+    if (x >= b.x - mx && x <= b.x + b.w + mx &&
+        y >= b.y - my && y <= b.y + b.h + my) return b;
+  }
   return null;
 }
 

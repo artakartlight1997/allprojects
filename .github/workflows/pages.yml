@@ -69,6 +69,7 @@ on:
       - 'slice/site/**'
       - 'piano/site/**'
       - 'rina2/site/**'
+      - 'oru/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -150,12 +151,13 @@ jobs:
       #   /slice/     りなのフルーツスライス（ゆびではらってきる）
       #   /piano/     りなのピアノきょうしつ（ひけるピアノ・全8曲）
       #   /rina2/     りなの大冒険2（横スクロールアクション・全25面・毎面ボス）
+      #   /oru/       おるの大冒険（ねこのアクション・全10面・ボスから にげる）
       # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
       - name: Assemble site
         run: |
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block public/egg public/fish public/drop public/pinball public/dress public/othello public/maze public/snake public/frog public/allstar public/dig public/climb public/invader public/pyramid public/tsumi public/beat public/catch public/bomb public/dash public/gold public/sky public/point public/spot public/memo public/draw public/shop public/slice public/piano public/rina2
+          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block public/egg public/fish public/drop public/pinball public/dress public/othello public/maze public/snake public/frog public/allstar public/dig public/climb public/invader public/pyramid public/tsumi public/beat public/catch public/bomb public/dash public/gold public/sky public/point public/spot public/memo public/draw public/shop public/slice public/piano public/rina2 public/oru
           cp -r nihon-quest/site/. public/nihon/
           cp -r rinaleon/site/. public/rinaleon/
           cp -r osouji/site/. public/osouji/
@@ -208,6 +210,7 @@ jobs:
           cp -r slice/site/. public/slice/
           cp -r piano/site/. public/piano/
           cp -r rina2/site/. public/rina2/
+          cp -r oru/site/. public/oru/
           ls -R public | head -60
 
       - uses: actions/upload-pages-artifact@v3

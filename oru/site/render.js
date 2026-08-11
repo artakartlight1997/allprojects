@@ -15,7 +15,7 @@ let viewW = 0, viewH = 0;
 
 const ui = {
   left: null, right: null, up: null, down: null, jump: null, fire: null,
-  overlayBtn: null, sizeBtns: [], stageBtns: [], fsBtn: null, hubBtn: null, pageBtns: [],
+  overlayBtn: null, sizeBtns: [], stageBtns: [], fsBtn: null, hubBtn: null, endBtn: null,
 };
 
 // --- 色 -------------------------------------------------------------------
@@ -1061,7 +1061,8 @@ function drawGrownup(x, y, w, h, t, who, magic) {
   const cx = x + w / 2;
   const top = who === 'AA' ? '#7FA9E8' : '#7ADCB0';
   const topD = who === 'AA' ? '#5A82BF' : '#4FA88A';
-  fillRoundRect(cx - w * 0.3, y + h * 0.38, w * 0.6, h * 0.5, w * 0.14, top);
+  if (who === 'AA') fillOval(cx - w * 0.38, y + h * 0.38, w * 0.76, h * 0.5, top);
+  else fillRoundRect(cx - w * 0.3, y + h * 0.38, w * 0.6, h * 0.5, w * 0.14, top);
   if (magic) {
     // まほうを かける ポーズ。手を 上に あげて、ゆびさきが 光る。
     const sw = Math.sin(t * 3) * h * 0.03;
@@ -1079,13 +1080,100 @@ function drawGrownup(x, y, w, h, t, who, magic) {
   }
   const hy = y + h * 0.2, hr = w * 0.2;
   if (who === 'AA') fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
-  else fillRoundRect(cx - hr * 1.25, hy - hr * 0.9, hr * 2.5, hr * 2.4, hr * 0.8, '#6A4A3A');
+  else fillRoundRect(cx - hr * 1.35, hy - hr * 1.05, hr * 2.7, hr * 2.35, hr * 0.95, '#6A4A3A');
   drawFace(cx, hy, hr, 0, true);
-  if (who === 'AA') fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
+  if (who === 'AA') {
+    fillArc(cx - hr * 1.15, hy - hr * 1.3, hr * 2.3, hr * 1.8, 180, 180, HAIR);
+    // めがね（あーたん）
+    for (const sd of [-1, 1]) {
+      fillCircle(cx + sd * hr * 0.4, hy + hr * 0.02, hr * 0.36, 'rgba(255,255,255,0.5)');
+      strokeCircle(cx + sd * hr * 0.4, hy + hr * 0.02, hr * 0.36, HAIR, hr * 0.09);
+    }
+  } else {
+    // ボブの まえがみ（くーたん）
+    fillRoundRect(cx - hr * 1.35, hy - hr * 1.1, hr * 2.7, hr * 0.8, hr * 0.3, '#6A4A3A');
+  }
+}
+
+/** あーたん。おるの パパ。やや ふとりぎみ。
+ *  だっこして ねかしつけようと おいかけてくる。 */
+function drawAatan(x, y, w, h, t, right, stunned) {
+  const cx = x + w / 2, d = right ? 1 : -1;
+  const run = Math.sin(t * 8);
+  ctx.save();
+  ctx.translate(cx, y + h); ctx.rotate(stunned ? 0 : d * 0.07); ctx.translate(-cx, -(y + h));
+  // あし
+  fillRoundRect(cx - w * 0.24 + run * w * 0.1, y + h * 0.78, w * 0.19, h * 0.22, w * 0.08, '#4A5064');
+  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.19, h * 0.22, w * 0.08, '#4A5064');
+  // おなか（まるい）
+  fillOval(cx - w * 0.4, y + h * 0.36, w * 0.8, h * 0.48, '#7FA9E8');
+  fillOval(cx - w * 0.26, y + h * 0.5, w * 0.52, h * 0.3, 'rgba(255,255,255,0.28)');
+  // うで（だっこの ポーズ）
+  const armY = stunned ? 0.62 : 0.44;
+  fillRoundRect(cx - w * 0.52, y + h * armY, w * 0.26, h * 0.12, w * 0.06, '#5A82BF');
+  fillRoundRect(cx + w * 0.26, y + h * armY, w * 0.26, h * 0.12, w * 0.06, '#5A82BF');
+  fillCircle(cx - w * 0.54, y + h * (armY + 0.06), w * 0.09, SKIN);
+  fillCircle(cx + w * 0.54, y + h * (armY + 0.06), w * 0.09, SKIN);
+  // かお（みじかい かみ・めがね）
+  const hy = y + h * 0.19, hr = w * 0.23;
+  fillArc(cx - hr * 1.12, hy - hr * 1.3, hr * 2.24, hr * 1.9, 180, 180, HAIR);
+  drawFace(cx, hy, hr, d * hr * 0.08, !stunned);
+  fillArc(cx - hr * 1.12, hy - hr * 1.3, hr * 2.24, hr * 1.9, 180, 180, HAIR);
+  // めがね
+  const gy = hy + hr * 0.02, gr = hr * 0.36;
+  for (const sd of [-1, 1]) {
+    fillCircle(cx + sd * hr * 0.4, gy, gr, 'rgba(255,255,255,0.5)');
+    strokeCircle(cx + sd * hr * 0.4, gy, gr, HAIR, hr * 0.09);
+  }
+  line(cx - hr * 0.1, gy, cx + hr * 0.1, gy, HAIR, hr * 0.08);
+  ctx.restore();
+  // あくび の きらきら
+  if (!stunned) {
+    const k = (t * 0.7) % 1;
+    ctx.save(); ctx.globalAlpha = Math.sin(k * Math.PI) * 0.8;
+    setFont(w * 0.24);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFF3C4';
+    ctx.fillText('z', cx + w * 0.42, y + h * 0.08 - k * h * 0.12);
+    ctx.restore();
+  }
+}
+
+/** くーたん。ボブの かみがた。つめきりを 持って おいかけてくる。 */
+function drawKutan(x, y, w, h, t, right, stunned) {
+  const cx = x + w / 2, d = right ? 1 : -1;
+  const run = Math.sin(t * 10);
+  ctx.save();
+  ctx.translate(cx, y + h); ctx.rotate(stunned ? 0 : d * 0.09); ctx.translate(-cx, -(y + h));
+  fillRoundRect(cx - w * 0.2 + run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#4A6458');
+  fillRoundRect(cx + w * 0.05 - run * w * 0.1, y + h * 0.78, w * 0.15, h * 0.22, w * 0.06, '#4A6458');
+  poly([[cx - w * 0.2, y + h * 0.36], [cx + w * 0.2, y + h * 0.36],
+    [cx + w * 0.3, y + h * 0.8], [cx - w * 0.3, y + h * 0.8]], '#7ADCB0');
+  fillRect(cx - w * 0.22, y + h * 0.5, w * 0.44, h * 0.05, '#4FA88A');
+  // うで（つめきりを ふりあげて いる）
+  const armY = stunned ? 0.58 : 0.24;
+  fillRoundRect(cx - w * 0.4, y + h * 0.4, w * 0.14, h * 0.26, w * 0.06, '#4FA88A');
+  fillRoundRect(cx + w * 0.22, y + h * armY, w * 0.14, h * 0.28, w * 0.06, '#4FA88A');
+  // つめきり
+  const bx = cx + w * 0.3, by = y + h * (armY - 0.04);
+  fillRoundRect(bx - w * 0.06, by - h * 0.16, w * 0.12, h * 0.2, w * 0.04, '#C8CCD8');
+  fillRoundRect(bx - w * 0.1, by - h * 0.2, w * 0.2, h * 0.07, w * 0.03, '#9AA0B0');
+  line(bx - w * 0.02, by - h * 0.24, bx + w * 0.06, by - h * 0.3, '#E8ECF4', w * 0.035);
+  // かお と ボブの かみ
+  const hy = y + h * 0.18, hr = w * 0.2;
+  // ボブ … 耳の 下で まっすぐ そろえた かみ
+  fillRoundRect(cx - hr * 1.35, hy - hr * 1.05, hr * 2.7, hr * 2.35, hr * 0.95, '#6A4A3A');
+  drawFace(cx, hy, hr, d * hr * 0.08, !stunned);
+  // まえがみ（まっすぐ）
+  fillRect(cx - hr * 1.05, hy - hr * 1.05, hr * 2.1, hr * 0.85, '#6A4A3A');
+  fillRoundRect(cx - hr * 1.35, hy - hr * 1.1, hr * 2.7, hr * 0.8, hr * 0.3, '#6A4A3A');
+  ctx.restore();
 }
 
 function drawBossShape(who, x, y, w, h, t, right, col, col2, stunned) {
   if (who === 'MARI') drawMari(x, y, w, h, t, right, stunned);
+  else if (who === 'AA') drawAatan(x, y, w, h, t, right, stunned);
+  else if (who === 'KU') drawKutan(x, y, w, h, t, right, stunned);
   else drawRina(x, y, w, h, t, right, stunned);
 }
 
@@ -1102,14 +1190,15 @@ function drawBubble(e, cam, camY, s) {
   let cx = (e.x + e.w / 2 - cam) * s;
   cx = clamp(cx, tw / 2 + 6, viewW - tw / 2 - 6);
   let cy = (e.y - camY) * s - bh * 0.8;
-  cy = Math.max(cy, bh * 0.7 + 4);
+  // HUD（のこり・チュール）の 下に おさめる
+  cy = Math.max(cy, viewH * 0.19 + bh * 0.5);
   const tipX = clamp((e.x + e.w / 2 - cam) * s, cx - tw / 2 + fs, cx + tw / 2 - fs);
   ctx.save();
   ctx.globalAlpha = a;
   fillRoundRect(cx - tw / 2, cy - bh / 2, tw, bh, bh * 0.45, 'rgba(255,255,255,0.96)');
   poly([[tipX - fs * 0.32, cy + bh / 2 - 2], [tipX + fs * 0.32, cy + bh / 2 - 2],
     [tipX, cy + bh / 2 + fs * 0.8]], 'rgba(255,255,255,0.96)');
-  ctx.strokeStyle = rgba(e.boss.col2 || '#8A64B0', 0.8);
+  ctx.strokeStyle = rgba((e.boss && e.boss.col2) || '#C98A50', 0.8);
   ctx.lineWidth = Math.max(2, s * 0.05);
   rectPath(cx - tw / 2, cy - bh / 2, tw, bh, bh * 0.45);
   ctx.stroke();
@@ -1178,7 +1267,8 @@ function drawEnemies(cam, camY, s) {
           s * 0.16, 5, 0.45, '#FFE066', a);
       }
     }
-    if (e.kind === 'BOSS' && game.introDone) { drawBossGauge(e, cam, camY, s); drawBubble(e, cam, camY, s); }
+    if (e.kind === 'BOSS' && game.introDone) drawBossGauge(e, cam, camY, s);
+    if (e.bubbleT > 0) drawBubble(e, cam, camY, s);
   }
 }
 
@@ -1386,6 +1476,20 @@ function drawPlayer(cam, camY, s) {
   }
 
   oruSprite(x, y, w, h, p.faceRight, stepPhase, stretch, p.size > 0);
+
+  // あーたんに ねかしつけられて いる あいだ
+  if (p.sleepT > 0) {
+    for (let i = 0; i < 3; i++) {
+      const k = (game.elapsed * 0.9 + i * 0.33) % 1;
+      ctx.save();
+      ctx.globalAlpha = Math.sin(k * Math.PI) * 0.95;
+      setFont(w * (0.34 + k * 0.2));
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#FFF3C4';
+      ctx.fillText('z', cx + w * (0.4 + k * 0.5), y - h * 0.1 - k * h * 0.5);
+      ctx.restore();
+    }
+  }
 
   // わざを もっている しるし
   if (p.weapon && p.hammerT <= 0) {

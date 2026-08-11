@@ -49,6 +49,20 @@ RINA = {
     'catch': 'だっこされた〜！',
     'hint': 'にげろ！ わざを 当てると 止まるよ',
 }
+AATAN = {
+    'name': 'あーたん', 'who': 'AA',
+    'col': '#7FA9E8', 'col2': '#5A82BF', 'col3': '#C8D8F0',
+    'calls': ['ねんねの じかんだよ〜', 'おいで おる〜', 'だっこ しよう', 'ねよう ねよう'],
+    'catch': 'ねむく なっちゃった…', 'catchKind': 'SLEEP',
+    'hint': 'つかまると しばらく ねちゃう！',
+}
+KUTAN = {
+    'name': 'くーたん', 'who': 'KU',
+    'col': '#7ADCB0', 'col2': '#4FA88A', 'col3': '#D8F0E4',
+    'calls': ['つめきり しよ〜！', 'ちょっとだけ だから', 'にげないで〜', 'すぐ おわるよ〜'],
+    'catch': 'つめを きられた〜！',
+    'hint': 'つめきりから にげろ！',
+}
 MARI = {
     'name': 'まりちゃん', 'who': 'MARI',
     'col': '#C8A8F0', 'col2': '#8A64B0', 'col3': '#8AD8F0',
@@ -67,20 +81,20 @@ BASIC = ['flat', 'pit', 'steps', 'blocks', 'plats']
 STAGES = [
     ('おうちの ろうか', 'HOME', BASIC + ['rino', 'sha'], [RINA], {}),
     ('おうちの にわ', 'YARD', BASIC + ['springs', 'flyers', 'sha'], [MARI], {}),
-    ('あさの こうえん', 'PARK', BASIC + ['flyers', 'rino', 'springs', 'updraft', 'sha'], [RINA], {}),
+    ('あさの こうえん', 'PARK', BASIC + ['flyers', 'rino', 'springs', 'updraft', 'sha'], [AATAN], {}),
     ('やねの うえ', 'ROOF', ['flat', 'pit', 'plats', 'mover', 'crumble', 'flyers',
-                            'wind', 'updraft', 'sha'], [MARI], {}),
+                            'wind', 'updraft', 'sha'], [KUTAN], {}),
     ('しょうてんがい', 'SHOP', BASIC + ['conveyor', 'rino', 'robos', 'ice', 'sha'], [RINA], {}),
     ('どうぶつびょういん', 'VET', BASIC + ['robos', 'spikes', 'ladder', 'ice', 'sha'], [MARI], {}),
     ('ゆうやけの かわら', 'SUNSET', ['flat', 'plats', 'mover', 'crumble', 'springs', 'flyers',
                                 'wind', 'updraft', 'sha'],
-     [RINA], {}),
-    ('よるの こうえん', 'NIGHTPARK', BASIC + ['ghosts', 'trap', 'rino', 'updraft', 'sha'], [MARI], {'dark': True}),
+     [KUTAN], {}),
+    ('よるの こうえん', 'NIGHTPARK', BASIC + ['ghosts', 'trap', 'rino', 'updraft', 'sha'], [AATAN], {'dark': True}),
     ('りなちゃんの おうち', 'RINAHOME', BASIC + ['ladder', 'conveyor', 'robos', 'rino',
-                                        'ice', 'updraft', 'sha'], [RINA], {}),
+                                        'ice', 'updraft', 'sha'], [RINA, KUTAN], {}),
     ('かえりみち', 'HOMEWAY', BASIC + ['springs', 'flyers', 'crumble', 'ladder', 'rino',
                                 'wind', 'updraft', 'ice', 'sha'],
-     [RINA, MARI], {}),
+     [RINA, MARI, AATAN, KUTAN], {}),
 ]
 
 class Grid:
@@ -714,6 +728,7 @@ def build_all(seed=20260811):
                 'name': b['name'], 'who': b['who'],
                 'col': b['col'], 'col2': b['col2'], 'col3': b['col3'],
                 'calls': b['calls'], 'catchText': b['catch'], 'hint': b['hint'],
+                'catchKind': b.get('catchKind', 'POWER'),
                 'w': 2.4, 'h': 3.1,
                 'speed': speed - k * 0.5, 'dash': dash, 'gap': gap + k * 0.6,
                 'weapon': weapon,
@@ -764,10 +779,8 @@ def build_all(seed=20260811):
             {'a': 1, 'x': sub_out, 'y': GY, 'to': {'a': 0, 'x': xout, 'y': GY}},
             {'a': 0, 'x': xout, 'y': GY, 'to': {'a': 1, 'x': sub_out, 'y': GY}},
         ]
-        lv = {'title': title, 'theme': theme, 'boss': made[0],
+        lv = {'title': title, 'theme': theme, 'boss': made[0], 'bosses': made,
               'areas': areas, 'warps': warps}
-        if len(made) > 1:
-            lv['boss2'] = made[1]
         levels.append(lv)
     return levels, problems
 
@@ -780,8 +793,7 @@ def emit(levels, path):
         out.append('    title: %s, theme: %s,' % (json.dumps(lv['title'], ensure_ascii=False),
                                                   json.dumps(lv['theme'])))
         out.append('    boss: %s,' % json.dumps(lv['boss'], ensure_ascii=False))
-        if lv.get('boss2'):
-            out.append('    boss2: %s,' % json.dumps(lv['boss2'], ensure_ascii=False))
+        out.append('    bosses: %s,' % json.dumps(lv['bosses'], ensure_ascii=False))
         out.append('    areas: [')
         for a in lv['areas']:
             extra = ''

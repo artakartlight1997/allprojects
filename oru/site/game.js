@@ -72,7 +72,9 @@ const HAMMER_SWING = 0.32;
 const HAMMER_COOL = 0.42;
 const BOOM_RANGE = 6.5;
 
-const PIPE_TIME = 0.55;       // どかんに 入る 演出の 長さ
+const PIPE_TIME = 0.55;
+// あーたん（おるパパ）に つかまると、しばらく ねてしまう
+const SLEEP_TIME = 2.4;       // どかんに 入る 演出の 長さ
 
 const CLEAR_TIME_LIMIT = 150;
 
@@ -193,8 +195,10 @@ class Level {
     this.index = index;
     this.title = data.title;
     this.theme = data.theme;
-    this.boss = data.boss;
-    this.boss2 = data.boss2 || null;
+    // ボスは 何人でも 出せる（10面は 4人 いっぺんに 来る）
+    this.bosses = data.bosses || [data.boss].concat(data.boss2 ? [data.boss2] : []);
+    this.boss = this.bosses[0];
+    this.boss2 = this.bosses[1] || null;
     this.hint = data.hint || '';
     this.areas = data.areas.map((a) => new Area(a, data));
     this.warps = data.warps || [];
@@ -288,7 +292,7 @@ class Game {
       x: 0, y: 0, vx: 0, vy: 0, onGround: false, faceRight: true,
       size: 0, weapon: null, starT: 0, featherT: 0, magnetT: 0,
       hurtT: 0, animT: 0, airJumps: 0, climbing: false, inWater: false,
-      swimT: 0, growT: 0, hammerT: 0, coolT: 0, pipeT: 0, pipeTo: null, pipeLock: false,
+      swimT: 0, growT: 0, hammerT: 0, coolT: 0, pipeT: 0, pipeTo: null, pipeLock: false, sleepT: 0,
     };
 
     this.enemies = [];
@@ -379,7 +383,7 @@ class Game {
     this.checkpoints = [];
     const p = this.player;
     p.starT = 0; p.featherT = 0; p.magnetT = 0; p.hammerT = 0; p.coolT = 0;
-    p.pipeT = 0; p.pipeTo = null; p.growT = 0;
+    p.pipeT = 0; p.pipeTo = null; p.growT = 0; p.sleepT = 0;
     this.enterArea(0, a0.startX, a0.startY, true);
   }
 
@@ -394,7 +398,7 @@ class Game {
     this.bossAlive = false;
     for (const [kind, x, y] of ar.enemySpawns) this.enemies.push(new Enemy(kind, x, y));
     if (ar.bossSpawn && this.lv.boss) {
-      for (const b of [this.lv.boss, this.lv.boss2]) {
+      for (const b of this.lv.bosses) {
         if (!b) continue;
         const e = new Enemy('BOSS', ar.bossSpawn[0], ar.bossSpawn[1] - b.h, b);
         this.enemies.push(e);
@@ -571,6 +575,14 @@ class Game {
     if (p.magnetT > 0) p.magnetT -= dt;
     if (p.coolT > 0) p.coolT -= dt;
     if (p.hammerT > 0) p.hammerT -= dt;
+    if (p.sleepT > 0) {
+      // ねている あいだは うごけない。そのかわり だれにも 当たらない。
+      p.sleepT -= dt;
+      p.vx = 0;
+      p.vy = Math.min(p.vy + GRAVITY * dt, MAX_FALL);
+      this.moveY(dt);
+      return;
+    }
     if (p.growT > 0) {
       p.growT -= dt;
       p.vx = 0;
@@ -997,6 +1009,7 @@ class Game {
       if (!e.alive) { e.squashT += dt; continue; }
       e.t += dt;
       if (e.invulnT > 0) e.invulnT -= dt;
+      if (e.bubbleT > 0) e.bubbleT -= dt;
       if (e.frozenT > 0) {
         e.frozenT -= dt;
         e.vx = 0;
@@ -1279,7 +1292,17 @@ class Game {
   /** つかまった。だっこ／ブラッシングされて 1だん 下がり、はじき飛ばされる。 */
   caught(e) {
     const p = this.player;
-    if (p.hurtT > 0 || p.growT > 0) return;
+    if (p.hurtT > 0 || p.growT > 0 || p.sleepT > 0) return;
+    // あーたんは だっこして ねかしつけてくる。力は へらないが しばらく 動けない。
+    if (e.boss.catchKind === 'SLEEP') {
+      p.sleepT = SLEEP_TIME;
+      p.hurtT = SLEEP_TIME + 1.2;
+      p.vx = 0;
+      e.stunT = SLEEP_TIME + 0.8;
+      this.pops.push({ x: p.x + PLAYER_W / 2, y: p.y, text: e.boss.catchText, t: 0 });
+      sfxSleep();
+      return;
+    }
     const away = sign(p.x - e.x) || -1;
     this.pops.push({ x: p.x + PLAYER_W / 2, y: p.y, text: e.boss.catchText, t: 0 });
     e.stunT = 1.2;                   // つかまえた あとは 少し 止まる
@@ -1382,7 +1405,8 @@ class Game {
         if (e.bumpT > 0) continue;
         e.bumpT = 2.6;
         p.vy = -6.5;
-        this.pops.push({ x: e.x + e.w / 2, y: e.y, text: 'リノ「あそぼー！」', t: 0 });
+        e.bubble = 'あそぼ〜！';
+        e.bubbleT = 2.2;
         sfxRino();
         continue;
       }

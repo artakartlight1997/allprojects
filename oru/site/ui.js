@@ -122,7 +122,7 @@ function drawBossIntro(cam, camY, s) {
   const size = s * 1.15 * (0.4 + grow * 0.6);
   ctx.save();
   ctx.globalAlpha = fade;
-  const nm = game.lv.boss2 ? `${game.lv.boss.name} と ${game.lv.boss2.name}` : game.lv.boss.name;
+  const nm = game.lv.bosses.map((b) => b.name).join(' と ');
   shadowText(`${nm} が やってきた！`, viewW / 2, viewH * 0.3, size, '#FFF3C4', s * 0.3);
   shadowText(game.lv.boss.hint || 'にげろ！', viewW / 2, viewH * 0.4, s * 0.44, '#FFFFFF', s * 0.16);
   ctx.restore();
@@ -246,7 +246,7 @@ function drawStagePicker(y, bodySize) {
     y + rows * (cell + gap) + bodySize * 0.9);
   setFont(bodySize * 0.85);
   ctx.fillStyle = '#C8B8D8';
-  const bn = lv.boss2 ? `${lv.boss.name} と ${lv.boss2.name}` : lv.boss.name;
+  const bn = (lv.bosses || [lv.boss]).map((b) => b.name).join(' と ');
   ctx.fillText(`おいかけてくるのは ${bn}`, viewW / 2, y + rows * (cell + gap) + bodySize * 2.05);
   return stagePickerHeight(bodySize);
 }
@@ -388,12 +388,25 @@ function drawOverlay() {
   y += 14;
   setFont(clamp(viewH * 0.045, 13, 19));
   const bw = ctx.measureText(btnLabel).width + btnH * 1.1;
-  const bxx = viewW / 2 - bw / 2;
+  // ★ タイトルからも エンディング（まほうの ばめん）を 見られる ように する。
+  //   10面を クリアした のに 見られない、と 言われたため。
+  const endLabel = 'エンディングを みる';
+  const ew = isTitle ? ctx.measureText(endLabel).width + btnH * 0.9 : 0;
+  const gapB = isTitle ? 10 : 0;
+  const bxx = viewW / 2 - (bw + ew + gapB) / 2;
   fillRoundRect(bxx, y, bw, btnH, btnH / 2, '#FF8FBB');
   ctx.fillStyle = '#3A2430';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(btnLabel, viewW / 2, y + btnH * 0.55);
+  ctx.fillText(btnLabel, bxx + bw / 2, y + btnH * 0.55);
   ui.overlayBtn = { x: bxx, y, w: bw, h: btnH };
+  ui.endBtn = null;
+  if (isTitle) {
+    const ex = bxx + bw + gapB;
+    fillRoundRect(ex, y, ew, btnH, btnH / 2, 'rgba(255,255,255,0.22)');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(endLabel, ex + ew / 2, y + btnH * 0.55);
+    ui.endBtn = { x: ex, y, w: ew, h: btnH };
+  }
 }
 
 // --- エンディング ---------------------------------------------------------
@@ -674,7 +687,7 @@ function drawEndingButton() {
 function drawScene() {
   ui.left = ui.right = ui.up = ui.down = ui.jump = ui.fire = null;
   ui.padC = null;
-  ui.overlayBtn = ui.fsBtn = ui.hubBtn = null;
+  ui.overlayBtn = ui.fsBtn = ui.hubBtn = ui.endBtn = null;
   ui.sizeBtns = [];
   ui.stageBtns = [];
 
@@ -767,6 +780,7 @@ function onDown(e) {
   if (hitRect(ui.hubBtn, x, y)) { gotoHub(); return; }
   for (const b of ui.stageBtns) if (hitRect(b, x, y)) { game.selectStage(b.index); return; }
   for (const b of ui.sizeBtns) if (hitRect(b, x, y)) { uiScale = b.scale; save.btn = b.scale; storeSave(); return; }
+  if (hitRect(ui.endBtn, x, y)) { game.endingT = 0; game.phase = 'ENDING'; bgmStop(); return; }
   if (hitRect(ui.fsBtn, x, y)) { if (isFullscreen()) exitFullscreen(); else enterFullscreen(); return; }
   if (hitRect(ui.overlayBtn, x, y)) {
     if (game.phase === 'TITLE') enterFullscreen();

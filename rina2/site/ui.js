@@ -287,7 +287,7 @@ function gotoHub() {
 }
 
 function drawHubButton() {
-  const h = clamp(viewH * 0.075, 24, 36);
+  const h = clamp(viewH * 0.1, 34, 44);
   setFont(h * 0.42);
   const label = '≡ ゲームをえらぶ';
   const w = ctx.measureText(label).width + h * 0.9;
@@ -340,7 +340,9 @@ function drawOverlay() {
   if (isTitle) {
     y += bodySize * 2.0;
     y += drawStagePicker(y, bodySize);
-    drawHubButton();
+    // ★ 上の おび（gamebar）にも 同じ ボタンが あるので、ふだんは かかない。
+    //   おびが 読みこめなかった ときだけ、ここに 出して にげ道を のこす。
+    if (!window.__gamebar) drawHubButton();
 
     y += bodySize * 2.0;
     setFont(bodySize);
@@ -550,7 +552,16 @@ function hitCircle(btn, x, y, grow) {
   const r = btn.r * (grow || 1.22);
   return (x - btn.x) ** 2 + (y - btn.y) ** 2 <= r * r;
 }
-function hitRect(r, x, y) { return r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; }
+// ★ ボタンが 小さくて 押しにくい、と 言われた。
+//   hitSlop を 入れると、その 大きさに とどかない ボタンだけ
+//   あたる はんいが ひろがる（見た目は そのまま）。
+//   まず slop なしで しらべて、どれにも あたらなかった ときだけ ひろげて さがす。
+let hitSlop = 0;
+function hitRect(r, x, y) {
+  if (!r) return false;
+  const mx = Math.max(0, (hitSlop - r.w) / 2), my = Math.max(0, (hitSlop - r.h) / 2);
+  return x >= r.x - mx && x <= r.x + r.w + mx && y >= r.y - my && y <= r.y + r.h + my;
+}
 function pointerPos(e) {
   const rect = canvas.getBoundingClientRect();
   return [e.clientX - rect.left, e.clientY - rect.top];
@@ -585,15 +596,28 @@ function onDown(e) {
     }
     return;
   }
-  if (hitRect(ui.hubBtn, x, y)) { gotoHub(); return; }
-  for (const b of ui.stageBtns) if (hitRect(b, x, y)) { game.selectStage(b.index); return; }
-  for (const b of ui.sizeBtns) if (hitRect(b, x, y)) { uiScale = b.scale; save.btn = b.scale; storeSave(); return; }
-  if (hitRect(ui.fsBtn, x, y)) { if (isFullscreen()) exitFullscreen(); else enterFullscreen(); return; }
+  // まずは きっちり、あたらなければ 少し ひろげて もう一度
+  if (menuTap(x, y)) return;
+  hitSlop = 40; menuTap(x, y); hitSlop = 0;
+}
+
+/** タイトルや まくの ボタン。押せたら true。 */
+function menuTap(x, y) {
+  if (hitRect(ui.hubBtn, x, y)) { gotoHub(); return true; }
+  for (const b of ui.stageBtns) if (hitRect(b, x, y)) { game.selectStage(b.index); return true; }
+  for (const b of ui.sizeBtns) {
+    if (hitRect(b, x, y)) { uiScale = b.scale; save.btn = b.scale; storeSave(); return true; }
+  }
+  if (hitRect(ui.fsBtn, x, y)) {
+    if (isFullscreen()) exitFullscreen(); else enterFullscreen(); return true;
+  }
   if (hitRect(ui.overlayBtn, x, y)) {
     if (game.phase === 'TITLE') enterFullscreen();
     game.advance();
     if (game.phase === 'PLAYING') bgmStage();
+    return true;
   }
+  return false;
 }
 
 function onMove(e) {

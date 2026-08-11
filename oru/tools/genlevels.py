@@ -29,7 +29,7 @@ import os
 import random
 import sys
 
-SOLID = set('#=?!XN^FDO><')
+SOLID = set('#=?!XN^FDO><I')
 FREE_WALK = set('.oghH*fM12345wkpjcSdyzerCB@G')   # 通れる（歩ける）
 HAZARD = set('sT')
 ENEMY_CHARS = set('wkpjcSdyzerR')
@@ -65,15 +65,19 @@ BASIC = ['flat', 'pit', 'steps', 'blocks', 'plats']
 STAGES = [
     ('おうちの ろうか', 'HOME', BASIC + ['rino'], [RINA], {}),
     ('おうちの にわ', 'YARD', BASIC + ['springs', 'flyers'], [MARI], {}),
-    ('あさの こうえん', 'PARK', BASIC + ['flyers', 'rino', 'springs'], [RINA], {}),
-    ('やねの うえ', 'ROOF', ['flat', 'pit', 'plats', 'mover', 'crumble', 'flyers'], [MARI], {}),
-    ('しょうてんがい', 'SHOP', BASIC + ['conveyor', 'rino', 'robos'], [RINA], {}),
-    ('どうぶつびょういん', 'VET', BASIC + ['robos', 'spikes', 'ladder'], [MARI], {}),
-    ('ゆうやけの かわら', 'SUNSET', ['flat', 'plats', 'mover', 'crumble', 'springs', 'flyers'],
+    ('あさの こうえん', 'PARK', BASIC + ['flyers', 'rino', 'springs', 'updraft'], [RINA], {}),
+    ('やねの うえ', 'ROOF', ['flat', 'pit', 'plats', 'mover', 'crumble', 'flyers',
+                            'wind', 'updraft'], [MARI], {}),
+    ('しょうてんがい', 'SHOP', BASIC + ['conveyor', 'rino', 'robos', 'ice'], [RINA], {}),
+    ('どうぶつびょういん', 'VET', BASIC + ['robos', 'spikes', 'ladder', 'ice'], [MARI], {}),
+    ('ゆうやけの かわら', 'SUNSET', ['flat', 'plats', 'mover', 'crumble', 'springs', 'flyers',
+                                'wind', 'updraft'],
      [RINA], {}),
-    ('よるの こうえん', 'NIGHTPARK', BASIC + ['ghosts', 'trap', 'rino'], [MARI], {'dark': True}),
-    ('りなちゃんの おうち', 'RINAHOME', BASIC + ['ladder', 'conveyor', 'robos', 'rino'], [RINA], {}),
-    ('かえりみち', 'HOMEWAY', BASIC + ['springs', 'flyers', 'crumble', 'ladder', 'rino'],
+    ('よるの こうえん', 'NIGHTPARK', BASIC + ['ghosts', 'trap', 'rino', 'updraft'], [MARI], {'dark': True}),
+    ('りなちゃんの おうち', 'RINAHOME', BASIC + ['ladder', 'conveyor', 'robos', 'rino',
+                                        'ice', 'updraft'], [RINA], {}),
+    ('かえりみち', 'HOMEWAY', BASIC + ['springs', 'flyers', 'crumble', 'ladder', 'rino',
+                                'wind', 'updraft', 'ice'],
      [RINA, MARI], {}),
 ]
 
@@ -128,6 +132,43 @@ class Grid:
 
 
 # ---------------------------------------------------------------- しかけ
+def c_wind(g, x0, w, rng, d):
+    """よこむきの かぜ。おされながら 足場を わたる。"""
+    ch = ')' if rng.random() < 0.5 else '('
+    for x in range(x0 + 3, x0 + w - 3):
+        for y in range(GY - 5, GY - 1):
+            if g.at(x, y) == '.':
+                g.put(x, y, ch)
+    g.plat(x0 + 4, x0 + 7, GY - 3)
+    g.plat(x0 + w - 8, x0 + w - 5, GY - 3)
+    g.coins(x0 + 5, x0 + w - 6, GY - 6)
+    if rng.random() < 0.5:
+        g.put(x0 + w // 2, GY - 6, 'g')
+
+
+def c_updraft(g, x0, w, rng, d):
+    """上むきの かぜ。ふわっと 上がって、高い ところの ごほうびを 取る。"""
+    cx = x0 + w // 2
+    for y in range(3, GY):
+        g.put(cx, y, 'A')
+        g.put(cx + 1, y, 'A')
+    g.plat(cx - 5, cx - 2, GY - 6)
+    g.plat(cx + 2, cx + 5, GY - 6)
+    g.coins(cx - 5, cx - 2, GY - 7)
+    g.coins(cx + 2, cx + 5, GY - 7)
+    g.put(cx, 4, 'g')
+    g.coins(x0 + 2, x0 + 4, STAND)
+
+
+def c_ice(g, x0, w, rng, d):
+    """こおりの ゆか。すぐには 止まれない。"""
+    for x in range(x0 + 3, x0 + w - 3):
+        g.put(x, GY, 'I')
+    g.coins(x0 + 4, x0 + w - 5, STAND)
+    if rng.random() < 0.6:
+        g.put(x0 + w - 4, STAND, 'w')
+
+
 def c_flat(g, x0, w, rng, d):
     g.coins(x0 + 2, x0 + 2 + rng.randint(2, 4), STAND)
     if rng.random() < 0.75:
@@ -197,11 +238,13 @@ def c_springs(g, x0, w, rng, d):
 
 
 def c_crumble(g, x0, w, rng, d):
+    # くずれる足場は じめんと 同じ 高さに 置く。上に 置くと、あなを
+    # とびこえる ときに 頭を ぶつけて そのまま 落ちて しまう。
     gap = 3
     px = x0 + 4
     g.carve(px, px + gap - 1)
-    g.plat(px, px + gap - 1, GY - 2, 'F')
-    g.coins(px, px + gap - 1, GY - 3)
+    g.plat(px, px + gap - 1, GY, 'F')
+    g.coins(px, px + gap - 1, STAND)
 
 
 def c_mover(g, x0, w, rng, d):
@@ -315,14 +358,15 @@ CHUNKS = {
     'ladder': (c_ladder, 15), 'barrels': (c_barrels, 16), 'conveyor': (c_conveyor, 14),
     'water': (c_water, 16), 'flyers': (c_flyers, 14), 'ghosts': (c_ghosts, 14),
     'rino': (c_rino, 14),
+    'wind': (c_wind, 16), 'updraft': (c_updraft, 16), 'ice': (c_ice, 15),
     'robos': (c_robos, 14), 'trap': (c_trap, 14),
 }
 
 
 # ---------------------------------------------------------------- 組みたて
-def build_main(idx, title, theme, feats, rng):
+def build_main(idx, title, theme, feats, rng, wchar='2'):
     d = 1 + idx // 8              # むずかしさ 1..4
-    n_chunks = 7 + min(5, idx // 4)
+    n_chunks = 8 + min(3, idx // 3)
     # その ステージの「めだま」の しかけは かならず 1回は 出す。
     # ランダムだけに すると、ベルトコンベアの ように 一度も 出ない しかけが できる。
     specials = [f for f in feats if f not in BASIC]
@@ -347,6 +391,10 @@ def build_main(idx, title, theme, feats, rng):
     rest = x
     g.put(rest + 2, GY - 4, '!')
     g.put(rest + 4, GY - 4, '!')
+    g.put(rest + 6, GY - 4, '!')
+    # ★「ボス戦は アイテムが ないと むり」と 言われたので、
+    #   ブロックを 待たなくても 拾える ように その場に 出しておく。
+    g.put(rest + 8, STAND, wchar)
     g.put(rest + 3, STAND, 'C')
     g.coins(rest + 6, rest + 12, STAND)
     x += 14
@@ -477,7 +525,7 @@ def reachable(rows, start, h, w):
                         if 0 <= xx < w and 0 <= yy - 1:
                             virtual.add((xx, yy - 1))
     water = [[rows[y][x] in 'WQE' for x in range(w)] for y in range(h)]
-    ladder = [[rows[y][x] == 'H' for x in range(w)] for y in range(h)]
+    ladder = [[rows[y][x] in 'HA' for x in range(w)] for y in range(h)]
     spring = [[rows[y][x] == '^' for x in range(w)] for y in range(h)]
 
     def free(x, y):
@@ -592,7 +640,7 @@ def check_area(name, rows, need_goal, start_hint=None):
     springs = set()
     for y in range(h):
         for x in range(w):
-            if rows[y][x] == '^':
+            if rows[y][x] == '^' or rows[y][x] == 'A':
                 springs.add(x)
 
     def item_ok(cx, cy):
@@ -638,6 +686,7 @@ def build_all(seed=20260811):
     problems = 0
     for i, (title, theme, feats, bosses, opt) in enumerate(STAGES):
         weapon = WEAPON_CYCLE[i % len(WEAPON_CYCLE)]
+        wchar = '234'[WEAPON_CYCLE.index(weapon)]
         # だんだん 足が 速くなる。おるは 7.6 で 走るので、それより おそくする。
         # おるは 7.6 で 走る。ボスは それより 少し おそい くらいに して、
         # 止まると すぐ おいつかれる ようにする。
@@ -658,7 +707,7 @@ def build_all(seed=20260811):
         errs = ['まだ']
         for attempt in range(60):
             r2 = random.Random(seed + i * 977 + attempt * 13)
-            g, ax, total = build_main(i, title, theme, feats, r2)
+            g, ax, total = build_main(i, title, theme, feats, r2, wchar)
             pipes = add_pipes(g, 0, r2)
             if not pipes:
                 continue
@@ -691,9 +740,14 @@ def build_all(seed=20260811):
         ]
         if opt.get('dark'):
             areas[0]['dark'] = True
+        # ★ どの どかんにも 入れる ように、4本 ぜんぶを つなぐ。
+        #   まえは 出口の どかんに 行き先が なく、▼を おしても 何も
+        #   おきなかったので「どかんに 入っても ワープしない」と 言われた。
         warps = [
             {'a': 0, 'x': xin, 'y': GY, 'to': {'a': 1, 'x': sub_in, 'y': GY}},
+            {'a': 1, 'x': sub_in, 'y': GY, 'to': {'a': 0, 'x': xin, 'y': GY}},
             {'a': 1, 'x': sub_out, 'y': GY, 'to': {'a': 0, 'x': xout, 'y': GY}},
+            {'a': 0, 'x': xout, 'y': GY, 'to': {'a': 1, 'x': sub_out, 'y': GY}},
         ]
         lv = {'title': title, 'theme': theme, 'boss': made[0],
               'areas': areas, 'warps': warps}

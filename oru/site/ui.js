@@ -422,10 +422,18 @@ function creditLines() {
 }
 
 // おうちに かえって、みんなで ベッドで ねむる エンディング。
-function drawSleeper(cx, cy, s, kind, t) {
+function drawSleeper(cx, cy, s, kind, t, fluffy) {
   // ふとんから 顔だけ 出して ねている
   const br = Math.sin(t * 1.2 + cx * 0.01) * s * 0.03;
   if (kind === 'ORU') {
+    if (fluffy) {
+      // まほうで 生えた 毛。まわりに ふわふわを 足す。
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        fillCircle(cx + Math.cos(a) * s * 0.52, cy + br + Math.sin(a) * s * 0.5,
+          s * 0.22, ORU_FUR);
+      }
+    }
     fillCircle(cx, cy + br, s * 0.5, ORU_FUR_L);
     for (const sd of [-1, 1]) {
       poly([[cx + sd * s * 0.42, cy - s * 0.2 + br], [cx + sd * s * 0.3, cy - s * 0.66 + br],
@@ -473,15 +481,17 @@ function drawSleeper(cx, cy, s, kind, t) {
   }
 }
 
-function drawEnding() {
-  const s = viewH / VIEW_TILES_Y;
-  const t = game.endingT;
+// エンディングの ながれ
+//   0〜7.5秒 … あーたんと くーたんが まほうを かけて、おるの 毛が 生える
+//   7.5秒〜  … 4人と 1ぴきで ベッドで ねむる
+const MAGIC_END = 7.5;
+let endMagicSfx = 0;
 
-  // よるの へや
+/** よるの へやの かべと まど。まほうの ばめんと ベッドの ばめんで つかう。 */
+function drawNightRoom(s, t) {
   const g = ctx.createLinearGradient(0, 0, 0, viewH);
   g.addColorStop(0, '#1C1836'); g.addColorStop(0.6, '#2E2650'); g.addColorStop(1, '#463A66');
   fillRect(0, 0, viewW, viewH, g);
-  // まど と つき
   const wx = viewW * 0.12, wy = viewH * 0.12;
   fillRoundRect(wx, wy, s * 3.4, s * 2.8, s * 0.18, '#3A3260');
   fillRoundRect(wx + s * 0.16, wy + s * 0.16, s * 3.08, s * 2.48, s * 0.12, '#1A2A52');
@@ -493,27 +503,120 @@ function drawEnding() {
   }
   line(wx + s * 1.7, wy + s * 0.16, wx + s * 1.7, wy + s * 2.6, '#3A3260', s * 0.09);
   line(wx + s * 0.16, wy + s * 1.4, wx + s * 3.24, wy + s * 1.4, '#3A3260', s * 0.09);
+}
+
+/** まほうの ばめん。おるの 毛が だんだん 生えてくる。 */
+function drawMagic(s, t) {
+  drawNightRoom(s, t);
+  const floorY = viewH * 0.86;
+  fillRect(0, floorY, viewW, viewH - floorY, '#3A2E58');
+  fillRect(0, floorY, viewW, s * 0.16, '#5A4A80');
+
+  // 毛が どれだけ 生えたか（2.0秒から 5.2秒に かけて 0→1）
+  const fur = clamp((t - 2.0) / 3.2, 0, 1);
+  const cx = viewW * 0.5;
+  const ow = s * 2.7, oh = s * 3.4;
+  const oy = floorY - oh;
+
+  // まほうの わ（足もとで まわる）
+  ctx.save();
+  ctx.globalAlpha = 0.45 + Math.sin(t * 4) * 0.15;
+  for (let i = 0; i < 3; i++) {
+    const rr = s * (1.1 + i * 0.45);
+    ctx.strokeStyle = i % 2 ? '#FFE9A8' : '#C8A8F0';
+    ctx.lineWidth = s * 0.07;
+    ctx.beginPath();
+    ctx.ellipse(cx, floorY - s * 0.1, rr, rr * 0.3, 0, t * (1 + i * 0.4), t * (1 + i * 0.4) + 4.2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // おるに あつまる きらきら
+  for (let i = 0; i < 26; i++) {
+    const k = ((t * 0.7 + i / 26) % 1);
+    const a = (i / 26) * Math.PI * 2 + t * 0.8;
+    const r = s * (4.2 * (1 - k) + 0.3);
+    const px = cx + Math.cos(a) * r;
+    const py = floorY - oh * 0.5 + Math.sin(a) * r * 0.55;
+    ctx.save();
+    ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
+    starPoly(px, py, s * (0.1 + (1 - k) * 0.12), 4, 0.3,
+      i % 3 === 0 ? '#FFE9A8' : '#DFF6FF', t * 3 + i);
+    ctx.restore();
+  }
+
+  // あーたんと くーたん（手を あげて まほうを かける）
+  const gw = s * 2.0, gh = s * 3.9;
+  drawGrownup(cx - s * 5.2, floorY - gh, gw, gh, t, 'AA', true);
+  drawGrownup(cx + s * 3.2, floorY - gh, gw, gh, t, 'KU', true);
+
+  // おる。毛が 生えるにつれて 光る。
+  const glow = fur < 1 ? Math.abs(Math.sin(t * 6)) * 0.5 : 0.25;
+  fillCircle(cx, floorY - oh * 0.5, s * (2.1 + glow), `rgba(255,240,200,${0.18 + glow * 0.2})`);
+  oruSprite(cx - ow / 2, oy, ow, oh, true, 0, 1 + Math.sin(t * 3) * 0.02, false, fur);
+
+  // リノも いっしょに 見て いる
+  drawRino(cx + s * 1.7, floorY - s * 2.0, s * 2.2, s * 2.0, t, false);
+
+  // ことば
+  const line1 = t < 2.0 ? 'あーたんと くーたんが まほうを かけて くれた…'
+    : fur < 1 ? 'おるの 毛が どんどん 生えてくる…'
+      : 'ふわふわの グレーの ねこに もどった！';
+  const fs = clamp(s * 0.62, 15, 30);
+  setFont(fs);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tw = ctx.measureText(line1).width + fs * 1.6;
+  fillRoundRect(viewW / 2 - tw / 2, viewH * 0.09, tw, fs * 2.0, fs, 'rgba(30,20,45,0.8)');
+  ctx.fillStyle = '#FFF0F5';
+  ctx.fillText(line1, viewW / 2, viewH * 0.09 + fs);
+
+  if (fur >= 1) {
+    const k = clamp((t - 5.2) / 0.8, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = Math.sin(Math.min(k, 1) * Math.PI) * 0.9;
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2;
+      const r = s * (1 + k * 6);
+      starPoly(cx + Math.cos(a) * r, floorY - oh * 0.5 + Math.sin(a) * r * 0.7,
+        s * 0.2, 5, 0.45, '#FFE9A8', a);
+    }
+    ctx.restore();
+  }
+}
+
+function drawEnding() {
+  const s = viewH / VIEW_TILES_Y;
+  const t = game.endingT;
+
+  // 音は 1回だけ
+  if (t < 0.2) endMagicSfx = 0;
+  if (t > 2.0 && endMagicSfx === 0) { endMagicSfx = 1; sfxGrow(); }
+  if (t > 5.2 && endMagicSfx === 1) { endMagicSfx = 2; sfxWin(); }
+  if (t > MAGIC_END && endMagicSfx === 2) { endMagicSfx = 3; sfxSleep(); }
+
+  if (t < MAGIC_END) { drawMagic(s, t); return; }
+
+  const tb = t - MAGIC_END;
+  drawNightRoom(s, t);
 
   // ベッド
   const bedY = viewH * 0.58;
   const bedX = viewW * 0.16, bedW = viewW * 0.68;
-  fillRoundRect(bedX - s * 0.2, bedY - s * 1.9, s * 0.5, s * 2.4, s * 0.12, '#6A4A3A');   // ヘッドボード
+  fillRoundRect(bedX - s * 0.2, bedY - s * 1.9, s * 0.5, s * 2.4, s * 0.12, '#6A4A3A');
   fillRoundRect(bedX, bedY - s * 0.1, bedW, s * 2.2, s * 0.2, '#8A5A42');
-  // まくら
   for (let i = 0; i < 2; i++) {
     fillRoundRect(bedX + s * 0.4 + i * s * 2.0, bedY - s * 0.85, s * 1.8, s * 0.8, s * 0.3, '#F4ECF7');
   }
-  // かけぶとん
   fillRoundRect(bedX, bedY + s * 0.25, bedW, s * 1.5, s * 0.25, '#7A9AD8');
   fillRoundRect(bedX, bedY + s * 0.25, bedW, s * 0.32, s * 0.16, '#A8C0EC');
   for (let i = 0; i < 6; i++) {
     fillCircle(bedX + bedW * (0.1 + i * 0.16), bedY + s * 1.1, s * 0.16, 'rgba(255,255,255,0.16)');
   }
 
-  // よにんと いっぴき
+  // よにんと いっぴき。おるは もう もふもふ。
   drawSleeper(bedX + s * 1.35, bedY - s * 0.48, s * 1.1, 'AA', t);
   drawSleeper(bedX + s * 3.5, bedY - s * 0.48, s * 1.1, 'KU', t);
-  drawSleeper(bedX + bedW * 0.6, bedY + s * 0.72, s * 1.05, 'ORU', t);
+  drawSleeper(bedX + bedW * 0.6, bedY + s * 0.72, s * 1.05, 'ORU', t, true);
   drawSleeper(bedX + bedW * 0.85, bedY + s * 0.78, s * 0.85, 'RINO', t);
 
   // ふわふわ うかぶ チュールの ゆめ
@@ -529,7 +632,7 @@ function drawEnding() {
   // スタッフロール
   const lines = creditLines();
   const lineH = s * 0.62;
-  const scroll = Math.max(t - 1.5, 0) * s * 1.05;
+  const scroll = Math.max(tb - 1.0, 0) * s * 1.05;
   const fadeTop = viewH * 0.12;
   ctx.textAlign = 'center';
   lines.forEach((raw, i) => {
@@ -544,7 +647,7 @@ function drawEnding() {
     ctx.restore();
   });
 
-  const titleAlpha = clamp((t - 1) / 1.5, 0, 1);
+  const titleAlpha = clamp(tb / 1.2, 0, 1);
   if (titleAlpha > 0) {
     ctx.save(); ctx.globalAlpha = titleAlpha;
     shadowText('おやすみなさい', viewW * 0.5, viewH * 0.12,
@@ -554,7 +657,7 @@ function drawEnding() {
 }
 
 function drawEndingButton() {
-  if (game.endingT < 4) { ui.overlayBtn = null; return; }
+  if (game.endingT < MAGIC_END + 2) { ui.overlayBtn = null; return; }
   const h = clamp(viewH * 0.1, 32, 46);
   setFont(clamp(viewH * 0.04, 12, 16));
   const label = 'けっかを みる';

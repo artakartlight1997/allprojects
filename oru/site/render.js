@@ -422,6 +422,46 @@ function drawTiles(p, cam, camY, s) {
         fillRect(x, y + s * 0.86, s + 0.5, s * 0.14, '#2E2E3E');
       } else if (c === 'D' || c === 'O') {
         drawPipeTile(tx, ty, x, y, s, c);
+      } else if (c === 'A') {
+        // 上むきの かぜ（ふきあげ）。中に 入ると ふわっと 上がる。
+        const flow = (t * 2.4 + tx * 0.3) % 1;
+        fillRect(x, y, s + 0.5, s + 0.5, 'rgba(180,235,255,0.22)');
+        for (let i = 0; i < 3; i++) {
+          const k = (flow + i / 3) % 1;
+          const yy = y + s * (1 - k);
+          ctx.save();
+          ctx.globalAlpha = Math.sin(k * Math.PI) * 0.85;
+          poly([[x + s * 0.5, yy - s * 0.2], [x + s * 0.18, yy + s * 0.1],
+            [x + s * 0.82, yy + s * 0.1]], '#DFF6FF');
+          ctx.restore();
+        }
+        const left = tx === 0 || ar.tiles[ty][tx - 1] !== 'A';
+        const right = tx >= ar.width - 1 || ar.tiles[ty][tx + 1] !== 'A';
+        if (left) fillRect(x, y, s * 0.08, s + 0.5, 'rgba(200,240,255,0.5)');
+        if (right) fillRect(x + s * 0.92, y, s * 0.08, s + 0.5, 'rgba(200,240,255,0.5)');
+      } else if (c === 'I') {
+        // こおりの ゆか。すべる。
+        fillRect(x, y, s + 0.5, s + 0.5, '#BFE8F7');
+        fillRect(x, y, s + 0.5, s * 0.22, '#EAFAFF');
+        fillRect(x, y + s * 0.8, s + 0.5, s * 0.2, '#93C9DE');
+        line(x + s * 0.2, y + s * 0.35, x + s * 0.45, y + s * 0.6, 'rgba(255,255,255,0.8)', s * 0.07);
+        line(x + s * 0.6, y + s * 0.3, x + s * 0.8, y + s * 0.5, 'rgba(255,255,255,0.6)', s * 0.05);
+      } else if (c === '(' || c === ')') {
+        // よこむきの かぜ。おされる。
+        const dir = c === ')' ? 1 : -1;
+        const flow = ((t * 1.9 * dir) % 1 + 1) % 1;
+        fillRect(x, y, s + 0.5, s + 0.5, 'rgba(200,230,255,0.13)');
+        for (let i = 0; i < 2; i++) {
+          const k = (flow + i / 2) % 1;
+          const xx = x + (dir > 0 ? k * s : (1 - k) * s);
+          const yy = y + s * (0.3 + ((tx + i) % 2) * 0.35);
+          ctx.save();
+          ctx.globalAlpha = Math.sin(k * Math.PI) * 0.75;
+          line(xx - dir * s * 0.3, yy, xx, yy, '#EAF6FF', s * 0.07);
+          poly([[xx + dir * s * 0.14, yy], [xx - dir * s * 0.04, yy - s * 0.09],
+            [xx - dir * s * 0.04, yy + s * 0.09]], '#EAF6FF');
+          ctx.restore();
+        }
       } else if (c === 'W') {
         const top = ty === 0 || ar.tiles[ty - 1][tx] !== 'W';
         fillRect(x, y, s + 0.5, s + 0.5, 'rgba(70,170,220,0.42)');

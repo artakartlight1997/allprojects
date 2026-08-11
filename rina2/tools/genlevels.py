@@ -29,7 +29,7 @@ import os
 import random
 import sys
 
-SOLID = set('#=?!XN^FDO><')
+SOLID = set('#=?!XN^FDO><I')
 FREE_WALK = set('.oghH*fM12345wkpjcSdyzerCB@G')   # 通れる（歩ける）
 HAZARD = set('sT')
 ENEMY_CHARS = set('wkpjcSdyzerE')
@@ -107,28 +107,29 @@ STAGES = [
     ('おうちの おにわ', 'GARDEN', BASIC + ['springs', 'flyers'], {}),
     ('がっこうの ろうか', 'SCHOOL', BASIC + ['ladder', 'blocks'], {}),
     ('がっこうの おんがくしつ', 'MUSIC', BASIC + ['springs', 'crumble'], {}),
-    ('がっこうの たいいくかん', 'GYM', BASIC + ['mover', 'springs', 'flyers'], {}),
+    ('がっこうの たいいくかん', 'GYM', BASIC + ['mover', 'springs', 'flyers', 'updraft'], {}),
     ('うみの あさせ', 'SEA', BASIC + ['water', 'flyers'], {}),
     ('かいてい どうくつ', 'DEEP', ['flat', 'water', 'plats', 'water', 'blocks'], {}),
-    ('さんごの おしろ', 'CORAL', BASIC + ['water', 'spikes', 'mover'], {}),
-    ('おかしの くに', 'CANDY', BASIC + ['springs', 'crumble', 'flyers'], {}),
+    ('さんごの おしろ', 'CORAL', BASIC + ['water', 'spikes', 'mover', 'wind'], {}),
+    ('おかしの くに', 'CANDY', BASIC + ['springs', 'crumble', 'flyers', 'ice'], {}),
     ('まほうの もり', 'FOREST', BASIC + ['ghosts', 'trap', 'ladder'], {}),
-    ('くもの しろ', 'CLOUD', ['flat', 'plats', 'mover', 'crumble', 'flyers'], {}),
-    ('えのぐの せかい', 'PAINT', BASIC + ['conveyor', 'springs'], {}),
+    ('くもの しろ', 'CLOUD', ['flat', 'plats', 'mover', 'crumble', 'flyers', 'wind', 'updraft'], {}),
+    ('えのぐの せかい', 'PAINT', BASIC + ['conveyor', 'springs', 'wind'], {}),
     ('びじゅつかんの よる', 'MUSEUM', BASIC + ['ghosts', 'trap'], {'dark': True}),
-    ('らくがき ワールド', 'CRAYON', BASIC + ['blocks', 'springs', 'ladder'], {}),
-    ('きかいの こうじょう', 'FACTORY', BASIC + ['conveyor', 'robos', 'spikes'], {}),
+    ('らくがき ワールド', 'CRAYON', BASIC + ['blocks', 'springs', 'ladder', 'updraft'], {}),
+    ('きかいの こうじょう', 'FACTORY', BASIC + ['conveyor', 'robos', 'spikes', 'updraft'], {}),
     ('たるの やぐら', 'DKTOWER', ['flat', 'ladder', 'barrels', 'plats', 'ladder'], {}),
-    ('ロケット きち', 'ROCKET', BASIC + ['robos', 'mover'], {'grav': 0.8}),
-    ('うちゅう ステーション', 'STATION', BASIC + ['robos', 'plats', 'spikes'], {'grav': 0.6}),
-    ('げっめん クレーター', 'MOON', BASIC + ['plats', 'flyers'], {'grav': 0.45}),
-    ('ブラックホール', 'HOLE', BASIC + ['ghosts', 'plats'], {'grav': 0.5, 'dark': True}),
-    ('ゆめの くに', 'DREAM', BASIC + ['springs', 'ghosts', 'mover'], {}),
-    ('かがみの めいろ', 'MIRROR', BASIC + ['ghosts', 'crumble', 'ladder'], {'dark': True}),
-    ('ドラゴンの すみか', 'DRAGON', BASIC + ['spikes', 'mover', 'crumble'], {}),
-    ('そらの とう', 'SKYTOWER', ['flat', 'plats', 'mover', 'springs'], {'scroll': 2.7}),
+    ('ロケット きち', 'ROCKET', BASIC + ['robos', 'mover', 'updraft', 'wind'], {'grav': 0.8}),
+    ('うちゅう ステーション', 'STATION', BASIC + ['robos', 'plats', 'spikes', 'wind'], {'grav': 0.6}),
+    ('げっめん クレーター', 'MOON', BASIC + ['plats', 'flyers', 'updraft', 'ice'], {'grav': 0.45}),
+    ('ブラックホール', 'HOLE', BASIC + ['ghosts', 'plats', 'wind', 'updraft'], {'grav': 0.5, 'dark': True}),
+    ('ゆめの くに', 'DREAM', BASIC + ['springs', 'ghosts', 'mover', 'updraft', 'ice'], {}),
+    ('かがみの めいろ', 'MIRROR', BASIC + ['ghosts', 'crumble', 'ladder', 'ice'], {'dark': True}),
+    ('ドラゴンの すみか', 'DRAGON', BASIC + ['spikes', 'mover', 'crumble', 'updraft'], {}),
+    ('そらの とう', 'SKYTOWER', ['flat', 'plats', 'mover', 'springs', 'wind', 'updraft'], {'scroll': 2.7}),
     ('さいごの おしろ', 'CASTLE',
-     BASIC + ['spikes', 'ladder', 'crumble', 'mover', 'robos', 'ghosts'], {}),
+     BASIC + ['spikes', 'ladder', 'crumble', 'mover', 'robos', 'ghosts',
+              'wind', 'updraft', 'ice'], {}),
 ]
 
 
@@ -183,6 +184,43 @@ class Grid:
 
 
 # ---------------------------------------------------------------- しかけ
+def c_wind(g, x0, w, rng, d):
+    """よこむきの かぜ。おされながら 足場を わたる。"""
+    ch = ')' if rng.random() < 0.5 else '('
+    for x in range(x0 + 3, x0 + w - 3):
+        for y in range(GY - 5, GY - 1):
+            if g.at(x, y) == '.':
+                g.put(x, y, ch)
+    g.plat(x0 + 4, x0 + 7, GY - 3)
+    g.plat(x0 + w - 8, x0 + w - 5, GY - 3)
+    g.coins(x0 + 5, x0 + w - 6, GY - 6)
+    if rng.random() < 0.5:
+        g.put(x0 + w // 2, GY - 6, 'g')
+
+
+def c_updraft(g, x0, w, rng, d):
+    """上むきの かぜ。ふわっと 上がって、高い ところの ごほうびを 取る。"""
+    cx = x0 + w // 2
+    for y in range(3, GY):
+        g.put(cx, y, 'A')
+        g.put(cx + 1, y, 'A')
+    g.plat(cx - 5, cx - 2, GY - 6)
+    g.plat(cx + 2, cx + 5, GY - 6)
+    g.coins(cx - 5, cx - 2, GY - 7)
+    g.coins(cx + 2, cx + 5, GY - 7)
+    g.put(cx, 4, 'g')
+    g.coins(x0 + 2, x0 + 4, STAND)
+
+
+def c_ice(g, x0, w, rng, d):
+    """こおりの ゆか。すぐには 止まれない。"""
+    for x in range(x0 + 3, x0 + w - 3):
+        g.put(x, GY, 'I')
+    g.coins(x0 + 4, x0 + w - 5, STAND)
+    if rng.random() < 0.6:
+        g.put(x0 + w - 4, STAND, 'w')
+
+
 def c_flat(g, x0, w, rng, d):
     g.coins(x0 + 2, x0 + 2 + rng.randint(2, 4), STAND)
     if rng.random() < 0.75:
@@ -252,11 +290,13 @@ def c_springs(g, x0, w, rng, d):
 
 
 def c_crumble(g, x0, w, rng, d):
+    # くずれる足場は じめんと 同じ 高さに 置く。上に 置くと、あなを
+    # とびこえる ときに 頭を ぶつけて そのまま 落ちて しまう。
     gap = 3
     px = x0 + 4
     g.carve(px, px + gap - 1)
-    g.plat(px, px + gap - 1, GY - 2, 'F')
-    g.coins(px, px + gap - 1, GY - 3)
+    g.plat(px, px + gap - 1, GY, 'F')
+    g.coins(px, px + gap - 1, STAND)
 
 
 def c_mover(g, x0, w, rng, d):
@@ -362,13 +402,14 @@ CHUNKS = {
     'ladder': (c_ladder, 15), 'barrels': (c_barrels, 16), 'conveyor': (c_conveyor, 14),
     'water': (c_water, 16), 'flyers': (c_flyers, 14), 'ghosts': (c_ghosts, 14),
     'robos': (c_robos, 14), 'trap': (c_trap, 14),
+    'wind': (c_wind, 16), 'updraft': (c_updraft, 16), 'ice': (c_ice, 15),
 }
 
 
 # ---------------------------------------------------------------- 組みたて
-def build_main(idx, title, theme, feats, rng):
+def build_main(idx, title, theme, feats, rng, wchar='2'):
     d = 1 + idx // 8              # むずかしさ 1..4
-    n_chunks = 7 + min(5, idx // 4)
+    n_chunks = 8 + min(4, idx // 4)
     # その ステージの「めだま」の しかけは かならず 1回は 出す。
     # ランダムだけに すると、ベルトコンベアの ように 一度も 出ない しかけが できる。
     specials = [f for f in feats if f not in BASIC]
@@ -380,7 +421,7 @@ def build_main(idx, title, theme, feats, rng):
     intro = 14
     arena = 26
     tail = 10
-    total = intro + sum(widths) + 6 + arena + tail
+    total = intro + sum(widths) + 14 + arena + tail
     g = Grid(total)
     g.ground(0, total - 1)
 
@@ -393,8 +434,13 @@ def build_main(idx, title, theme, feats, rng):
     rest = x
     g.put(rest + 2, GY - 4, '!')
     g.put(rest + 4, GY - 4, '!')
+    g.put(rest + 6, GY - 4, '!')
+    # ★「ボス戦は アイテムが ないと むり」と 言われたので、
+    #   ブロックを 待たなくても 拾える ように その場に 出しておく。
+    g.put(rest + 8, STAND, wchar)
     g.put(rest + 3, STAND, 'C')
-    x += 6
+    g.coins(rest + 10, rest + 12, STAND)
+    x += 14
 
     # ボス広場。ゆかを 1だん 高くして、ボスが 外に 出ないようにする
     ax = x
@@ -513,7 +559,7 @@ def reachable(rows, start, h, w):
                         if 0 <= xx < w and 0 <= yy - 1:
                             virtual.add((xx, yy - 1))
     water = [[rows[y][x] in 'WQE' for x in range(w)] for y in range(h)]
-    ladder = [[rows[y][x] == 'H' for x in range(w)] for y in range(h)]
+    ladder = [[rows[y][x] in 'HA' for x in range(w)] for y in range(h)]
     spring = [[rows[y][x] == '^' for x in range(w)] for y in range(h)]
 
     def free(x, y):
@@ -628,7 +674,7 @@ def check_area(name, rows, need_goal, start_hint=None):
     springs = set()
     for y in range(h):
         for x in range(w):
-            if rows[y][x] == '^':
+            if rows[y][x] == '^' or rows[y][x] == 'A':
                 springs.add(x)
 
     def item_ok(cx, cy):
@@ -676,11 +722,12 @@ def build_all(seed=20260811):
         rng = random.Random(seed + i * 977)
         name, shape, col, col2, move, attacks, hint = BOSSES[i]
         weapon = WEAPON_CYCLE[i % len(WEAPON_CYCLE)]
+        wchar = '2345'[WEAPON_CYCLE.index(weapon)]
         hp = 3 + i // 3
         bw = 2.6 + (i / 24) * 0.6
         bh = 2.4 + (i / 24) * 0.6
         if i == 24:
-            bw, bh, hp = 3.4, 3.2, 12
+            bw, bh, hp = 3.4, 3.2, 9
         boss = {
             'name': name, 'shape': shape, 'col': col, 'col2': col2,
             'hp': hp, 'w': round(bw, 2), 'h': round(bh, 2),
@@ -691,7 +738,7 @@ def build_all(seed=20260811):
 
         for attempt in range(60):
             r2 = random.Random(seed + i * 977 + attempt * 13)
-            g, ax, total = build_main(i, title, theme, feats, r2)
+            g, ax, total = build_main(i, title, theme, feats, r2, wchar)
             pipes = add_pipes(g, 0, r2)
             if not pipes:
                 continue
@@ -727,9 +774,14 @@ def build_all(seed=20260811):
             areas[0]['dark'] = True
         if opt.get('scroll'):
             areas[0]['scroll'] = opt['scroll']
+        # ★ どの どかんにも 入れる ように、4本 ぜんぶを つなぐ。
+        #   まえは 出口の どかんに 行き先が なく、▼を おしても 何も
+        #   おきなかったので「どかんに 入っても ワープしない」と 言われた。
         warps = [
             {'a': 0, 'x': xin, 'y': GY, 'to': {'a': 1, 'x': sub_in, 'y': GY}},
+            {'a': 1, 'x': sub_in, 'y': GY, 'to': {'a': 0, 'x': xin, 'y': GY}},
             {'a': 1, 'x': sub_out, 'y': GY, 'to': {'a': 0, 'x': xout, 'y': GY}},
+            {'a': 0, 'x': xout, 'y': GY, 'to': {'a': 1, 'x': sub_out, 'y': GY}},
         ]
         levels.append({
             'title': title, 'theme': theme, 'boss': boss,

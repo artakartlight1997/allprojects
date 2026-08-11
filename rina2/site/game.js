@@ -24,6 +24,14 @@ const STOMP_BOUNCE = -12.5;
 const SPRING_V = -26.5;
 const CLIMB_SPEED = 5.4;
 const CONVEY_SPEED = 3.2;
+// ★ あたらしい しかけ
+//   A … 上むきの かぜ（ふきあげ）。中に いると ふわっと 上がる
+//   I … こおりの ゆか。すべって すぐには 止まれない
+//   ( ) … よこむきの かぜ。おされる
+const UPDRAFT = 120;          // ふきあげの つよさ
+const UPDRAFT_MAX = 9.5;      // ふきあげで 上がる はやさの じょうげん
+const WIND_PUSH = 3.4;        // よこかぜに おされる はやさ
+const ICE_ACC = 15;           // こおりの 上で はやさが かわる はやさ
 
 // 水の中。マリオの水面下と同じで、ジャンプは「ひとかき」になる。
 const SWIM_GRAV = 13;
@@ -55,17 +63,17 @@ const BOSS_INTRO_RANGE = 12;
 const BOSS_HIT_INVULN = 1.15;
 
 const FREEZE_TIME = 6.5;      // こおりだまで こおっている 時間
-const SHOT_LIFE = 2.6;
-const SHOT_MAX = 3;
+const SHOT_LIFE = 4.0;
+const SHOT_MAX = 4;
 const HAMMER_SWING = 0.32;
 const HAMMER_COOL = 0.42;
-const BOOM_RANGE = 6.5;
+const BOOM_RANGE = 10.5;
 
 const PIPE_TIME = 0.55;       // どかんに 入る 演出の 長さ
 
 const CLEAR_TIME_LIMIT = 150;
 
-const SOLID = '#=?!XN^FDO><';
+const SOLID = '#=?!XN^FDO><I';
 const isSolid = (c) => SOLID.indexOf(c) >= 0;
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -89,19 +97,19 @@ const WEAPON_KEYS = ['HEART', 'ICE', 'BOOM', 'HAMMER'];
 // --- 敵の大きさ ---------------------------------------------------------
 // 1作目より ひとまわり 大きくして、小さい画面でも 見えるようにした。
 const ENEMY_SIZE = {
-  WALKER: { w: 1.0, h: 1.0 },
-  SPIKY: { w: 1.0, h: 1.0 },
-  FLYER: { w: 1.15, h: 1.0 },
-  JUMPER: { w: 1.0, h: 1.1 },
-  CHASER: { w: 1.05, h: 1.05 },
-  HOPPER: { w: 1.1, h: 0.95 },
-  DROPPER: { w: 0.95, h: 1.0 },
-  GHOST: { w: 1.15, h: 1.15 },
-  FISH: { w: 1.2, h: 0.9 },
-  ROBO: { w: 1.0, h: 1.25 },
-  BARRELER: { w: 1.1, h: 1.3 },
-  BARREL: { w: 0.9, h: 0.9 },
-  MINION: { w: 0.85, h: 0.85 },
+  WALKER: { w: 1.25, h: 1.25 },
+  SPIKY: { w: 1.2, h: 1.2 },
+  FLYER: { w: 1.45, h: 1.25 },
+  JUMPER: { w: 1.25, h: 1.35 },
+  CHASER: { w: 1.35, h: 1.3 },
+  HOPPER: { w: 1.35, h: 1.2 },
+  DROPPER: { w: 1.2, h: 1.25 },
+  GHOST: { w: 1.45, h: 1.45 },
+  FISH: { w: 1.5, h: 1.15 },
+  ROBO: { w: 1.25, h: 1.55 },
+  BARRELER: { w: 1.35, h: 1.6 },
+  BARREL: { w: 1.1, h: 1.1 },
+  MINION: { w: 1.05, h: 1.05 },
   BOSS: { w: 2.6, h: 2.4 },
 };
 
@@ -170,7 +178,7 @@ class Area {
         //   水に もどす。ふつうに 消すと そこだけ 水に あなが あき、
         //   およいで いる とちゅうで 急に 落ちて しまう。
         if (c === 'E' || c === 'Q') this.tiles[row][col] = 'W';
-        else if ('#=?!XN^FTsH><DOW'.indexOf(c) < 0) this.tiles[row][col] = '.';
+        else if ('#=?!XN^FTsH><DOWAI()'.indexOf(c) < 0) this.tiles[row][col] = '.';
         this.base[row][col] = this.tiles[row][col];
       }
     }
@@ -276,7 +284,7 @@ class Game {
       x: 0, y: 0, vx: 0, vy: 0, onGround: false, faceRight: true,
       size: 0, weapon: null, starT: 0, featherT: 0, magnetT: 0,
       hurtT: 0, animT: 0, airJumps: 0, climbing: false, inWater: false,
-      swimT: 0, growT: 0, hammerT: 0, coolT: 0, pipeT: 0, pipeTo: null,
+      swimT: 0, growT: 0, hammerT: 0, coolT: 0, pipeT: 0, pipeTo: null, pipeLock: false,
     };
 
     this.enemies = [];
@@ -593,8 +601,11 @@ class Game {
       return;
     }
 
-    // どかんに 入る
-    if (this.inputDown && p.onGround) this.tryPipe();
+    // どかんに 入る。
+    // ★ 出た さきにも どかんが あるので、▼を おしっぱなしに して いると
+    //   行ったり きたり を くりかえして しまう。一度 はなすまで 入らない。
+    if (!this.inputDown) p.pipeLock = false;
+    if (this.inputDown && p.onGround && !p.pipeLock) this.tryPipe();
 
     if (p.inWater) {
       p.vx = dir * SWIM_SPEED;
@@ -602,7 +613,13 @@ class Game {
       p.vy = Math.min(p.vy + SWIM_GRAV * dt, SWIM_MAX_FALL);
       if (p.swimT > 0) p.swimT -= dt;
     } else {
-      p.vx = dir * MOVE_SPEED;
+      // こおりの ゆかの 上では すぐに 止まれない（すべる）
+      const iceRow = Math.floor(p.y + PLAYER_H + 0.05);
+      const onIce = p.onGround &&
+        this.tileAt(Math.floor(p.x + PLAYER_W / 2), iceRow) === 'I';
+      const want = dir * MOVE_SPEED;
+      if (onIce) p.vx += clamp(want - p.vx, -ICE_ACC * dt, ICE_ACC * dt);
+      else p.vx = want;
       if (this.jumpQueued) {
         if (p.onGround) { p.vy = JUMP_V * this.jumpK; p.onGround = false; }
         else if (p.featherT > 0 && p.airJumps < 1) {
@@ -614,11 +631,25 @@ class Game {
       p.vy = Math.min(p.vy + grav * dt, MAX_FALL);
     }
 
+    this.zones(dt);
     this.moveX(dt);
     this.moveY(dt);
     this.rideMovers();
     this.conveyor(dt);
     this.afterMove(dt);
+  }
+
+  /** かぜと ふきあげ。中に いる あいだ ずっと きいている。 */
+  zones(dt) {
+    const p = this.player;
+    const cx = Math.floor(p.x + PLAYER_W / 2);
+    const my = Math.floor(p.y + PLAYER_H * 0.5);
+    const c = this.tileAt(cx, my);
+    if (c === 'A') {
+      p.vy = Math.max(p.vy - UPDRAFT * dt, -UPDRAFT_MAX);
+      p.airJumps = 0;
+    } else if (c === '(') p.vx -= WIND_PUSH;
+    else if (c === ')') p.vx += WIND_PUSH;
   }
 
   afterMove(dt) {
@@ -634,6 +665,11 @@ class Game {
     if (p.y > ar.height + 2) { this.die(); }
   }
 
+  /** ★ うすい あしば（= と F）は「下からは すりぬけ、上からは 乗る」。
+   *  かたい かべに して いたので、あなの 上に ある あしばに 頭を ぶつけて
+   *  そのまま あなへ 落ちて しまう ことが あった。 */
+  oneWay(c) { return c === '=' || c === 'F'; }
+
   moveX(dt) {
     const p = this.player;
     p.x += p.vx * dt;
@@ -642,12 +678,14 @@ class Game {
     if (p.vx > 0) {
       const tx = Math.floor(p.x + PLAYER_W);
       for (let ty = y0; ty <= y1; ty++) {
-        if (this.solidAt(tx, ty)) { p.x = tx - PLAYER_W; p.vx = 0; break; }
+        const c = this.tileAt(tx, ty);
+        if (isSolid(c) && !this.oneWay(c)) { p.x = tx - PLAYER_W; p.vx = 0; break; }
       }
     } else if (p.vx < 0) {
       const tx = Math.floor(p.x);
       for (let ty = y0; ty <= y1; ty++) {
-        if (this.solidAt(tx, ty)) { p.x = tx + 1; p.vx = 0; break; }
+        const c = this.tileAt(tx, ty);
+        if (isSolid(c) && !this.oneWay(c)) { p.x = tx + 1; p.vx = 0; break; }
       }
     }
     p.x = clamp(p.x, 0, this.area.width - PLAYER_W);
@@ -661,9 +699,12 @@ class Game {
     const x1 = Math.floor(p.x + PLAYER_W - 0.08);
     if (p.vy > 0) {
       const ty = Math.floor(p.y + PLAYER_H);
+      const prevFeet = p.y + PLAYER_H - p.vy * dt;
       for (let tx = x0; tx <= x1; tx++) {
         const c = this.tileAt(tx, ty);
         if (!isSolid(c)) continue;
+        // うすい あしばは、まえの フレームで 上に いた ときだけ 乗る
+        if (this.oneWay(c) && prevFeet > ty + 0.06) continue;
         p.y = ty - PLAYER_H;
         if (c === '^') {
           p.vy = SPRING_V * (this.jumpK || 1); p.airJumps = 0;
@@ -678,7 +719,7 @@ class Game {
       const ty = Math.floor(p.y);
       for (let tx = x0; tx <= x1; tx++) {
         const c = this.tileAt(tx, ty);
-        if (!isSolid(c)) continue;
+        if (!isSolid(c) || this.oneWay(c)) continue;   // うすい あしばは すりぬける
         p.y = ty + 1; p.vy = 0;
         this.headBump(tx, ty, c);
         break;
@@ -829,13 +870,20 @@ class Game {
   }
 
   // --- どかん ------------------------------------------------------------
+  /** ★ 足の 左・まん中・右の どれかが どかんの 口に かかって いれば 入れる。
+   *    まん中だけを 見て いたので、口の はしに 立って いると 入れなかった。 */
   tryPipe() {
     const p = this.player;
     const ty = Math.floor(p.y + PLAYER_H + 0.1);
-    const tx = Math.floor(p.x + PLAYER_W / 2);
-    if (this.tileAt(tx, ty) !== 'O') return;
-    const w = this.lv.warps.find((k) => k.a === this.areaIndex &&
-      Math.abs(k.x - tx) <= 1 && k.y === ty);
+    const cols = [Math.floor(p.x + PLAYER_W / 2), Math.floor(p.x + 0.12),
+      Math.floor(p.x + PLAYER_W - 0.12)];
+    let w = null, tx = -1;
+    for (const c of cols) {
+      if (this.tileAt(c, ty) !== 'O') continue;
+      const hit = this.lv.warps.find((k) => k.a === this.areaIndex &&
+        Math.abs(k.x - c) <= 1 && k.y === ty);
+      if (hit) { w = hit; tx = c; break; }
+    }
     if (!w) return;
     p.pipeT = PIPE_TIME;
     p.pipeTo = w.to;
@@ -855,6 +903,7 @@ class Game {
     const py = to.y - PLAYER_H - 0.02;
     if (to.a !== this.areaIndex) this.enterArea(to.a, px, py, false);
     else { p.x = px; p.y = py; p.vx = 0; p.vy = 0; }
+    p.pipeLock = true;
     if (target && target.title) this.say(target.title, 2.0);
   }
 
@@ -873,16 +922,16 @@ class Game {
     }
     if (p.weapon === 'BOOM') {
       if (this.shots.some((s) => s.kind === 'BOOM')) return;
-      this.shots.push({ kind: 'BOOM', x: cx, y: cy, vx: d * 11, vy: 0, t: 0, hit: [], dead: false, home: cx });
+      this.shots.push({ kind: 'BOOM', x: cx, y: cy, vx: d * 15, vy: 0, t: 0, hit: [], dead: false, home: cx });
       p.coolT = 0.25;
       sfxThrow();
       return;
     }
     if (this.shots.length >= SHOT_MAX) return;
     if (p.weapon === 'HEART') {
-      this.shots.push({ kind: 'HEART', x: cx, y: cy, vx: d * 10.5, vy: -3, t: 0, dead: false });
+      this.shots.push({ kind: 'HEART', x: cx, y: cy, vx: d * 14, vy: -3.5, t: 0, dead: false });
     } else {
-      this.shots.push({ kind: 'ICE', x: cx, y: cy, vx: d * 12, vy: -1.5, t: 0, dead: false });
+      this.shots.push({ kind: 'ICE', x: cx, y: cy, vx: d * 16, vy: -1.2, t: 0, dead: false });
     }
     p.coolT = 0.3;
     sfxShoot();
@@ -900,7 +949,7 @@ class Game {
         s.y += Math.sin(s.t * 9) * 0.6 * dt;
         if (s.t > 1.7) s.dead = true;
       } else {
-        s.vy = Math.min(s.vy + GRAVITY * 0.62 * dt, 17);
+        s.vy = Math.min(s.vy + GRAVITY * 0.42 * dt, 17);
         s.x += s.vx * dt;
         s.y += s.vy * dt;
         const bx = Math.floor(s.x + sign(s.vx) * 0.16);
@@ -912,7 +961,7 @@ class Game {
         }
         if (s.t > SHOT_LIFE) s.dead = true;
       }
-      if (s.x < this.cameraX - 4 || s.x > this.cameraX + (this.viewTilesX || 24) + 6) s.dead = true;
+      if (s.x < this.cameraX - 6 || s.x > this.cameraX + (this.viewTilesX || 24) + 10) s.dead = true;
       if (s.y > this.area.height + 1) s.dead = true;
     }
     this.shots = this.shots.filter((s) => !s.dead);
@@ -1287,7 +1336,7 @@ class Game {
   hammerBox() {
     const p = this.player;
     const d = p.faceRight ? 1 : -1;
-    const w = 0.95, h = 1.0;
+    const w = 1.25, h = 1.15;
     return {
       x: p.x + PLAYER_W / 2 + (d > 0 ? 0.1 : -0.1 - w),
       y: p.y + PLAYER_H - h + 0.05, w, h,

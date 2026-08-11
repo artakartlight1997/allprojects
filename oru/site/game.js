@@ -111,9 +111,9 @@ const ENEMY_SIZE = {
   DROPPER: { w: 1.2, h: 1.25 },     // セミ
   GHOST: { w: 1.45, h: 1.45 },      // よるの おばけ
   ROBO: { w: 1.55, h: 1.0 },        // そうじきロボ（ふめない）
-  RINO: { w: 1.3, h: 1.25 },        // 友だちの リノ
+  RINO: { w: 1.7, h: 1.6 },         // 友だちの リノ（大きめ）
   MINION: { w: 1.05, h: 1.05 },
-  BOSS: { w: 2.7, h: 3.5 },         // りな・まり（人なので たてに 大きい）
+  BOSS: { w: 3.2, h: 4.2 },         // りな・まり。大きく して 見やすく
 };
 
 const ENEMY_CHAR = {
@@ -1075,7 +1075,7 @@ class Game {
           }
           if (target) {
             e.vx = sign(target.x + 0.5 - (e.x + e.w / 2)) * 3.6;
-            if (best < 0.8 && Math.abs(target.y - e.y) < 1.6) {
+            if (best < 0.6 + e.w * 0.5 && Math.abs(target.y - e.y) < 2.0) {
               target.taken = true;
               this.pops.push({ x: e.x + e.w / 2, y: e.y, text: 'リノに とられた！', t: 0 });
               sfxRino();
@@ -1234,7 +1234,7 @@ class Game {
     const line = e.boss.calls[(e.callN || 0) % e.boss.calls.length];
     e.callN = (e.callN || 0) + 1;
     e.bubble = line;
-    e.bubbleT = 1.8;
+    e.bubbleT = 2.6;
     this.pops.push({ x: e.x + e.w / 2, y: e.y - 0.2, text: line, t: 0 });
     sfxCall();
   }

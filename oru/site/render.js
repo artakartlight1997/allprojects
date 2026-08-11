@@ -1002,17 +1002,25 @@ function drawRina(x, y, w, h, t, right, stunned) {
   fillRoundRect(cx + w * 0.2, y + h * armY, w * 0.24, h * 0.1, w * 0.05, SKIN);
   fillCircle(cx - w * 0.46, y + h * (armY + 0.05), w * 0.08, SKIN);
   fillCircle(cx + w * 0.46, y + h * (armY + 0.05), w * 0.08, SKIN);
-  // かお と かみ
+  // かお と かみ（ポニーテール）
   const hy = y + h * 0.2, hr = w * 0.22;
-  fillCircle(cx - hr * 1.5, hy + hr * 0.5, hr * 0.55, HAIR);
-  fillCircle(cx + hr * 1.5, hy + hr * 0.5, hr * 0.55, HAIR);
-  fillOval(cx - hr * 1.8, hy + hr * 0.8, hr * 0.8, hr * 1.6, HAIR);
-  fillOval(cx + hr * 1.0, hy + hr * 0.8, hr * 0.8, hr * 1.6, HAIR);
+  // うしろで ひとつに むすんだ しっぽ。走ると ゆれる。
+  const tx2 = cx - d * hr * 1.05;
+  const swing = Math.sin(t * 9) * hr * 0.35;
+  ctx.fillStyle = HAIR;
+  ctx.beginPath();
+  ctx.moveTo(tx2, hy - hr * 0.55);
+  ctx.quadraticCurveTo(tx2 - d * hr * 1.7 + swing, hy + hr * 0.5,
+    tx2 - d * hr * 0.9 + swing, hy + hr * 2.4);
+  ctx.quadraticCurveTo(tx2 - d * hr * 0.1, hy + hr * 0.9, tx2 + d * hr * 0.2, hy + hr * 0.1);
+  ctx.closePath(); ctx.fill();
   drawFace(cx, hy, hr, d * hr * 0.08, !stunned);
   fillArc(cx - hr * 1.1, hy - hr * 1.25, hr * 2.2, hr * 1.9, 180, 180, HAIR);
-  // リボン
-  poly([[cx - hr * 0.9, hy - hr * 0.85], [cx - hr * 1.5, hy - hr * 1.2],
-    [cx - hr * 1.4, hy - hr * 0.5]], '#FF4A78');
+  // むすびめ と リボン
+  fillCircle(tx2, hy - hr * 0.42, hr * 0.3, HAIR);
+  fillCircle(tx2, hy - hr * 0.42, hr * 0.17, '#FF4A78');
+  poly([[tx2, hy - hr * 0.42], [tx2 - d * hr * 0.55, hy - hr * 0.85],
+    [tx2 - d * hr * 0.5, hy - hr * 0.1]], '#FF4A78');
   ctx.restore();
 }
 
@@ -1068,22 +1076,33 @@ function drawBossShape(who, x, y, w, h, t, right, col, col2, stunned) {
   else drawRina(x, y, w, h, t, right, stunned);
 }
 
-/** ボスの ふきだし（あそぼ〜／ブラッシングしましょー！）。 */
+/** ボスの ふきだし。★ 小さくて 読めないと 言われたので 大きくした。
+ *  画面の そとに はみ出さない ように よこの ばしょも おさえる。 */
 function drawBubble(e, cam, camY, s) {
   if (!e.bubble || e.bubbleT <= 0) return;
-  const a = clamp(e.bubbleT, 0, 1);
-  const cx = (e.x + e.w / 2 - cam) * s;
-  const cy = (e.y - camY) * s - s * 0.5;
-  setFont(s * 0.36);
+  const a = clamp(e.bubbleT * 1.4, 0, 1);
+  const fs = Math.max(s * 0.62, 17);
+  setFont(fs);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const tw = ctx.measureText(e.bubble).width + s * 0.6;
+  const tw = ctx.measureText(e.bubble).width + fs * 1.5;
+  const bh = fs * 1.9;
+  let cx = (e.x + e.w / 2 - cam) * s;
+  cx = clamp(cx, tw / 2 + 6, viewW - tw / 2 - 6);
+  let cy = (e.y - camY) * s - bh * 0.8;
+  cy = Math.max(cy, bh * 0.7 + 4);
+  const tipX = clamp((e.x + e.w / 2 - cam) * s, cx - tw / 2 + fs, cx + tw / 2 - fs);
   ctx.save();
   ctx.globalAlpha = a;
-  fillRoundRect(cx - tw / 2, cy - s * 0.42, tw, s * 0.64, s * 0.3, 'rgba(255,255,255,0.94)');
-  poly([[cx - s * 0.12, cy + s * 0.2], [cx + s * 0.12, cy + s * 0.2],
-    [cx, cy + s * 0.46]], 'rgba(255,255,255,0.94)');
-  ctx.fillStyle = '#3A3040';
-  ctx.fillText(e.bubble, cx, cy - s * 0.1);
+  fillRoundRect(cx - tw / 2, cy - bh / 2, tw, bh, bh * 0.45, 'rgba(255,255,255,0.96)');
+  poly([[tipX - fs * 0.32, cy + bh / 2 - 2], [tipX + fs * 0.32, cy + bh / 2 - 2],
+    [tipX, cy + bh / 2 + fs * 0.8]], 'rgba(255,255,255,0.96)');
+  ctx.strokeStyle = rgba(e.boss.col2 || '#8A64B0', 0.8);
+  ctx.lineWidth = Math.max(2, s * 0.05);
+  rectPath(cx - tw / 2, cy - bh / 2, tw, bh, bh * 0.45);
+  ctx.stroke();
+  ctx.fillStyle = '#33283C';
+  setFont(fs);
+  ctx.fillText(e.bubble, cx, cy + fs * 0.06);
   ctx.restore();
 }
 
@@ -1163,9 +1182,13 @@ function drawShots(cam, camY, s) {
         strokeArc(x - s * 0.4 * k, y - s * 0.4 * k, s * 0.8 * k, s * 0.8 * k,
           d > 0 ? -55 : 125, 110, `rgba(140,220,255,${0.9 - i * 0.25})`, s * 0.09);
       }
-      setFont(s * 0.3);
-      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.fillText('にゃ', x - d * s * 0.4, y + s * 0.1);
+      // ★ 小さいと 見えないので 大きく。ふちどりも つける。
+      setFont(s * 0.62);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = s * 0.14; ctx.strokeStyle = 'rgba(40,60,90,0.75)';
+      ctx.strokeText('にゃー', x - d * s * 0.55, y + s * 0.02);
+      ctx.fillStyle = '#EAF8FF';
+      ctx.fillText('にゃー', x - d * s * 0.55, y + s * 0.02);
     } else {
       // しゃー！ ぎざぎざの いき
       const k = 1 - sh.t / sh.life;
@@ -1176,9 +1199,12 @@ function drawShots(cam, camY, s) {
         poly([[x - d * s * 0.5, yy - s * 0.1], [x + d * s * (0.5 + i * 0.12), yy],
           [x - d * s * 0.5, yy + s * 0.1]], i % 2 ? '#FFD6B0' : '#FF8A3A');
       }
-      setFont(s * 0.42);
-      ctx.textAlign = 'center'; ctx.fillStyle = '#FFFFFF';
-      ctx.fillText('しゃー！', x + d * s * 0.4, y - s * 0.5);
+      setFont(s * 0.78);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = s * 0.18; ctx.strokeStyle = 'rgba(120,50,10,0.8)';
+      ctx.strokeText('しゃー！', x + d * s * 0.5, y - s * 0.62);
+      ctx.fillStyle = '#FFE8C8';
+      ctx.fillText('しゃー！', x + d * s * 0.5, y - s * 0.62);
       ctx.restore();
     }
   }
@@ -1283,7 +1309,7 @@ function oruSprite(x, y, w, h, faceRight, stepPhase, stretch, puff) {
 function drawPlayer(cam, camY, s) {
   const p = game.player;
   const hitW = PLAYER_W * s, hitH = PLAYER_H * s;
-  const scale = 1.5 * (p.growT > 0 ? 1 + Math.sin(game.elapsed * 30) * 0.08 : 1);
+  const scale = 1.75 * (p.growT > 0 ? 1 + Math.sin(game.elapsed * 30) * 0.08 : 1);
   const w = hitW * scale, h = hitH * scale;
   const x = (p.x - cam) * s - (w - hitW) / 2;
   const y = (p.y - camY) * s - (h - hitH);
@@ -1323,7 +1349,7 @@ function drawPlayer(cam, camY, s) {
   // わざを もっている しるし
   if (p.weapon && p.hammerT <= 0) {
     const hx = cx + (p.faceRight ? w * 0.46 : -w * 0.46);
-    drawWeaponIcon(p.weapon, hx, y + h * 0.62, w * 0.17, game.elapsed);
+    drawWeaponIcon(p.weapon, hx, y + h * 0.62, w * 0.24, game.elapsed);
   }
   // ねこパンチ
   if (p.hammerT > 0) {

@@ -57,27 +57,29 @@ MARI = {
     'hint': 'ブラシから にげろ！',
 }
 
-WEAPON_CYCLE = ['NYA', 'SHA', 'PUNCH']
+# ★「しゃーの アイテムを ふやして」と 言われたので、
+#   半分の ステージを しゃー！に した。
+WEAPON_CYCLE = ['SHA', 'NYA', 'SHA', 'PUNCH']
 
 # ---------------------------------------------------------------- ステージ表
 # feats: 使ってよい しかけ
 BASIC = ['flat', 'pit', 'steps', 'blocks', 'plats']
 STAGES = [
-    ('おうちの ろうか', 'HOME', BASIC + ['rino'], [RINA], {}),
-    ('おうちの にわ', 'YARD', BASIC + ['springs', 'flyers'], [MARI], {}),
-    ('あさの こうえん', 'PARK', BASIC + ['flyers', 'rino', 'springs', 'updraft'], [RINA], {}),
+    ('おうちの ろうか', 'HOME', BASIC + ['rino', 'sha'], [RINA], {}),
+    ('おうちの にわ', 'YARD', BASIC + ['springs', 'flyers', 'sha'], [MARI], {}),
+    ('あさの こうえん', 'PARK', BASIC + ['flyers', 'rino', 'springs', 'updraft', 'sha'], [RINA], {}),
     ('やねの うえ', 'ROOF', ['flat', 'pit', 'plats', 'mover', 'crumble', 'flyers',
-                            'wind', 'updraft'], [MARI], {}),
-    ('しょうてんがい', 'SHOP', BASIC + ['conveyor', 'rino', 'robos', 'ice'], [RINA], {}),
-    ('どうぶつびょういん', 'VET', BASIC + ['robos', 'spikes', 'ladder', 'ice'], [MARI], {}),
+                            'wind', 'updraft', 'sha'], [MARI], {}),
+    ('しょうてんがい', 'SHOP', BASIC + ['conveyor', 'rino', 'robos', 'ice', 'sha'], [RINA], {}),
+    ('どうぶつびょういん', 'VET', BASIC + ['robos', 'spikes', 'ladder', 'ice', 'sha'], [MARI], {}),
     ('ゆうやけの かわら', 'SUNSET', ['flat', 'plats', 'mover', 'crumble', 'springs', 'flyers',
-                                'wind', 'updraft'],
+                                'wind', 'updraft', 'sha'],
      [RINA], {}),
-    ('よるの こうえん', 'NIGHTPARK', BASIC + ['ghosts', 'trap', 'rino', 'updraft'], [MARI], {'dark': True}),
+    ('よるの こうえん', 'NIGHTPARK', BASIC + ['ghosts', 'trap', 'rino', 'updraft', 'sha'], [MARI], {'dark': True}),
     ('りなちゃんの おうち', 'RINAHOME', BASIC + ['ladder', 'conveyor', 'robos', 'rino',
-                                        'ice', 'updraft'], [RINA], {}),
+                                        'ice', 'updraft', 'sha'], [RINA], {}),
     ('かえりみち', 'HOMEWAY', BASIC + ['springs', 'flyers', 'crumble', 'ladder', 'rino',
-                                'wind', 'updraft', 'ice'],
+                                'wind', 'updraft', 'ice', 'sha'],
      [RINA, MARI], {}),
 ]
 
@@ -299,6 +301,16 @@ def c_conveyor(g, x0, w, rng, d):
         g.put(x0 + w - 4, STAND, 'k')
 
 
+def c_sha(g, x0, w, rng, d):
+    """しゃー！の アイテムが 拾える ところ。"""
+    g.plat(x0 + 5, x0 + 8, GY - 3)
+    g.put(x0 + 6, GY - 4, '3')
+    g.coins(x0 + 2, x0 + 4, STAND)
+    g.coins(x0 + 9, x0 + w - 3, STAND)
+    if rng.random() < 0.6:
+        g.put(x0 + w - 4, STAND, 'w')
+
+
 def c_rino(g, x0, w, rng, d):
     # 友だちの リノ。カリカリを おいて おくと 走って 食べに 行く。
     g.put(x0 + 4, STAND, 'h')
@@ -357,7 +369,7 @@ CHUNKS = {
     'crumble': (c_crumble, 13), 'mover': (c_mover, 14), 'spikes': (c_spikes, 13),
     'ladder': (c_ladder, 15), 'barrels': (c_barrels, 16), 'conveyor': (c_conveyor, 14),
     'water': (c_water, 16), 'flyers': (c_flyers, 14), 'ghosts': (c_ghosts, 14),
-    'rino': (c_rino, 14),
+    'rino': (c_rino, 14), 'sha': (c_sha, 14),
     'wind': (c_wind, 16), 'updraft': (c_updraft, 16), 'ice': (c_ice, 15),
     'robos': (c_robos, 14), 'trap': (c_trap, 14),
 }
@@ -395,6 +407,9 @@ def build_main(idx, title, theme, feats, rng, wchar='2'):
     # ★「ボス戦は アイテムが ないと むり」と 言われたので、
     #   ブロックを 待たなくても 拾える ように その場に 出しておく。
     g.put(rest + 8, STAND, wchar)
+    # ★ しゃー！は どの ステージでも 拾える ように、ここに かならず 置く
+    if wchar != '3':
+        g.put(rest + 10, STAND, '3')
     g.put(rest + 3, STAND, 'C')
     g.coins(rest + 6, rest + 12, STAND)
     x += 14
@@ -686,7 +701,7 @@ def build_all(seed=20260811):
     problems = 0
     for i, (title, theme, feats, bosses, opt) in enumerate(STAGES):
         weapon = WEAPON_CYCLE[i % len(WEAPON_CYCLE)]
-        wchar = '234'[WEAPON_CYCLE.index(weapon)]
+        wchar = {'NYA': '2', 'SHA': '3', 'PUNCH': '4'}[weapon]
         # だんだん 足が 速くなる。おるは 7.6 で 走るので、それより おそくする。
         # おるは 7.6 で 走る。ボスは それより 少し おそい くらいに して、
         # 止まると すぐ おいつかれる ようにする。

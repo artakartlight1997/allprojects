@@ -1,0 +1,16 @@
+{
+  "name": "りなのダンスステージ",
+  "short_name": "ダンスステージ",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#3A2A5E",
+  "theme_color": "#3A2A5E",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

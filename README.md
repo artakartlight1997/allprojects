@@ -148,8 +148,15 @@
 ## 配信
 
 `.github/workflows/pages.yml` が main への push で GitHub Pages に置く。
-`momo-adventure/site/` の中身がサイトの root に、
-ほかは `/nihon/` `/rinaleon/` `/osouji/` `/slime/` `/craft/` `/escape/` `/rhythm/` `/fuwa/` に入る。
+
+- `momo-adventure/site/` → サイトの root（`/play/` に りなの大冒険）
+- `nihon-quest/site/` → `/nihon/`（むかしからの URL を変えないため）
+- そのほかは `<フォルダ名>/site/` → `/<フォルダ名>/`
+
+**あたらしいゲームを足すときに、ここへ書き足す必要はない。**
+`*/site` をぜんぶ拾うので、フォルダを置くだけで公開される。
+（以前はゲームを1つずつ手で並べていて、6本足したときに書き忘れ、
+その6本だけ「ページが見つかりません」になった。同じ失敗をしないよう自動にした）
 
 js や css を直したら、そのゲームの `index.html` の `?v=` の番号を
 1つ増やすこと（ブラウザが古いファイルを使いつづけるのを防ぐため）。

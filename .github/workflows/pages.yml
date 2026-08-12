@@ -16,60 +16,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'momo-adventure/site/**'
-      - 'nihon-quest/site/**'
-      - 'rinaleon/site/**'
-      - 'osouji/site/**'
-      - 'slime/site/**'
-      - 'craft/site/**'
-      - 'escape/site/**'
-      - 'rhythm/site/**'
-      - 'fuwa/site/**'
-      - 'smash/site/**'
-      - 'tower/site/**'
-      - 'sand/site/**'
-      - 'party/site/**'
-      - 'kart/site/**'
-      - 'cafe/site/**'
-      - 'puzzle/site/**'
-      - 'guard/site/**'
-      - 'rescue/site/**'
-      - 'dungeon/site/**'
-      - 'kyushu/site/**'
-      - 'shikoku/site/**'
-      - 'mogura/site/**'
-      - 'shooter/site/**'
-      - 'block/site/**'
-      - 'egg/site/**'
-      - 'fish/site/**'
-      - 'drop/site/**'
-      - 'pinball/site/**'
-      - 'dress/site/**'
-      - 'othello/site/**'
-      - 'maze/site/**'
-      - 'snake/site/**'
-      - 'allstar/site/**'
-      - 'dig/site/**'
-      - 'climb/site/**'
-      - 'invader/site/**'
-      - 'pyramid/site/**'
-      - 'tsumi/site/**'
-      - 'beat/site/**'
-      - 'frog/site/**'
-      - 'catch/site/**'
-      - 'bomb/site/**'
-      - 'dash/site/**'
-      - 'gold/site/**'
-      - 'sky/site/**'
-      - 'point/site/**'
-      - 'spot/site/**'
-      - 'memo/site/**'
-      - 'draw/site/**'
-      - 'shop/site/**'
-      - 'slice/site/**'
-      - 'piano/site/**'
-      - 'rina2/site/**'
-      - 'oru/site/**'
+      # ★ ゲームを 1つずつ 書いて いたが、あたらしい ゲームを 足した ときに
+      #   ここへ 書き足すのを わすれて「ページが 見つかりません」に なった。
+      #   いまは どの ゲームフォルダでも きくように まとめて 書いて ある。
+      - '*/site/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -97,121 +47,34 @@ jobs:
         uses: actions/configure-pages@v5
 
       # 公開するファイルを 1 つのフォルダにまとめる。
-      #   /            りなの大冒険（配布ページ）
-      #   /play/       りなの大冒険（ブラウザ版）
-      #   /nihon/      りなの全国制覇（都道府県すごろく）
-      #   /rinaleon/   めっちゃリナレオン（ぬって隠れるかくれんぼ）
-      #   /osouji/     りなのおそうじ大作戦（こすって道具を強くする）
-      #   /slime/      リナのスライムラボ（材料をまぜてスライムを作る）
-      #   /craft/      りなクラフト（3D のブロックの世界）
-      #   /escape/     りな逃走中（めいろで パパから にげる）
-      #   /rhythm/     りなりなリズム（ビートに合わせてタップ）
-      #   /fuwa/       ふわふわふわりな（そらを とんで たたかう）
-      #   /smash/      まさきのスマッシュバトル（ふっとばし たいせん）
-      #   /tower/      あおいのハッピータワー（ママから にげて のぼる）
-      #   /sand/       あおいの美味しいサンドイッチ作り（リズムで ざいりょう あつめ）
-      #   /party/      みんなでパーティ（1だいを かこんで 2〜4人 同時に あそぶ）
-      #   /kart/       まさきのカートレース（見おろし型の カートレース・全10コース）
-      #   /cafe/       あおいのどうぶつカフェ（注文を さばく お店ゲーム・全15日）
-      #   /puzzle/     りなのキラキラパズル（3つ そろえて 消す パズル・全20めん）
-      #   /guard/      まさきのまもれ！ひみつきち（タワーディフェンス・全12めん）
-      #   /rescue/     あおいのどうぶつレスキュー（ひっぱって とばす 物理パズル・全20めん）
-      #   /dungeon/    りなのふしぎダンジョン（ターンせいの もぐりRPG・ちか10かい）
-      #   /kyushu/     りなのきゅうしゅうパズル（形を はめて 県を おぼえる・全10めん）
-      #   /shikoku/    りなのしこくツアー（名さんの おつかい と まわる地図・全10めん）
-      #   /mogura/     りなのモグラたたき（たたく・たたかないを 見わける・全10めん）
-      #   /shooter/    まさきの宇宙シューティング（よこスクロール・全10めん）
-      #   /block/      あおいのブロック崩し（ばくだんと アイテム・全12めん）
-      #   /egg/        ゆいのたまごっこ（たまごから 育てる いくせい・すがた8しゅるい）
-      #   /fish/       ゆいのつりぼり（つり・さかな35しゅるいの ずかん・つりば10か所）
-      #   /drop/       ゆいのぽとぽとパズル（落ちものパズル・全10めん）
-      #   /pinball/    ゆいのキラキラピンボール（物理ピンボール・台6しゅるい）
-      #   /dress/      ゆいのきせかえサロン（きせかえ と お題コーデ・お題10こ）
-      #   /othello/    ゆいのねこオセロ（オセロ・あいて5だんかい）
-      #   /maze/       あおいのパクパクめいろ（ドットイート・めいろ6つ・全10めん）
-      #   /snake/      あおいのにょろにょろ（スネーク・全10めん）
-      #   /frog/       あおいのカエルわたり（フロッガー・全10めん）
-      #   /allstar/    小倉っ子オールスター（33本のミニゲーム耐久・スペシャル）
-      #   /dig/       リナパパのほりほり大作戦（土をほってポンプでポン・全8面）
-      #   /climb/     リナパパのはしごのぼり（たるをよけて上のりなを助ける・全8面）
-      #   /invader/   リナパパのインベーダー（ならんだ敵をぜんぶ落とす・全8面）
-      #   /pyramid/   リナパパのぴょんぴょんピラミッド（タップでとぶ・全8面）
-      #   /tsumi/     リナパパのブロックつみ（そろえて消す・エンドレス）
-      #   /beat/      ゆいの超高速リズム（横スクロール4レーン・全8曲）
-      #   /catch/     リナパパのたまごキャッチ（ゲームウォッチ風・4か所でうける）
-      #   /bomb/      リナパパのばくだんめいろ（ばくだんでブロックを壊す・全8面）
-      #   /dash/      リナパパのなんきょくダッシュ（氷の道を走る・全8面）
-      #   /gold/      リナパパのおたからランナー（穴をほって金貨あつめ・全8面）
-      #   /sky/       リナパパのぐるぐるひこうき（360度の空でたたかう・全8面）
-      #   /point/     りなのえいごポインター（this/that/these/which/what を絵で学ぶ）
-      #   /spot/      りなのまちがいさがし（毎回ちがう絵・全10めん）
-      #   /memo/      りなのカードめくり（しんけいすいじゃく・パパとしょうぶ）
-      #   /draw/      りなのおえかきスタジオ（おえかき・6まい保存）
-      #   /shop/      りなのおかいものさんすう（たしざん・おつり・ぴったり払う）
-      #   /slice/     りなのフルーツスライス（ゆびではらってきる）
-      #   /piano/     りなのピアノきょうしつ（ひけるピアノ・全8曲）
-      #   /rina2/     りなの大冒険2（横スクロールアクション・全25面・毎面ボス）
-      #   /oru/       おるの大冒険（ねこのアクション・全10面・ボスから にげる）
-      # いままでの URL を変えないため、りなの大冒険は今までどおり一番上に置く。
+      #
+      # ★ ここも ゲームを 1つずつ 書いて いたので、足しわすれると
+      #   その ゲームだけ 404 に なった。いまは `*/site` を ぜんぶ 拾う。
+      #   あたらしい ゲームを 作ったら、フォルダを 置くだけで 公開される。
+      #
+      #   ふりわけ:
+      #     momo-adventure/site  →  /        （入口メニュー。/play/ に りなの大冒険）
+      #     nihon-quest/site     →  /nihon/  （むかしからの URL を かえない）
+      #     そのほか <name>/site →  /<name>/
       - name: Assemble site
         run: |
+          set -e
           mkdir -p public
           cp -r momo-adventure/site/. public/
-          mkdir -p public/nihon public/rinaleon public/osouji public/slime public/craft public/escape public/rhythm public/fuwa public/smash public/tower public/sand public/party public/kart public/cafe public/puzzle public/guard public/rescue public/dungeon public/kyushu public/shikoku public/mogura public/shooter public/block public/egg public/fish public/drop public/pinball public/dress public/othello public/maze public/snake public/frog public/allstar public/dig public/climb public/invader public/pyramid public/tsumi public/beat public/catch public/bomb public/dash public/gold public/sky public/point public/spot public/memo public/draw public/shop public/slice public/piano public/rina2 public/oru
+          mkdir -p public/nihon
           cp -r nihon-quest/site/. public/nihon/
-          cp -r rinaleon/site/. public/rinaleon/
-          cp -r osouji/site/. public/osouji/
-          cp -r slime/site/. public/slime/
-          cp -r craft/site/. public/craft/
-          cp -r escape/site/. public/escape/
-          cp -r rhythm/site/. public/rhythm/
-          cp -r fuwa/site/. public/fuwa/
-          cp -r smash/site/. public/smash/
-          cp -r tower/site/. public/tower/
-          cp -r sand/site/. public/sand/
-          cp -r party/site/. public/party/
-          cp -r kart/site/. public/kart/
-          cp -r cafe/site/. public/cafe/
-          cp -r puzzle/site/. public/puzzle/
-          cp -r guard/site/. public/guard/
-          cp -r rescue/site/. public/rescue/
-          cp -r dungeon/site/. public/dungeon/
-          cp -r kyushu/site/. public/kyushu/
-          cp -r shikoku/site/. public/shikoku/
-          cp -r mogura/site/. public/mogura/
-          cp -r shooter/site/. public/shooter/
-          cp -r block/site/. public/block/
-          cp -r egg/site/. public/egg/
-          cp -r fish/site/. public/fish/
-          cp -r drop/site/. public/drop/
-          cp -r pinball/site/. public/pinball/
-          cp -r dress/site/. public/dress/
-          cp -r othello/site/. public/othello/
-          cp -r maze/site/. public/maze/
-          cp -r snake/site/. public/snake/
-          cp -r allstar/site/. public/allstar/
-          cp -r dig/site/. public/dig/
-          cp -r climb/site/. public/climb/
-          cp -r invader/site/. public/invader/
-          cp -r pyramid/site/. public/pyramid/
-          cp -r tsumi/site/. public/tsumi/
-          cp -r beat/site/. public/beat/
-          cp -r frog/site/. public/frog/
-          cp -r catch/site/. public/catch/
-          cp -r bomb/site/. public/bomb/
-          cp -r dash/site/. public/dash/
-          cp -r gold/site/. public/gold/
-          cp -r sky/site/. public/sky/
-          cp -r point/site/. public/point/
-          cp -r spot/site/. public/spot/
-          cp -r memo/site/. public/memo/
-          cp -r draw/site/. public/draw/
-          cp -r shop/site/. public/shop/
-          cp -r slice/site/. public/slice/
-          cp -r piano/site/. public/piano/
-          cp -r rina2/site/. public/rina2/
-          cp -r oru/site/. public/oru/
-          ls -R public | head -60
+          for d in */site; do
+            g="${d%/site}"
+            case "$g" in
+              momo-adventure|nihon-quest) continue ;;
+            esac
+            mkdir -p "public/$g"
+            cp -r "$d/." "public/$g/"
+          done
+          echo "--- 公開する ゲーム ---"
+          ls -1 public | sort | tr '\n' ' '
+          echo
+          echo "ぜんぶで $(ls -1d public/*/ | wc -l) フォルダ"
 
       - uses: actions/upload-pages-artifact@v3
         with:

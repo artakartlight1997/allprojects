@@ -1,0 +1,16 @@
+{
+  "name": "りなのテニス",
+  "short_name": "テニス",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1E4A6E",
+  "theme_color": "#1E4A6E",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

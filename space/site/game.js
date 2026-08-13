@@ -253,6 +253,11 @@ function update(dt) {
   }
   if (G.over) { IN.taps.length = 0; return; }
 
+  // ★ 「パワー」ボタンは 絵は かいて いたのに、ゆびで おした ときに
+  //   どこにも つながって いなかった（キーボードだけ 動いて いた）。
+  //   スマホでは オプションも バリアも ぜったいに 出せない バグ。
+  if (IN.fireTap) { usePower(); IN.fireTap = false; }
+
   updateShip(dt);
   stepThings(dt);
   pickCaps();

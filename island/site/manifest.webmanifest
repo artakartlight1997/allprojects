@@ -1,0 +1,16 @@
+{
+  "name": "エイトくんのぼうけん島",
+  "short_name": "ぼうけん島",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#5AC8F0",
+  "theme_color": "#5AC8F0",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

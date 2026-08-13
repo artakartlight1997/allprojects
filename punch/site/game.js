@@ -42,6 +42,10 @@ const DODGE_CD = 0.08;
 //   よけてから この 時間の うちなら「ぎりぎり かわした」あつかいに する。
 //   ただし ☆は もらえず、すきも みじかい（ちゃんと 見て よけた ほうが とく）。
 const DODGE_MEM = 0.55;
+// ★ ガードを にぎりっぱなしに して れんだ するだけで 勝てる 面が あった。
+//   ボクシングと おなじで、**かまえっぱなしの ガードは くずれる**。
+//   この 時間を こえると まもりが 弱く なり、アッパーには 通用しなく なる。
+const GUARD_MAX = 1.5;
 // ★ ひるみが 長いと れんぞく こうげきで「ひるみ→また 当たる」の
 //   むげんループに なる（ロボットで 6〜8めんが 0勝だった）。みじかくする。
 const HURT_T = 0.26;             // なぐられて ひるむ 時間
@@ -165,14 +169,39 @@ const G = {
   time: ROUND_T, shake: 0, flash: 0, hitStop: 0,
   over: false, win: false, endWhy: '',
   msg: '', msgT: 0,
+  fx: null,                      // いま 何が おきたか（当たった／よけた／ガード…）
+  meFlash: 0, foeFlash: 0,       // ゲージを 光らせる
 };
+
+// ★ 「当たったのか、ふせげたのか わからん」と 言われた ので、
+//   おきた こと ごとに **色・かたち・ことば**を そろえて 大きく 出す。
+//   いろ … みどり=うまく いった / きいろ=こちらの こうげきが 当たった
+//          はいいろ=ふせがれた / あか=やられた
+const FX = {
+  hit:      { col: '#FFD24A', ring: '#FFF0A8', text: 'ヒット！',      icon: 'burst', side: 'foe' },
+  counter:  { col: '#FF9A3A', ring: '#FFD24A', text: 'カウンター！',  icon: 'burst', side: 'foe' },
+  special:  { col: '#FF6FA8', ring: '#FFD24A', text: 'ひっさつ！',    icon: 'burst', side: 'foe' },
+  blocked:  { col: '#B0BCD8', ring: '#8A96B4', text: 'ガードされた',  icon: 'shield', side: 'foe' },
+  whiff:    { col: '#8A96B4', ring: '#6A7690', text: 'から ぶり',     icon: 'swish', side: 'foe' },
+  evade:    { col: '#8AE0A0', ring: '#CFFFD8', text: 'よけた！',      icon: 'ring', side: 'me' },
+  perfect:  { col: '#FFD24A', ring: '#FFF6C8', text: '☆ ぴったり！',  icon: 'star', side: 'me' },
+  late:     { col: '#CFE8A0', ring: '#E8FFC8', text: 'ぎりぎり！',    icon: 'ring', side: 'me' },
+  guard:    { col: '#5AD8F0', ring: '#CFF4FF', text: 'ガード せいこう', icon: 'shield', side: 'me' },
+  taken:    { col: '#FF6A8A', ring: '#FFC8D4', text: 'やられた！',    icon: 'crack', side: 'me' },
+  trap:     { col: '#FF4A6A', ring: '#FFB0C0', text: 'よけかたが ちがう！', icon: 'crack', side: 'me' },
+  broken:   { col: '#FF8A4A', ring: '#FFD0A8', text: 'ガードが くずれた！', icon: 'crack', side: 'me' },
+};
+
+function fx(kind, sub) {
+  G.fx = { kind: kind, t: 0, sub: sub || '' };
+}
 
 function newMe() {
   return {
     hp: ME_HP, hpMax: ME_HP, downs: 0, stars: 0,
     st: 'idle', stT: 0, dodge: '', cd: 0, glove: 0,
     punchT: 0, punchArm: 0, upT: 0, prevDir: '',
-    lastDodge: '', lastDodgeAt: -9,
+    lastDodge: '', lastDodgeAt: -9, guardT: 0,
   };
 }
 
@@ -195,6 +224,7 @@ function startMatch(i) {
   G.foe = newFoe(G.st);
   G.pops.length = 0; G.parts.length = 0;
   G.time = ROUND_T; G.shake = 0; G.flash = 0; G.hitStop = 0;
+  G.fx = null; G.meFlash = 0; G.foeFlash = 0;
   G.over = false; G.win = false; G.endWhy = '';
   G.msg = G.st.name + ' と しょうぶ！'; G.msgT = 1.8;
   save.plays++; storeSave();
@@ -228,7 +258,8 @@ function foeAttack(quick) {
 }
 
 // よけかたの 正かい表。ev=かわせた star=☆がもらえる mul=くらう ばいりつ
-function judgeDefense(kind, st, dir) {
+// gb = ガードが くずれて いる（ながく にぎりすぎ）
+function judgeDefense(kind, st, dir, gb) {
   if (kind === 'L' || kind === 'R') {
     const want = kind === 'L' ? 'r' : 'l';
     if (st === 'dodge') {
@@ -236,11 +267,12 @@ function judgeDefense(kind, st, dir) {
       return { ev: 0, star: 0, mul: 1.15 };        // ★ 逆に よけると もろに くらう
     }
     if (st === 'duck') return { ev: 1, star: 0, mul: 0 };
-    if (st === 'guard') return { ev: 0, star: 0, mul: 0.35 };
+    if (st === 'guard') return { ev: 0, star: 0, mul: gb ? 0.9 : 0.35 };
     return { ev: 0, star: 0, mul: 1 };
   }
   if (kind === 'U') {
-    if (st === 'guard') return { ev: 1, star: 1, mul: 0 };
+    // ★ くずれた ガードは アッパーで こじあけられる
+    if (st === 'guard') return gb ? { ev: 0, star: 0, mul: 1.1, brk: 1 } : { ev: 1, star: 1, mul: 0 };
     if (st === 'duck') return { ev: 0, star: 0, mul: 1.6 };   // ★ わな。あごに 当たる
     if (st === 'dodge') return { ev: 0, star: 0, mul: 0.9 };
     return { ev: 0, star: 0, mul: 1.2 };
@@ -259,23 +291,34 @@ function foeStrike() {
   if ((dst === 'idle' || dst === 'punch') && G.t - m.lastDodgeAt < DODGE_MEM) {
     dst = 'dodge'; ddir = m.lastDodge; late = true;
   }
-  const r = judgeDefense(f.kind, dst, ddir);
+  const gb = m.guardT > GUARD_MAX;
+  const r = judgeDefense(f.kind, dst, ddir, gb);
   if (r.ev) {
     f.st = 'open'; f.stT = st.open * f.rage * (late ? 0.7 : 1);
     f.open = f.stT; f.openAt = G.t;
-    if (r.star && !late && m.stars < 3) { m.stars++; sfxStar(); pop('☆ ぴったり！', '#FFD24A'); }
-    else pop(late ? 'ぎりぎり！' : 'よけた！', late ? '#CFE8A0' : '#8AE0A0');
+    if (r.star && !late && m.stars < 3) { m.stars++; sfxStar(); fx('perfect'); }
+    else fx(late ? 'late' : 'evade');
     sfxDodge();
     G.flash = Math.max(G.flash, 0.12);
   } else {
     const d = st.dmg * r.mul;
+    // ガードで けずられた だけ なら「ふせげた」と はっきり 見せる
+    if (dst === 'guard' && r.mul <= 0.4) fx('guard', '- ' + Math.round(d));
+    else if (r.brk || (dst === 'guard' && gb)) fx('broken', '- ' + Math.round(d));
+    else if (r.mul > 1.05) fx('trap', '- ' + Math.round(d));
+    else fx('taken', '- ' + Math.round(d));
     hurtMe(d);
   }
 }
 
 function hurtMe(d) {
   const m = G.me;
+  // ★ たおれて いる あいだも なぐられ つづけて いた。
+  //   1回 ダウンすると そのまま ダウンが 3に なって 立ちあがれず、
+  //   すぐ まけて しまう バグだった。たおれて いる 人は なぐらない。
+  if (m.st === 'down' || G.over) return;
   m.hp -= d;
+  G.meFlash = 0.5;
   m.stars = 0;                        // ★ もらうと ☆は 消える
   m.st = 'hurt'; m.stT = HURT_T;
   G.shake = Math.max(G.shake, 8 + d * 0.5);
@@ -286,6 +329,8 @@ function hurtMe(d) {
   if (m.hp <= 0) {
     m.hp = 0; m.downs++;
     m.st = 'down'; m.stT = DOWN_T;
+    const f = G.foe;
+    f.st = 'rest'; f.stT = DOWN_T + 0.9; f.comboLeft = 0;
     sfxDown();
     if (m.downs >= ME_DOWNS) endMatch(false, 'ダウン ' + ME_DOWNS + 'かい で まけ');
   }
@@ -294,6 +339,7 @@ function hurtMe(d) {
 function hurtFoe(d, big) {
   const f = G.foe, st = G.st;
   f.hp -= d;
+  G.foeFlash = 0.5;
   f.hurtT = big ? 0.34 : 0.18;
   f.lean = big ? 1 : 0.5;
   G.shake = Math.max(G.shake, big ? 11 : 5);
@@ -337,19 +383,20 @@ function tryPunch() {
   if (f.st === 'open') {
     const counter = G.t - f.openAt < COUNTER_W;
     const d = PUNCH_DMG * (counter ? COUNTER_MUL : OPEN_MUL);
-    if (counter) pop('カウンター！', '#FFD24A', VW / 2, VH * 0.22);
+    fx(counter ? 'counter' : 'hit', '- ' + Math.round(d));
     hurtFoe(d, counter);
     return;
   }
   if (f.st === 'tell' || f.st === 'strike') {
     // あいずの さいちゅうに 手を 出すと、そのまま こうげきを もらう
     sfxSwing();
+    fx('whiff');
     return;
   }
   // ★ すきが ない ときは ガードされる。しかも やり返して くる
   sfxBlock();
   f.blockT = 0.22;
-  pop('ガードされた', '#B0BCD8', VW / 2, VH * 0.30);
+  fx('blocked');
   if (Math.random() < G.st.pun && f.st === 'rest') foeAttack(true);
 }
 
@@ -361,7 +408,9 @@ function trySpecial() {
   m.st = 'special'; m.stT = 0.55; m.cd = 0.55;
   G.flash = 0.30;
   sfxSpecial();
-  hurtFoe(SPECIAL_DMG + (f.st === 'open' ? 10 : 0), true);
+  const d = SPECIAL_DMG + (f.st === 'open' ? 10 : 0);
+  fx('special', '- ' + d);
+  hurtFoe(d, true);
 }
 
 // --- まいコマ ---------------------------------------------------------------------
@@ -372,6 +421,9 @@ function update(dt) {
   if (G.hitStop > 0) { G.hitStop -= dt; dt *= 0.25; }
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 40);
   if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * 2.4);
+  if (G.meFlash > 0) G.meFlash = Math.max(0, G.meFlash - dt * 2.2);
+  if (G.foeFlash > 0) G.foeFlash = Math.max(0, G.foeFlash - dt * 2.2);
+  if (G.fx) { G.fx.t += dt; if (G.fx.t > 0.85) G.fx = null; }
   if (G.msgT > 0) G.msgT -= dt;
 
   for (let i = G.pops.length - 1; i >= 0; i--) {
@@ -435,6 +487,7 @@ function update(dt) {
     }
   }
   m.prevDir = dir;
+  m.guardT = m.st === 'guard' ? m.guardT + dt : 0;
   if (m.upT > 0) m.upT -= dt;
 
   // --- あいての じょうたい ---
@@ -452,7 +505,10 @@ function update(dt) {
       sfxBell();
     }
   } else if (f.st === 'rest') {
-    if (f.stT <= 0) foeAttack(false);
+    // ★ こちらが たおれて いる あいだは しかけて こない（レフェリーが 止める）。
+    //   立ちあがった 直後にも 少し 間を おく。
+    if (m.st === 'down') f.stT = Math.max(f.stT, 0.9);
+    else if (f.stT <= 0) foeAttack(false);
   } else if (f.st === 'tell') {
     if (f.stT <= 0) { f.st = 'strike'; f.stT = 0.16; foeStrike(); }
   } else if (f.st === 'strike') {
@@ -842,7 +898,11 @@ function drawMe() {
     let gx = cx + side * s * 0.62;
     let gy = cy - s * 0.86 - k * s * 0.62;
     let gr = s * 0.27 + k * s * 0.20;
-    if (m.st === 'guard') { gx = cx + side * s * 0.30; gy = cy - s * 1.02; gr = s * 0.32; }
+    if (m.st === 'guard') {
+      // ★ にぎりすぎた ガードは ふるえる（もうすぐ くずれる しるし）
+      const wob = m.guardT > GUARD_MAX * 0.7 ? Math.sin(G.t * 34) * s * 0.06 : 0;
+      gx = cx + side * s * 0.30 + wob; gy = cy - s * 1.02 + wob * 0.5; gr = s * 0.32;
+    }
     if (m.st === 'special') {
       const kk = clamp(1 - m.stT / 0.55, 0, 1);
       gx = cx + side * s * (0.62 - kk * 0.34);
@@ -873,6 +933,107 @@ function drawMe() {
   }
 }
 
+// --- おきた ことを 大きく 見せる ------------------------------------------------------
+//
+// ★ 「当たったのか、ふせげたのか わからん」への こたえ。
+//   ①画面の へりを 色で そめる ②かたち ③ことば の 3つを 同時に 出す。
+//   あいてに おきた ことは 画面の 上、じぶんに おきた ことは 下に 出す ので、
+//   どっちの はなしか ひと目で わかる。
+
+function drawFx() {
+  if (!G.fx) return;
+  const d = FX[G.fx.kind];
+  if (!d) return;
+  const k = clamp(G.fx.t / 0.85, 0, 1);
+  const pop = Math.sin(Math.min(1, k * 3.4) * Math.PI * 0.5);   // 出るとき ぽん
+  const fade = 1 - k * k;
+
+  // ① 画面の へりを そめる
+  ctx.save();
+  ctx.globalAlpha = fade * 0.5;
+  const gx = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.26, VW / 2, VH / 2, VH * 0.78);
+  gx.addColorStop(0, 'rgba(0,0,0,0)');
+  gx.addColorStop(1, d.col);
+  ctx.fillStyle = gx;
+  ctx.fillRect(-VW, -VOY - 4, VW * 3, VH + VOY + VOB + 8);
+  ctx.restore();
+
+  // ② かたち
+  const cx = VW / 2, cy = d.side === 'foe' ? VH * 0.33 : VH * 0.63;
+  const r = VH * 0.10 * (0.6 + pop * 0.5);
+  ctx.save();
+  ctx.globalAlpha = fade;
+  ctx.lineWidth = Math.max(3, r * 0.16);
+  ctx.strokeStyle = d.ring;
+  ctx.fillStyle = d.col;
+  if (d.icon === 'burst') {
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a = i * Math.PI / 8;
+      const rr2 = i % 2 ? r * 0.44 : r;
+      if (i === 0) ctx.moveTo(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2);
+      else ctx.lineTo(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2);
+    }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else if (d.icon === 'star') {
+    star(cx, cy, r, d.col);
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5;
+      const rr2 = i % 2 ? r * 0.45 : r;
+      if (i === 0) ctx.moveTo(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2);
+      else ctx.lineTo(cx + Math.cos(a) * rr2, cy + Math.sin(a) * rr2);
+    }
+    ctx.closePath(); ctx.stroke();
+  } else if (d.icon === 'shield') {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r);
+    ctx.lineTo(cx + r * 0.78, cy - r * 0.52);
+    ctx.lineTo(cx + r * 0.78, cy + r * 0.22);
+    ctx.quadraticCurveTo(cx + r * 0.5, cy + r, cx, cy + r * 1.02);
+    ctx.quadraticCurveTo(cx - r * 0.5, cy + r, cx - r * 0.78, cy + r * 0.22);
+    ctx.lineTo(cx - r * 0.78, cy - r * 0.52);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = Math.max(3, r * 0.13);
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.30, cy + r * 0.06);
+    ctx.lineTo(cx - r * 0.05, cy + r * 0.34);
+    ctx.lineTo(cx + r * 0.36, cy - r * 0.30);
+    ctx.stroke();
+  } else if (d.icon === 'ring') {
+    for (let i = 0; i < 2; i++) {
+      ctx.globalAlpha = fade * (1 - i * 0.45);
+      circle(cx, cy, r * (0.62 + k * (0.6 + i * 0.5))); ctx.stroke();
+    }
+    ctx.globalAlpha = fade;
+  } else if (d.icon === 'swish') {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.9, Math.PI * 0.15, Math.PI * 1.05);
+    ctx.stroke();
+  } else {                                   // crack（やられた）
+    ctx.lineWidth = Math.max(4, r * 0.20);
+    ctx.strokeStyle = d.col;
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + sg * r * 0.1, cy - r);
+      ctx.lineTo(cx + sg * r * 0.55, cy - r * 0.2);
+      ctx.lineTo(cx + sg * r * 0.2, cy + r * 0.1);
+      ctx.lineTo(cx + sg * r * 0.7, cy + r);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  // ③ ことば
+  ctx.save();
+  ctx.globalAlpha = fade;
+  const fs = fitSize(d.text, VW * 0.5, Math.round(VH * 0.070 * (0.78 + pop * 0.28)));
+  bigText(d.text, cx, cy + r * 1.55, fs, d.col);
+  if (G.fx.sub) bigText(G.fx.sub, cx, cy + r * 1.55 + fs * 0.95, Math.round(fs * 0.72), '#FFF0F0');
+  ctx.restore();
+}
+
 // --- ゲージ など ------------------------------------------------------------------
 function bar(x, y, w, h, k, col, back) {
   ctx.fillStyle = back || 'rgba(0,0,0,0.45)';
@@ -896,8 +1057,10 @@ function drawHud() {
   ctx.fillText('のこり ' + Math.ceil(G.time), VW / 2, HUD / 2);
 
   const bw = VW * 0.36, bh = 15;
-  bar(10, HUD + 8, bw, bh, m.hp / m.hpMax, m.hp / m.hpMax < 0.3 ? '#FF6A8A' : '#5AD8F0');
-  bar(VW - 10 - bw, HUD + 8, bw, bh, f.hp / f.hpMax, '#FF8A5A');
+  bar(10, HUD + 8, bw, bh, m.hp / m.hpMax,
+      G.meFlash > 0.25 ? '#FFFFFF' : m.hp / m.hpMax < 0.3 ? '#FF6A8A' : '#5AD8F0');
+  bar(VW - 10 - bw, HUD + 8, bw, bh, f.hp / f.hpMax,
+      G.foeFlash > 0.25 ? '#FFFFFF' : '#FF8A5A');
 
   // ダウンの かず
   ctx.textAlign = 'left'; ctx.font = 'bold 12px system-ui, sans-serif';
@@ -973,6 +1136,7 @@ function drawPlay() {
     ctx.globalAlpha = 1;
   }
 
+  drawFx();
   drawHud();
   drawControls();
 

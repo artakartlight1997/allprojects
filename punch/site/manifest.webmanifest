@@ -1,0 +1,16 @@
+{
+  "name": "エイトくんのチャンピオンロード",
+  "short_name": "チャンピオン",
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2E2050",
+  "theme_color": "#2E2050",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

@@ -201,7 +201,12 @@ function noteGroups() {
 
 function mkFoe(kind, x, y, vx, vy, grp) {
   const hp = kind === 'WALL' ? 2 : kind === 'TURRET' ? 3 : 1;
-  return { kind: kind, x: x, y: y, vx: vx, vy: vy, r: kind === 'WALL' ? 17 : 14,
+  // ★ 「キャラが 単調」と 言われて 絵を こまかく したので 少し 大きく した
+  //   （14→17 / かべ 17→20）。ただし **ぶつかる はんい(hr)は 前のまま**。
+  //   大きくしたら 8めんが クリアできなく なった ので、
+  //   「たまは 当てやすく、ぶつかりは やさしいまま」に した。
+  return { kind: kind, x: x, y: y, vx: vx, vy: vy,
+           r: kind === 'WALL' ? 20 : 17, hr: kind === 'WALL' ? 17 : 14,
            hp: hp, t: Math.random() * 3, grp: grp, fireT: 0.8 + Math.random() * 1.2, alive: true };
 }
 
@@ -391,7 +396,7 @@ function updateFoes(dt) {
     if (f.x < -40) f.alive = false;
 
     // ぶつかった か
-    if (p.invT <= 0 && Math.hypot(f.x - p.x, f.y - p.y) < f.r + p.r) {
+    if (p.invT <= 0 && Math.hypot(f.x - p.x, f.y - p.y) < (f.hr || f.r) + p.r) {
       hitShip(); return;
     }
     // じぶんの たまが あたった か
@@ -598,47 +603,267 @@ function drawShip(x, y, s, inv) {
   ctx.restore();
 }
 
+// --- てきの 絵 ------------------------------------------------------------------------
+//
+// ★ 「キャラが 単調すぎて おもしろく ない」と 言われた ので 作りなおした。
+//   まる・しかく だけ だった ものを、はねや エンジンの ひかり、まわる 目、
+//   うごく パーツを つけて、しゅるいごとに はっきり ちがう かたちに した。
+//   むれ（へび）の 中でも 1ぴきずつ 色が すこし ちがう。
+
 function drawFoe(f) {
   const s = f.r;
+  const x = f.x, y = f.y, t = f.t;
+  const hurt = f.hp < (f.kind === 'WALL' ? 2 : f.kind === 'TURRET' ? 3 : 1);
+
   if (f.kind === 'WALL') {
-    ctx.fillStyle = '#7A8AA8';
-    rr(f.x - s, f.y - s, s * 2, s * 2, s * 0.3); ctx.fill();
-    ctx.fillStyle = '#3A4A68';
-    rr(f.x - s * 0.5, f.y - s * 0.5, s, s, s * 0.2); ctx.fill();
-  } else if (f.kind === 'TURRET') {
-    ctx.fillStyle = '#8A6A4A';
-    rr(f.x - s, f.y - s * 0.4, s * 2, s * 1.4, 4); ctx.fill();
-    ctx.fillStyle = '#C8A060';
-    circle(f.x, f.y - s * 0.3, s * 0.6); ctx.fill();
-    ctx.fillStyle = '#3A2A1A';
-    rr(f.x - s * 0.2, f.y - s * 1.2, s * 0.4, s * 0.8, 2); ctx.fill();
-  } else if (f.kind === 'DIVE') {
-    ctx.fillStyle = '#C86AE0';
+    // ★ そうこうブロック。パネルの すじと リベット、まわりに 力ばの ゆらぎ
+    ctx.save();
+    ctx.globalAlpha = 0.30 + Math.sin(t * 6) * 0.12;
+    ctx.strokeStyle = '#6AE0FF'; ctx.lineWidth = 3;
+    rr(x - s * 1.15, y - s * 1.15, s * 2.3, s * 2.3, s * 0.4); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = hurt ? '#A85A5A' : '#7A8AA8';
+    rr(x - s, y - s, s * 2, s * 2, s * 0.28); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    rr(x - s, y - s, s * 2, s * 0.5, s * 0.22); ctx.fill();
+    ctx.strokeStyle = '#3A4A68'; ctx.lineWidth = Math.max(2, s * 0.12);
     ctx.beginPath();
-    ctx.moveTo(f.x - s, f.y);
-    ctx.lineTo(f.x + s * 0.4, f.y - s * 0.9);
-    ctx.lineTo(f.x + s, f.y);
-    ctx.lineTo(f.x + s * 0.4, f.y + s * 0.9);
+    ctx.moveTo(x - s * 0.9, y); ctx.lineTo(x + s * 0.9, y);
+    ctx.moveTo(x, y - s * 0.9); ctx.lineTo(x, y + s * 0.9);
+    ctx.stroke();
+    ctx.fillStyle = '#2A3450';
+    for (const sg of [-1, 1]) for (const sg2 of [-1, 1]) {
+      circle(x + sg * s * 0.72, y + sg2 * s * 0.72, s * 0.13); ctx.fill();
+    }
+    ctx.fillStyle = '#FFD24A';
+    circle(x, y, s * 0.22 + Math.sin(t * 8) * s * 0.05); ctx.fill();
+
+  } else if (f.kind === 'TURRET') {
+    // ★ 地面の ほうだい。だいざ＋まわる ほうしん＋けいこくランプ
+    const a = Math.atan2((G.ship ? G.ship.y : y) - y, (G.ship ? G.ship.x : x) - x);
+    ctx.fillStyle = hurt ? '#A85A5A' : '#6A5A48';
+    rr(x - s * 1.15, y - s * 0.2, s * 2.3, s * 1.4, s * 0.2); ctx.fill();
+    ctx.fillStyle = '#8A7A58';
+    rr(x - s * 1.15, y - s * 0.2, s * 2.3, s * 0.32, s * 0.14); ctx.fill();
+    // ほうしん
+    ctx.save();
+    ctx.translate(x, y - s * 0.25);
+    ctx.rotate(a);
+    ctx.fillStyle = '#3A2A1A';
+    rr(0, -s * 0.22, s * 1.5, s * 0.44, s * 0.14); ctx.fill();
+    ctx.fillStyle = '#C8A060';
+    rr(s * 1.1, -s * 0.28, s * 0.35, s * 0.56, s * 0.1); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#C8A060';
+    circle(x, y - s * 0.25, s * 0.55); ctx.fill();
+    ctx.fillStyle = '#5A4A30';
+    circle(x, y - s * 0.25, s * 0.30); ctx.fill();
+    ctx.fillStyle = f.fireT < 0.4 ? '#FF5A5A' : '#3A6A4A';
+    circle(x - s * 0.8, y + s * 0.45, s * 0.16); ctx.fill();
+
+  } else if (f.kind === 'DIVE') {
+    // ★ まわりこんで くる「ガ」。はねが はばたく
+    const fl = Math.sin(t * 16);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(200,106,224,0.55)';
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-s * 0.6, sg * s * (1.5 + fl * 0.5), s * 0.5, sg * s * (1.1 + fl * 0.4));
+      ctx.quadraticCurveTo(s * 0.3, sg * s * 0.3, 0, 0);
+      ctx.fill();
+    }
+    ctx.fillStyle = hurt ? '#FFAAAA' : '#C86AE0';
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.1, 0);
+    ctx.lineTo(s * 0.3, -s * 0.55);
+    ctx.lineTo(s * 1.1, 0);
+    ctx.lineTo(s * 0.3, s * 0.55);
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#FFE066';
-    circle(f.x, f.y, s * 0.3); ctx.fill();
+    circle(s * 0.2, 0, s * 0.30 + Math.sin(t * 10) * s * 0.06); ctx.fill();
+    ctx.fillStyle = '#2A1030';
+    circle(s * 0.2, 0, s * 0.13); ctx.fill();
+    // エンジンの ほのお
+    ctx.fillStyle = 'rgba(255,150,90,0.7)';
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.05, -s * 0.2);
+    ctx.lineTo(-s * (1.5 + Math.random() * 0.5), 0);
+    ctx.lineTo(-s * 1.05, s * 0.2);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
   } else {
-    ctx.fillStyle = '#7AE8C8';
-    circle(f.x, f.y, s); ctx.fill();
+    // ★ むれ（へび）の こまかい 戦とうき。しっぽの ひかり・目が うごく
+    const tone2 = ((Math.round(x / 46) % 3) + 3) % 3;
+    const body = hurt ? '#FFAAAA' : ['#7AE8C8', '#7ACFE8', '#9AE87A'][tone2];
+    ctx.save();
+    ctx.translate(x, y);
+    // エンジン
+    ctx.fillStyle = 'rgba(120,240,255,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(s * 0.7, -s * 0.24);
+    ctx.lineTo(s * (1.3 + Math.random() * 0.5), 0);
+    ctx.lineTo(s * 0.7, s * 0.24);
+    ctx.closePath(); ctx.fill();
+    // はね
+    ctx.fillStyle = '#3A8A80';
+    ctx.beginPath();
+    ctx.moveTo(s * 0.2, -s * 0.2); ctx.lineTo(s * 0.9, -s * 0.95); ctx.lineTo(s * 0.9, -s * 0.2);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(s * 0.2, s * 0.2); ctx.lineTo(s * 0.9, s * 0.95); ctx.lineTo(s * 0.9, s * 0.2);
+    ctx.closePath(); ctx.fill();
+    // 本体
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.15, 0);
+    ctx.quadraticCurveTo(-s * 0.2, -s * 0.85, s * 0.9, -s * 0.42);
+    ctx.lineTo(s * 0.9, s * 0.42);
+    ctx.quadraticCurveTo(-s * 0.2, s * 0.85, -s * 1.15, 0);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.0, -s * 0.08);
+    ctx.quadraticCurveTo(-s * 0.2, -s * 0.6, s * 0.7, -s * 0.32);
+    ctx.lineTo(s * 0.7, -s * 0.12);
+    ctx.fill();
+    // 目
     ctx.fillStyle = '#1E5A56';
-    circle(f.x - s * 0.3, f.y, s * 0.42); ctx.fill();
-    ctx.fillStyle = '#FFF';
-    circle(f.x - s * 0.36, f.y - s * 0.1, s * 0.16); ctx.fill();
+    circle(-s * 0.35, 0, s * 0.40); ctx.fill();
+    ctx.fillStyle = '#EAFFFF';
+    circle(-s * 0.45 + Math.sin(t * 3) * s * 0.06, -s * 0.06, s * 0.17); ctx.fill();
+    ctx.fillStyle = '#12303A';
+    circle(-s * 0.48 + Math.sin(t * 3) * s * 0.06, -s * 0.06, s * 0.08); ctx.fill();
+    ctx.restore();
   }
 }
 
+// --- ボスの 絵 ------------------------------------------------------------------------
+//
+// ★ 4しゅるい あるのに ぜんぶ おなじ 絵に なって いた（これが いちばんの
+//   「単調」の もと）。しゅるいごとに まったく ちがう かたちに した。
+//   ・CORE … まわる わっかの コアステーション
+//   ・ROCK … クレーターだらけの いわの ようさい
+//   ・TWIN … 2つの ポッドが 電気で つながって いる
+//   ・BOSS … つばさと 大ほうの ある 大せんかん
+//   どれも 弱点の コアは 左がわ（b.x - 34）に ある。
+
 function drawBoss(b) {
   const hurt = b.hurt > 0;
-  ctx.fillStyle = hurt ? '#FFF' : '#5A6A8A';
-  rr(b.x - 46, b.y - 62, 96, 124, 14); ctx.fill();
-  ctx.fillStyle = hurt ? '#FFD' : '#3A4A68';
-  rr(b.x - 20, b.y - 46, 60, 92, 10); ctx.fill();
-  // コア（ここを ねらう）
+  const t = b.t;
+  const main = hurt ? '#FFFFFF' : '#5A6A8A';
+  const dark = hurt ? '#FFEEEE' : '#3A4A68';
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+
+  if (b.kind === 'CORE') {
+    // まわる わっか
+    for (let i = 0; i < 2; i++) {
+      ctx.save();
+      ctx.rotate(t * (i ? -0.7 : 0.9));
+      ctx.strokeStyle = hurt ? '#FFF' : (i ? '#6AE0FF' : '#8A9AB8');
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 72 - i * 14, 30 - i * 8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.fillStyle = main;
+    circle(0, 0, 46); ctx.fill();
+    ctx.fillStyle = dark;
+    circle(0, 0, 34); ctx.fill();
+    for (let i = 0; i < 6; i++) {
+      const a = t * 0.6 + i * Math.PI / 3;
+      ctx.fillStyle = '#8A9AB8';
+      rr(Math.cos(a) * 40 - 6, Math.sin(a) * 40 - 6, 12, 12, 3); ctx.fill();
+    }
+
+  } else if (b.kind === 'ROCK') {
+    // いわの ようさい（ごつごつ）
+    ctx.fillStyle = hurt ? '#FFF' : '#7A6A5A';
+    ctx.beginPath();
+    for (let i = 0; i < 11; i++) {
+      const a = i / 11 * Math.PI * 2;
+      const r = 58 * (0.82 + ((i * 37) % 11) / 42);
+      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r * 1.12);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r * 1.12);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    for (const [cx2, cy2, rr2] of [[18, -26, 13], [30, 18, 10], [-6, 34, 9], [8, 6, 7]]) {
+      circle(cx2, cy2, rr2); ctx.fill();
+    }
+    ctx.fillStyle = hurt ? '#FFF' : '#FF8A3A';   // わきでる ようがん
+    for (let i = 0; i < 3; i++) {
+      const a = t * 1.2 + i * 2.1;
+      circle(Math.cos(a) * 34, Math.sin(a) * 30, 6 + Math.sin(t * 7 + i) * 2); ctx.fill();
+    }
+
+  } else if (b.kind === 'TWIN') {
+    // 2つの ポッド＋あいだの 電気
+    ctx.strokeStyle = 'rgba(140,220,255,' + (0.4 + Math.sin(t * 14) * 0.3).toFixed(2) + ')';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    for (let i = 0; i <= 6; i++) {
+      const yy = -40 + i * 13.3;
+      ctx.lineTo(6 + Math.sin(t * 20 + i) * 9, yy);
+    }
+    ctx.stroke();
+    for (const dy of [-40, 40]) {
+      ctx.fillStyle = main;
+      rr(-26, dy - 24, 62, 48, 12); ctx.fill();
+      ctx.fillStyle = dark;
+      rr(-14, dy - 14, 40, 28, 8); ctx.fill();
+      ctx.fillStyle = hurt ? '#FFF' : '#FF9A5A';
+      circle(-2, dy, 8 + Math.sin(t * 9 + dy) * 2); ctx.fill();
+      // ほうだい
+      ctx.fillStyle = '#8A9AB8';
+      rr(-48, dy - 8, 24, 16, 4); ctx.fill();
+    }
+
+  } else {
+    // 大せんかん
+    ctx.fillStyle = dark;                       // つばさ
+    for (const sg of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(10, sg * 20);
+      ctx.lineTo(56, sg * 78);
+      ctx.lineTo(-10, sg * 74);
+      ctx.lineTo(-24, sg * 26);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = main;                       // 本体
+    ctx.beginPath();
+    ctx.moveTo(-52, 0);
+    ctx.lineTo(-16, -58);
+    ctx.lineTo(46, -44);
+    ctx.lineTo(56, 0);
+    ctx.lineTo(46, 44);
+    ctx.lineTo(-16, 58);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = dark;
+    rr(-6, -34, 46, 68, 10); ctx.fill();
+    // 大ほう
+    ctx.fillStyle = '#8A9AB8';
+    for (const dy of [-44, 44]) { rr(-58, dy - 9, 30, 18, 5); ctx.fill(); }
+    // エンジン
+    ctx.fillStyle = 'rgba(120,200,255,0.8)';
+    for (const dy of [-18, 18]) {
+      ctx.beginPath();
+      ctx.moveTo(52, dy - 8);
+      ctx.lineTo(52 + 22 + Math.random() * 12, dy);
+      ctx.lineTo(52, dy + 8);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = hurt ? '#FFF' : '#FFD24A';
+    for (let i = 0; i < 4; i++) { circle(10 + i * 10, -50 + (i % 2) * 100, 4); ctx.fill(); }
+  }
+  ctx.restore();
+
+  // コア（ここを ねらう）。どの ボスも 左がわ
   const k = 0.6 + Math.sin(G.t * 8) * 0.4;
   ctx.fillStyle = 'rgba(255,120,120,' + (0.3 + k * 0.3) + ')';
   circle(b.x - 34, b.y, 34); ctx.fill();
@@ -646,13 +871,9 @@ function drawBoss(b) {
   circle(b.x - 34, b.y, 22); ctx.fill();
   ctx.fillStyle = '#FFD24A';
   circle(b.x - 34, b.y, 10 * k + 4); ctx.fill();
-  // ほうだい
-  if (b.kind === 'TWIN') {
-    for (const dy of [-34, 34]) {
-      ctx.fillStyle = '#8A9AB8';
-      rr(b.x - 52, b.y + dy - 8, 22, 16, 4); ctx.fill();
-    }
-  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
+  circle(b.x - 34, b.y, 26 + Math.sin(G.t * 5) * 3); ctx.stroke();
+
   // たいりょく
   const w = 180, x0 = VW / 2 - w / 2;
   ctx.fillStyle = 'rgba(0,0,0,0.45)';

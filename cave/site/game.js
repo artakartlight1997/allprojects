@@ -4,11 +4,12 @@
 //   下に 引っぱられ つづける ので、いつも 少し 先を 考えて ふかす。
 //   この「いきおいが のこる」ことだけで、ただの めいろが むずかしく なる。
 //
-// ★ そうさは 2つだけ。
-//   ・左の スティック … **むきを きめる**（きめた ほうへ ゆっくり まわる）
-//   ・右の ボタン     … **ふんしゃ**。むいて いる ほうへ おされる
-//   ぐるぐる 回す やりかたは スマホだと むずかしすぎたので、
-//   「スティックの ほうを 向く」に して ある。いきおいの むずかしさは そのまま。
+// ★ むずかしさは タイトルで **3つから えらぶ**（やさしい／ふつう／むずかしい）。
+//   えらんだ ものが 変えるのは そうさ だけでは ない。重力・いきおいの きえかた・
+//   かべに かすった ときに こわれるか・どうくつの ひろさ と ながさ・
+//   タレットや とびらの かず まで、ぜんぶ 作りなおして いる。
+//   ・やさしい／ふつう … 左の スティックを **たおした ほうへ そのまま とぶ**（1本ゆび）
+//   ・むずかしい      … 左で **むきを きめて**、右の ボタンで ふんしゃ（2本ゆび）
 //
 // ★ クリスタルを ぜんぶ あつめて、さいごに **パッドに そっと 着地**する。
 //   速すぎても、かたむいて いても こわれる。ここが いちばん むずかしい。
@@ -24,7 +25,7 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const HUD = 30;
 
 // --- 物理（1ユニット = ふねの たて 2つぶん くらい） --------------------------------
@@ -35,17 +36,7 @@ const GRAV = 9.0;
 const THRUST = 20.0;
 const MAX_V = 16;
 const DRAG = 0.22;
-// ★ 「方向の そうさが げきむず」と 言われた。原いんは 2つ:
-//   ① 機首の まわるのが おそい（5.2）… 向きたい ほうを 向くまで 時間が かかる
-//   ② スティックで 向きを きめて、**べつの ゆびで ふんしゃ**する 2本ゆび そうさ
-//   そこで **「かんたん」そうさ**を 作って、そちらを ふつうに した。
-//   ・スティックを たおした **その ほうへ そのまま とぶ**（1本ゆびで あそべる）
-//   ・機首は すぐに その ほうを 向く
-//   ・スティックを はなすと 機首は 上に もどる（ボタンだけで ホバリングできる）
-//   もとの そうさ（向きを きめて ふんしゃ）も タイトルで えらべる。
-const TURN = 5.2;             // むずかしい: 1びょうに まわれる 角度（ラジアン）
-const TURN_EASY = 14.0;       // かんたん: ほとんど すぐ 向く
-const GRAV_EASY = 7.6;        // かんたんは 重力も 少し 弱く
+const TURN = 5.2;             // 1びょうに まわれる 角度（ラジアン）。むずかしさで かわる
 const FUEL_MAX = 130;
 // ★ さいしょ 12 に して いたら、どうくつの まん中で ガス欠に なる ことが
 //   おおかった。もどる ことも できず ただ 落ちるだけ なので 少し ゆるめた。
@@ -87,15 +78,59 @@ const STAGES = [
   { name: 'さいしんぶ', len: 172, gap: 2.4, wave: 4.0, cry: 8, tur: 5, gate: 5, tank: 4 },
 ];
 
+// --- むずかしさ ------------------------------------------------------------------------
+//
+// ★ 「まだ むずかしい。むずかしさを えらばせて」と 言われた。
+//   まえは そうさが 2しゅるい あるだけ だったが、それでは
+//   「どうくつの ひろさ」も「重力」も「いきおいの のこりかた」も 前のまま で、
+//   いちばん つらい ところが 何も かわって いなかった。
+//   いまは **3だんかい**。かえるのは そうさ だけでは なく、
+//   どうくつの 作りかた から ぜんぶ。
+//
+//   ・grav  … 下に 引っぱられる 力
+//   ・drag  … いきおいの きえかた。**ここが いちばん きく**。
+//              大きいと ボタンを はなした とき すっと 止まる ので、
+//              「思った ところで 止まれない」つらさが なくなる。
+//   ・bump  … この はやさ より おそく かべに ふれても **こわれない**。
+//              かすった だけで ふねを 1き うしなうのが いちばんの ストレス だった。
+//   ・gap/wave/len/pinch/tur/gate … どうくつ そのものの ひろさ・ながさ・じゃま者
+const DIFF = [
+  {
+    name: 'やさしい', col: '#8AF0B0',
+    tip: 'かべに かすっても こわれない。ひろくて みじかい どうくつ',
+    stick: 1, turn: 16.0, grav: 5.0, drag: 1.55, maxv: 10.5, bump: 7.0,
+    landV: 8.0, landA: 1.60, lives: 5, fuel: 1.40, burn: 0.60,
+    gap: 1.50, wave: 0.60, len: 0.78, pinch: 0, tur: 0, gate: 0, turPer: 1.5,
+  },
+  {
+    name: 'ふつう', col: '#FFD24A',
+    tip: 'ゆっくり ふれた ぐらいなら へいき。じゃま者も 少なめ',
+    stick: 1, turn: 14.0, grav: 6.6, drag: 0.95, maxv: 13.0, bump: 4.5,
+    landV: 5.6, landA: 1.10, lives: 4, fuel: 1.15, burn: 0.82,
+    gap: 1.22, wave: 0.82, len: 0.92, pinch: 0.5, tur: 0.6, gate: 0.6, turPer: 1.2,
+  },
+  {
+    name: 'むずかしい', col: '#FF9A6A',
+    tip: 'もとの スラスト。向きを きめて ふんしゃ・かすったら こわれる',
+    stick: 0, turn: TURN, grav: GRAV, drag: DRAG, maxv: MAX_V, bump: 0,
+    landV: LAND_V, landA: LAND_A, lives: 3, fuel: 1.0, burn: 1.0,
+    gap: 1.0, wave: 1.0, len: 1.0, pinch: 1, tur: 1, gate: 1, turPer: 1.0,
+  },
+];
+function DF() { return DIFF[clamp(save.diff | 0, 0, DIFF.length - 1)]; }
+
 const SAVE_KEY = 'cave.save.v1';
-const save = { clear: {}, best: {}, plays: 0, cry: 0, easy: 1 };
+const save = { clear: {}, best: {}, plays: 0, cry: 0, diff: 0 };
 try {
   const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
   if (s.clear && typeof s.clear === 'object') save.clear = s.clear;
   if (s.best && typeof s.best === 'object') save.best = s.best;
   if (Number.isFinite(s.plays)) save.plays = s.plays;
   if (Number.isFinite(s.cry)) save.cry = s.cry;
-  if (Number.isFinite(s.easy)) save.easy = s.easy;
+  // ★ 前は easy が 0/1 だけ だった。1（かんたん）だった 人は
+  //   「それでも むずかしい」と 言って いる ので **やさしい**から。
+  if (Number.isFinite(s.diff)) save.diff = clamp(s.diff | 0, 0, DIFF.length - 1);
+  else if (Number.isFinite(s.easy)) save.diff = s.easy ? 0 : 2;
 } catch (e) {}
 function storeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
@@ -139,6 +174,8 @@ function sfxCrash() {
   kick(t, 0.9);
 }
 function sfxLand() { if (A.ctx) { const t = anow(); nz(t, 0.10, 0.08, 120, 900); bleep(t, [72, 79], 0.06, 0.12, 0.10); } }
+// かべに かすった とき（こわれて いない）。こわれる 音とは はっきり ちがう ように 低く 短く。
+function sfxBump() { if (A.ctx) { const t = anow(); nz(t, 0.07, 0.05, 100, 700); tone(t, 46, 0.08, 0.05, 'triangle', null, 38); } }
 function sfxLow() { if (A.ctx) tone(anow(), 60, 0.09, 0.06, 'square', null, 55); }
 function sfxWin() {
   if (!A.ctx) return;
@@ -167,18 +204,25 @@ function rng(seed) {
 
 function buildCave(si) {
   const st = STAGES[si];
+  const D = DF();
   const rnd = rng(0x0CAE + si * 7919);
-  const W = st.len;
+  // ★ むずかしさで どうくつ そのものを 作りかえる。
+  //   やさしいは **ひろく・みじかく・ゆるやか**。ここを かえないと
+  //   そうさ だけ かんたんに しても、通れない ところは 通れないまま。
+  const W = Math.max(64, Math.round(st.len * D.len));
+  const MINGAP = st.gap * D.gap;
+  const nTur = Math.round(st.tur * D.tur);
+  const nGate = Math.round(st.gate * D.gate);
   const ceil = new Array(W), flr = new Array(W);
 
-  let mid = WORLD_H / 2, gap = st.gap + 1.4;
+  let mid = WORLD_H / 2, gap = MINGAP + 1.4;
   let vmid = 0, vgap = 0;
   for (let x = 0; x < W; x++) {
     // はじめと おわりは ゆったり（出発と 着地の ため）
     const edge = Math.min(x, W - 1 - x);
     const calm = edge < 10 ? 1 - edge / 10 : 0;
 
-    vmid += (rnd() - 0.5) * 0.55 * st.wave * 0.6;
+    vmid += (rnd() - 0.5) * 0.55 * st.wave * D.wave * 0.6;
     vmid *= 0.86;
     mid += vmid * (1 - calm);
     mid = clamp(mid, 4.2, WORLD_H - 4.2);
@@ -186,19 +230,20 @@ function buildCave(si) {
     vgap += (rnd() - 0.5) * 0.5;
     vgap *= 0.82;
     gap += vgap;
-    gap = clamp(gap, st.gap, st.gap + 3.2);
+    gap = clamp(gap, MINGAP, MINGAP + 3.2);
     const g = gap + calm * 2.2;
 
     ceil[x] = mid - g / 2;
     flr[x] = mid + g / 2;
   }
 
-  repair(ceil, flr, W, st.gap);
+  repair(ceil, flr, W, MINGAP);
 
   // ★ せまい ところを わざと 作る。
   //   さいころ まかせだと、むずかしい はずの どうくつなのに
   //   いちばん せまい ところが よゆうの ひろさ、という ことが おきた。
-  const nPinch = 2 + Math.floor(si / 2);
+  //   やさしいでは 0こ（D.pinch = 0）に して、せまい ところを なくす。
+  const nPinch = Math.round((2 + Math.floor(si / 2)) * D.pinch);
   for (let i = 0; i < nPinch; i++) {
     const px = Math.floor(16 + (W - 34) * (i + 0.5 + (rnd() - 0.5) * 0.5) / nPinch);
     for (let d = -3; d <= 3; d++) {
@@ -207,11 +252,11 @@ function buildCave(si) {
       const k = (Math.cos(d / 3 * Math.PI) + 1) / 2;       // まんなかが いちばん せまい
       const m = (ceil[x] + flr[x]) / 2;
       const g0 = flr[x] - ceil[x];
-      const g1 = g0 * (1 - k) + st.gap * k;
+      const g1 = g0 * (1 - k) + MINGAP * k;
       ceil[x] = m - g1 / 2; flr[x] = m + g1 / 2;
     }
   }
-  repair(ceil, flr, W, st.gap);
+  repair(ceil, flr, W, MINGAP);
 
   // 出発の ばしょ と 着地パッド
   const startX = 4;
@@ -222,15 +267,16 @@ function buildCave(si) {
 
   // タレット（ゆかに くっついて まっすぐ 上に うつ）
   const turrets = [];
-  for (let i = 0; i < st.tur; i++) {
-    const x = Math.floor(18 + (W - 34) * (i + 0.5) / st.tur);
-    turrets.push({ x: x + 0.5, y: flr[x] - 0.35, t: rnd() * TUR_PER, alive: true });
+  const turPer = TUR_PER * D.turPer;
+  for (let i = 0; i < nTur; i++) {
+    const x = Math.floor(18 + (W - 34) * (i + 0.5) / nTur);
+    turrets.push({ x: x + 0.5, y: flr[x] - 0.35, t: rnd() * turPer, per: turPer, alive: true });
   }
 
   // とびら（すきまが せまく なったり ひろく なったり）
   const gates = [];
-  for (let i = 0; i < st.gate; i++) {
-    const x = Math.floor(24 + (W - 44) * (i + 0.5) / st.gate);
+  for (let i = 0; i < nGate; i++) {
+    const x = Math.floor(24 + (W - 44) * (i + 0.5) / nGate);
     gates.push({ x: x, t: rnd() * 3, per: 2.4 + rnd() * 1.2, amt: 0.34 + rnd() * 0.18 });
   }
 
@@ -367,21 +413,24 @@ const G = {
   fuel: FUEL_MAX, thrusting: false,
   cry: 0, cryAll: 0, lives: 3, time: 0,
   bullets: [], parts: [], pops: [],
-  camX: 0, camY: 0, shake: 0,
+  camX: 0, camY: 0, shake: 0, bumpT: 0, fuelMax: FUEL_MAX,
   dead: 0, over: false, win: false, msg: '', msgT: 0, lowT: 0,
 };
 
 function startStage(i) {
   audioStart();
+  const D = DF();
   G.si = i;
   G.cave = buildCave(i);
-  G.lives = 3; G.cry = 0; G.cryAll = G.cave.items.filter((it) => it.kind === 'cry').length;
+  G.fuelMax = Math.round(FUEL_MAX * D.fuel);
+  G.lives = D.lives; G.cry = 0;
+  G.cryAll = G.cave.items.filter((it) => it.kind === 'cry').length;
   G.time = 0;
   G.over = false; G.win = false;
   save.plays++; storeSave();
   G.screen = 'play';
   respawn(true);
-  G.msg = STAGES[i].name + '　クリスタル ' + G.cryAll + 'こ あつめて パッドに 着地！';
+  G.msg = STAGES[i].name + '（' + D.name + '）　クリスタル ' + G.cryAll + 'こ あつめて パッドに 着地！';
   G.msgT = 2.6;
 }
 
@@ -391,9 +440,9 @@ function respawn(fresh) {
   G.cry = fresh ? 0 : G.cry;
   G.x = c.startX; G.y = c.startY;
   G.vx = 0; G.vy = 0; G.ang = 0; G.aim = 0;
-  G.fuel = FUEL_MAX;
+  G.fuel = G.fuelMax;
   G.bullets.length = 0;
-  G.dead = 0;
+  G.dead = 0; G.bumpT = 0;
   G.camX = G.x; G.camY = G.y;
   sfxThrustOff();
   G.thrusting = false;
@@ -420,12 +469,38 @@ function crash(why) {
   if (G.lives <= 0) { G.over = true; G.win = false; }
 }
 
+// かべに かすった（こわれない）。ふねは うごかさず、かべから はなれる ほうへ
+// すこし おし返す だけ。よこの いきおいは のこす ので、天じょうに
+// こすりながら せまい ところを ぬける ことも できる。
+function bumpWall(h) {
+  if (h === 1) G.vy = Math.max(G.vy, 1.0);        // 天じょう → 下へ
+  else G.vy = Math.min(G.vy, -1.0);               // ゆか   → 上へ
+  G.vx *= 0.72;
+  // いまの ばしょも かべの 中なら（とびらに はさまれた など）
+  // すきまの まん中へ すこしずつ にがす。はさまって 動けなく ならない ため。
+  if (hitsWall(G.x, G.y)) {
+    const d = (ceilAt(G.x) + flrAt(G.x)) / 2 - G.y;
+    G.y += clamp(d, -0.30, 0.30);
+    // ★ とびらに はさまれて いる あいだは たてに とめる。
+    //   ここで いきおいを つけると、はねかえりで はやさが たまって
+    //   「とびらに つぶされて こわれた」に なって しまう（テストで 2回 おきた）。
+    //   とびらが あけば ふつうに 出られる。
+    G.vy = 0;
+  }
+  if (G.bumpT <= 0) {
+    G.bumpT = 0.20;
+    sfxBump();
+    G.shake = Math.max(G.shake, 4);
+    burst(G.x, G.y + (h === 1 ? -SHIP_R : SHIP_R), '#C8B8E8', 5, 3);
+  }
+}
+
 function tryLand() {
   const c = G.cave;
   const sp = Math.hypot(G.vx, G.vy);
   const tilt = Math.abs(angDiff(G.ang, 0));
-  const landV = save.easy ? LAND_V + 1.4 : LAND_V;
-  const landA = save.easy ? LAND_A + 0.30 : LAND_A;
+  const D = DF();
+  const landV = D.landV, landA = D.landA;
   if (G.cry < G.cryAll) {
     G.msg = 'クリスタルが あと ' + (G.cryAll - G.cry) + 'こ！'; G.msgT = 1.4;
     return false;
@@ -454,6 +529,7 @@ function update(dt) {
   G.t += dt;
   if (G.screen !== 'play') { IN.taps.length = 0; IN.fireTap = false; sfxThrustOff(); return; }
   if (G.msgT > 0) G.msgT -= dt;
+  if (G.bumpT > 0) G.bumpT -= dt;
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 40);
 
   for (let i = G.parts.length - 1; i >= 0; i--) {
@@ -482,7 +558,8 @@ function update(dt) {
 
   // --- そうさ ---
   let ax = 0, ay = 0;
-  const easy = !!save.easy;
+  const D = DF();
+  const easy = !!D.stick;
   const stick = IN.hold && (Math.abs(IN.ax) > 0.18 || Math.abs(IN.ay) > 0.18);
   const k = keyDir();
   let aimed = false;
@@ -500,7 +577,7 @@ function update(dt) {
   }
   // むきが かわる
   const dA = angDiff(G.aim, G.ang);
-  const step = (easy ? TURN_EASY : TURN) * dt;
+  const step = D.turn * dt;
   G.ang += Math.abs(dA) < step ? dA : Math.sign(dA) * step;
 
   // ★ かんたんでは **スティックを たおすだけで ふく**（1本ゆびで あそべる）。
@@ -514,8 +591,8 @@ function update(dt) {
     const dir = easy && aimed ? G.aim : G.ang;
     ax += Math.sin(dir) * THRUST;
     ay += -Math.cos(dir) * THRUST;
-    G.fuel = Math.max(0, G.fuel - FUEL_BURN * dt);
-    if (G.fuel < 25) {
+    G.fuel = Math.max(0, G.fuel - FUEL_BURN * D.burn * dt);
+    if (G.fuel < G.fuelMax * 0.2) {
       G.lowT -= dt;
       if (G.lowT <= 0) { sfxLow(); G.lowT = 0.55; }
     }
@@ -529,12 +606,15 @@ function update(dt) {
       });
     }
   }
-  ay += easy ? GRAV_EASY : GRAV;
+  ay += D.grav;
 
   G.vx += ax * dt; G.vy += ay * dt;
-  G.vx -= G.vx * DRAG * dt; G.vy -= G.vy * DRAG * dt;
+  // ★ ここが やさしさの かなめ。drag が 大きいと ゆびを はなした とき
+  //   すっと 止まる ので、「行きすぎて かべに ぶつかる」が おきにくい。
+  const dk = Math.max(0, 1 - D.drag * dt);
+  G.vx *= dk; G.vy *= dk;
   const sp = Math.hypot(G.vx, G.vy);
-  if (sp > MAX_V) { G.vx = G.vx / sp * MAX_V; G.vy = G.vy / sp * MAX_V; }
+  if (sp > D.maxv) { G.vx = G.vx / sp * D.maxv; G.vy = G.vy / sp * D.maxv; }
 
   const nx = G.x + G.vx * dt, ny = G.y + G.vy * dt;
 
@@ -548,11 +628,19 @@ function update(dt) {
   } else {
     const h = hitsWall(nx, ny);
     if (h) {
+      // ★ やさしい・ふつうでは、**おそく ふれた だけなら こわれない**。
+      //   かすった だけで ふねが 1き きえるのが いちばんの ストレス だった。
+      //   はやさが D.bump を こえて いる ときだけ こわれる。
+      if (Math.hypot(G.vx, G.vy) <= D.bump) {
+        bumpWall(h);
+      } else {
+        G.x = nx; G.y = ny;
+        crash(h === 1 ? '天じょうに ぶつかった！' : 'ゆかに ぶつかった！');
+        return;
+      }
+    } else {
       G.x = nx; G.y = ny;
-      crash(h === 1 ? '天じょうに ぶつかった！' : 'ゆかに ぶつかった！');
-      return;
     }
-    G.x = nx; G.y = ny;
   }
   if (G.x < 0.6) { G.x = 0.6; G.vx = Math.abs(G.vx) * 0.3; }
   if (G.x > c.W - 0.6) { G.x = c.W - 0.6; G.vx = -Math.abs(G.vx) * 0.3; }
@@ -567,8 +655,9 @@ function update(dt) {
         pop('クリスタル ' + G.cry + '/' + G.cryAll, '#8AE0F0');
         if (G.cry >= G.cryAll) { G.msg = 'ぜんぶ あつめた！ パッドに そっと 着地しよう'; G.msgT = 2.4; }
       } else {
-        G.fuel = Math.min(FUEL_MAX, G.fuel + TANK_FUEL); sfxTank();
-        pop('ねんりょう +' + TANK_FUEL, '#8AF0B0');
+        const add = Math.round(TANK_FUEL * D.fuel);
+        G.fuel = Math.min(G.fuelMax, G.fuel + add); sfxTank();
+        pop('ねんりょう +' + add, '#8AF0B0');
       }
       burst(it.x, it.y, it.kind === 'cry' ? '#8AE0F0' : '#8AF0B0', 8, 4);
     }
@@ -579,7 +668,7 @@ function update(dt) {
     if (!tu.alive) continue;
     if (Math.abs(tu.x - G.x) > VIEW_H) continue;          // 見えて いる ぶんだけ
     tu.t += dt;
-    if (tu.t > TUR_PER) {
+    if (tu.t > (tu.per || TUR_PER)) {
       tu.t = 0;
       const room = flrAt0(tu.x) - ceilAt0(tu.x);
       G.bullets.push({
@@ -696,7 +785,7 @@ function drawPlay() {
   for (const tu of c.turrets) {
     if (tu.x < x0 - 2 || tu.x > x1 + 2) continue;
     const px = sx(tu.x), py = sy(flrAt0(tu.x));
-    const warn = tu.t > TUR_PER - TUR_WARN;
+    const warn = tu.t > (tu.per || TUR_PER) - TUR_WARN;
     ctx.fillStyle = '#7A8AA8';
     rr(px - u * 0.32, py - u * 0.44, u * 0.64, u * 0.46, u * 0.10); ctx.fill();
     ctx.strokeStyle = warn ? '#FF6A6A' : '#C8A060';
@@ -768,7 +857,7 @@ function drawPlay() {
 
   drawHud();
   drawStick();
-  drawFire(save.easy ? '上へ' : 'ふんしゃ', '#FFD24A');
+  drawFire(DF().stick ? '上へ' : 'ふんしゃ', '#FFD24A');
 
   if (G.msgT > 0) {
     ctx.globalAlpha = clamp(G.msgT * 1.4, 0, 1);
@@ -784,7 +873,8 @@ function drawPlay() {
     drawResult(G.win, G.win ? 'ちゃくりく せいこう！' : 'ゲームオーバー',
       [G.win ? 'かかった 時間 ' + G.time.toFixed(1) + 'びょう　のこり ねんりょう ' + Math.round(G.fuel)
              : 'クリスタル ' + G.cry + ' / ' + G.cryAll + ' で おわり',
-       G.win ? STAGES[G.si].name + ' を こえた！' : 'ふねが 3きとも こわれた'],
+       G.win ? STAGES[G.si].name + ' を こえた！（' + DF().name + '）'
+             : 'ふねが ' + DF().lives + 'きとも こわれた'],
       G.win && G.si + 1 < STAGES.length
         ? [{ label: 'もういちど', on: () => startStage(G.si) },
            { label: 'つぎの どうくつ', on: () => startStage(G.si + 1), col: '#8AF0B0' },
@@ -855,7 +945,7 @@ function drawHud() {
   const bw = Math.min(150, VW * 0.18), bh = 13, bx = 10, by = HUD / 2 - bh / 2;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   rr(bx, by, bw, bh, bh / 2); ctx.fill();
-  const k = G.fuel / FUEL_MAX;
+  const k = G.fuel / G.fuelMax;
   ctx.fillStyle = k < 0.25 ? '#FF6A8A' : k < 0.5 ? '#FFD24A' : '#8AF0B0';
   rr(bx + 2, by + 2, Math.max(0, (bw - 4) * k), bh - 4, (bh - 4) / 2); ctx.fill();
   ctx.fillStyle = '#F0EAFF';
@@ -875,12 +965,16 @@ function drawHud() {
 
   // はやさの めやす（着地の とき 大事）
   const sp = Math.hypot(G.vx, G.vy);
-  const okSp = sp <= (save.easy ? LAND_V + 1.4 : LAND_V);
+  const okSp = sp <= DF().landV;
   ctx.textAlign = 'right'; ctx.font = 'bold 12px system-ui, sans-serif';
   ctx.fillStyle = okSp ? 'rgba(138,240,176,0.9)' : 'rgba(255,140,140,0.9)';
   ctx.fillText('はやさ ' + sp.toFixed(1) + (okSp ? '（おりられる）' : '（速い）'),
                VW - 10, HUD + 14);
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  // いま どの むずかしさで あそんで いるか。左下だと スティックに かくれる ので 左上に。
+  ctx.textAlign = 'left';
+  ctx.fillStyle = DF().col;
+  ctx.fillText(DF().name, 10, HUD + 14);
+  ctx.textBaseline = 'top';
 }
 
 function drawTitle() {
@@ -899,26 +993,41 @@ function drawTitle() {
 
   bigText('エイトくんの', VW / 2, 26, 17, '#FFD8A8', null);
   bigText('どうくつ探検', VW / 2, 56, fitSize('どうくつ探検', VW * 0.4, 36), '#FFD24A');
-  const sub = save.easy
+  const D = DF();
+  const sub = D.stick
     ? 'スティックを たおした ほうへ とぶ！ 1本ゆびで あそべる・全10どうくつ'
     : 'むきを きめて ふんしゃ！ いきおいを かんがえて とぶ・全10どうくつ';
-  bigText(sub, VW / 2, 88, fitSize(sub, VW * 0.9, 15), '#CFC8E8', null);
+  bigText(sub, VW / 2, 86, fitSize(sub, VW * 0.9, 15), '#CFC8E8', null);
+  bigText('いま ＝ ' + D.name + '：' + D.tip, VW / 2, 104,
+          fitSize('いま ＝ ' + D.name + '：' + D.tip, VW * 0.9, 13), D.col, null);
 
   drawShip(VW * 0.12, VH * 0.60, 34, Math.sin(G.t) * 0.5, true);
 
   const names = STAGES.map((s) => s.name);
   const clear = STAGES.map((s, i) => !!save.clear['s' + i]);
-  const y = stagePicker(STAGES.length, STAGES.length, clear, names, 112, startStage, '#FFD24A');
+  const y = stagePicker(STAGES.length, STAGES.length, clear, names, 122, startStage, '#FFD24A');
 
-  const sw = Math.min(140, VW * 0.18);
-  drawButton(button(VW / 2 - sw * 1.5 - 12, y + 8, sw, 38, () => { G.screen = 'howto'; }),
+  // --- むずかしさを えらぶ（3つ から） ---
+  // ★ 前は「そうさ かんたん／むずかしい」の 2つを 行ったり 来たり する
+  //   ボタン 1つ だった。いま どれなのか 分かりにくい ので、
+  //   3つ ならべて **えらんで いる ものだけ 色が つく** ように した。
+  bigText('むずかしさ', VW / 2, y + 12, 13, 'rgba(230,220,255,0.75)', null);
+  const dw = Math.min(150, (VW - 60) / 3), dh = 36;
+  DIFF.forEach((d, i) => {
+    const bx = VW / 2 - (dw * 3 + 20) / 2 + i * (dw + 10);
+    const on = i === (save.diff | 0);
+    const b = button(bx, y + 24, dw, dh, () => { save.diff = i; storeSave(); });
+    drawButton(b, d.name, on ? d.col : '#3E3560', on ? '#241C34' : 'rgba(240,234,255,0.85)');
+    if (on) {
+      ctx.strokeStyle = '#FFF6C8'; ctx.lineWidth = 3;
+      rr(b.x - 3, b.y - 3, dw + 6, dh + 6, (dh + 6) * 0.28); ctx.stroke();
+    }
+  });
+
+  const sw = Math.min(150, VW * 0.19);
+  drawButton(button(VW / 2 - sw - 8, y + 70, sw, 36, () => { G.screen = 'howto'; }),
              'あそびかた', '#FFE0B0');
-  // ★ そうさの きりかえ。ふつうは「かんたん」。
-  drawButton(button(VW / 2 - sw * 0.5, y + 8, sw, 38,
-                    () => { save.easy = save.easy ? 0 : 1; storeSave(); }),
-             save.easy ? 'そうさ かんたん' : 'そうさ むずかしい',
-             save.easy ? '#8AE0A0' : '#FF9A6A');
-  drawButton(button(VW / 2 + sw * 0.5 + 12, y + 8, sw, 38, () => { audioStart(); sfxCry(); }),
+  drawButton(button(VW / 2 + 8, y + 70, sw, 36, () => { audioStart(); sfxCry(); }),
              '♪ おと', '#FFE0B0');
   bigText('あそんだ かず ' + save.plays + '　あつめた クリスタル ' + save.cry,
           VW / 2, VH - 12, 13, 'rgba(230,220,255,0.7)', null);
@@ -931,23 +1040,24 @@ function drawHowto() {
   ctx.fillStyle = '#1C1636';
   ctx.fillRect(-VW, -VOY - 4, VW * 3, VH + VOY + VOB + 8);
   bigText('あそびかた', VW / 2, 30, 24, '#FFF6C8');
-  const lines = save.easy ? [
-    '【そうさ かんたん】',
+  const D = DF();
+  const lines = D.stick ? [
+    '【' + D.name + '】' + D.tip,
     '① 左の スティックを **たおした ほうへ そのまま とぶ**。1本ゆびで OK',
     '② はなすと ふかすのを やめて、機首は 上に もどる',
     '③ 右の「上へ」ボタンでも 上に ふける（ホバリング）',
-    '④ はなしても すぐには 止まらない。いつも 少し 先を 考えて うごかす',
-    '⑤ かべに あたると こわれる。ふねは 3きまで',
+    '④ かべに ふれても、ゆっくり なら こわれない。ぶつかる 音が したら 気を つけて',
+    '⑤ すごい いきおいで つっこむと こわれる。ふねは ' + D.lives + 'きまで',
     '⑥ 青い クリスタルを ぜんぶ あつめると、パッドが 緑に 光る',
     '⑦ パッドに そっと おりたら クリア（右上の「はやさ」が 緑なら OK）',
     '⑧ ねんりょうは ふかして いる あいだ だけ へる。F の タンクで 足せる',
-    '⑨ もっと むずかしく したい ときは タイトルで「そうさ むずかしい」に',
+    '⑨ むずかしさは タイトルの 3つの ボタンで いつでも かえられる',
   ] : [
-    '【そうさ むずかしい】もとの スラスト そうさ',
+    '【' + D.name + '】もとの スラスト そうさ',
     '① 左の スティックで **むきを きめる**。ふねは そっちを ゆっくり 向く',
     '② 右の「ふんしゃ」で 向いて いる ほうへ おされる（2本ゆび）',
     '③ ボタンを はなしても すぐには 止まらない。いつも 下に 引っぱられて いる',
-    '④ かべに あたると こわれる。ふねは 3きまで',
+    '④ かべに かすった だけでも こわれる。ふねは ' + D.lives + 'きまで',
     '⑤ 青い クリスタルを ぜんぶ あつめると、パッドが 緑に 光る',
     '⑥ パッドに **そっと まっすぐ** おりたら クリア（速いと こわれる）',
     '⑦ 画面右上の「はやさ」が 緑なら おりられる ぐらい ゆっくり',

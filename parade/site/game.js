@@ -21,7 +21,7 @@
 
 'use strict';
 
-const GAME_VER = 2;
+const GAME_VER = 3;
 const HUD = 32;
 
 // --- おく行き（にせ 3D） ----------------------------------------------------------------
@@ -63,6 +63,10 @@ function halfAtY(y) { return VW * ROAD_K * (y - hzY()) / (nearY() - hzY()); }
 // --- はしる はやさ など ------------------------------------------------------------------
 const SPEED = 15.0;              // 1びょうに すすむ z
 const MOVE_K = 11.0;             // ゆびに ついていく はやさ
+// ゆびを これだけ（画面よこの わりあい）すべらせると 道の はしから はしまで 動く
+const DRAG_SPAN = 0.18;
+// ゆびが 画面の はしまで 来た ときに、つかんだ ばしょが ついていく はやさ
+const DRAG_EDGE = 0.55;
 const START_N = 5;               // さいしょの なかま
 const N_MAX = 99999;
 const DRAW_MAX = 300;            // 画面に 描く なかまの 上げん（多すぎると おもい）
@@ -70,6 +74,23 @@ const DRAW_MAX = 300;            // 画面に 描く なかまの 上げん（�
 //   さいしょ ZK=2.4 に して いたら、手まえに 横1れつの かべの ように
 //   ならぶ だけで、おく行きが まったく 出て いなかった。
 //   z がわに 大きく のばして、とおくの 子ほど 小さく 見えるように する。
+// --- たま（なかまが かってに 投げる） ---------------------------------------------------
+// ★ ねらう そうさは いれない。ゆびは 1本しか つかえない ので、
+//   「よけながら 撃つ」は 小さい 子には むり。かってに 前へ とばす。
+//   つよさは **なかまの かず そのもの**。ふやした ぶんだけ よく 消える。
+const SHOT_V = 44;               // たまの はやさ（1びょうに すすむ z）
+// ★ とどく はんい。これが ないと、どんなに 遠くの てきでも
+//   ずっと 前から 撃ち つづけられて しまい、なかまが 少なくても
+//   ぜんぶ たおせて しまった（＝ ふやす いみが うすい）。
+//   34ユニット ＝ てきが 来るまで やく 2びょう。この あいだに
+//   たおしきれるか が 「なかまを ふやして おいて よかった」に なる。
+const SHOT_REACH = 34;
+// ★ 「たまが まばらで さみしい」ので、なかまが 多いほど **数を ふやす**。
+//   ただし つよさ（1びょうあたり）は かえない。1こ の つよさを そのぶん 下げる。
+//   ＝ 見た目だけ にぎやかに なって、バランスは そのまま。
+const SHOT_DPS = 1.87;           // 1びょうの つよさ ＝ なかまの かず × これ
+function shotRate(n) { return clamp(12 + Math.sqrt(n) * 1.2, 14, 44); }
+function shotDmg(n) { return Math.max(1, Math.round(SHOT_DPS * n / shotRate(n))); }
 const BLOB_SP = 0.043;           // なかま どうしの あいだ（よこ）
 const BLOB_ZK = 6.6;             // z がわの のばしぐあい（大きいほど おくへ つづく）
 
@@ -151,6 +172,10 @@ function sfxHeart(){ if (A.ctx) bleep(anow(), [88, 93], 0.04, 0.08, 0.11); }
 // ★ さいしょ 0.035 に して いたら、はかって みると RMS 0.0014 で
 //   まったく きこえて いなかった。もう少し 大きく、そして ゆっくりに。
 function sfxStep() { if (A.ctx) nz(anow(), 0.06, 0.17, 200, 1000); }
+// たまを 投げる 音。1びょうに 17回 鳴る ので、うるさく ならないよう ごく 小さく 短く。
+function sfxShoot() { if (A.ctx) tone(anow(), 88 + Math.random() * 7, 0.03, 0.018, 'square', null, 96); }
+// てきが 消える 音
+function sfxFoe() { if (A.ctx) { const t = anow(); nz(t, 0.06, 0.05, 900, 4200); tone(t, 72, 0.06, 0.035, 'square', null, 60); } }
 function sfxTickle(){ if (A.ctx) { const t = anow(); tone(t, 84 + Math.random() * 10, 0.05, 0.05, 'square'); } }
 function sfxWin()  {
   if (!A.ctx) return;
@@ -262,19 +287,50 @@ function buildTrack(si) {
     items.push({ t: 'gate', z: z, cells: cells, done: false, flash: 0 });
     est = bv;
 
-    // じゃま と ハート は ゲートの あいだに おく
+    // てき・じゃま・ハート は ゲートの あいだに おく
     const gap = st.gap;
     if (i < st.gates - 1) {
+      // ★ 「なかまを ふやした あと、たまで きれいに そうじ できるのが
+      //   気もちいい のに、その ようそが ない」と 言われた。
+      //   そこで じゃまの ほとんどを **たおせる てき**に した。
+      //   なかまが 多いほど たまが つよい ので、
+      //   「ふやした ぶんだけ サーッと 消える」ように なる。
+      //   のこった てき だけが なかまを つれて いく。
       if (rnd() < st.obst) {
-        // ★ じゃまは **道の はんぶんだけ** ふさぐ。ぜんぶ ふさぐと よけようが ない。
-        const left = rnd() < 0.5;
-        const w = 0.55 + rnd() * 0.30;
-        items.push({
-          t: 'wall', z: z + gap * 0.5,
-          x0: left ? -1 : 1 - w, x1: left ? -1 + w : 1,
-          cost: Math.max(2, Math.round(est * 0.20 * D.hurtK)),
-          done: false, spin: rnd() * 6,
-        });
+        if (rnd() < 0.72) {
+          // ★ 「粒度は こまかく、1つ1つは たんじゅんで いい」との こと。
+          //   さいしょ 4〜8ひきを かたく して いたが、
+          //   **たくさん いて 1ぴきは よわい**ほうが、パパパッと 消えて 気もちいい。
+          //   ぜんぶの かたさの 合計は 前と おなじ。
+          const k = 9 + Math.floor(rnd() * 9);            // 9〜17ひき
+          const rows = 3;
+          const hp1 = Math.max(1, Math.round(est * 0.070));
+          const foes = [];
+          for (let j = 0; j < k; j++) {
+            const row = j % rows, col = Math.floor(j / rows);
+            const per = Math.ceil(k / rows);
+            foes.push({
+              x: -0.80 + 1.60 * (col + 0.5 + (row % 2) * 0.5) / per + (rnd() - 0.5) * 0.07,
+              dz: row * 2.6 + (rnd() - 0.5) * 0.8,
+              hp: hp1, hp0: hp1, dead: 0, hit: 0,
+            });
+          }
+          items.push({
+            t: 'foes', z: z + gap * 0.5, foes: foes, done: false,
+            cost: Math.max(1, Math.round(est * 0.045 * D.hurtK)),
+          });
+        } else {
+          // ★ よける だけの じゃま も のこす（ぜんぶ 撃てると たんちょうに なる）。
+          //   道の はんぶんだけ ふさぐ。ぜんぶ ふさぐと よけようが ない。
+          const left = rnd() < 0.5;
+          const w = 0.55 + rnd() * 0.30;
+          items.push({
+            t: 'wall', z: z + gap * 0.5,
+            x0: left ? -1 : 1 - w, x1: left ? -1 + w : 1,
+            cost: Math.max(2, Math.round(est * 0.20 * D.hurtK)),
+            done: false, spin: rnd() * 6,
+          });
+        }
       }
       if (rnd() < 0.45) {
         items.push({
@@ -290,7 +346,10 @@ function buildTrack(si) {
   const bossZ = z + 18;
   // ★ 上げんを つけて おかないと、むずかしいで
   //   「かんぺきに 通っても とどかない」大王が できて しまう。
-  const hp = Math.max(10, Math.round(Math.min(est * 0.90, est * st.need * D.bossK)));
+  //   てきが 出るように なって からは、かんぺきに 通っても てきに
+  //   すこし なかまを つれて いかれる ので、0.90 では コース10の
+  //   むずかしいが 勝てなく なった。0.84 に 下げて ある。
+  const hp = Math.max(10, Math.round(Math.min(est * 0.84, est * st.need * D.bossK)));
   return { items: items, bossZ: bossZ, hp: hp, est: est };
 }
 
@@ -345,9 +404,9 @@ function sh(a, rnd) {
 const G = {
   screen: 'title', t: 0,
   si: 0, track: null,
-  n: START_N, x: 0, tx: 0, run: 0,
+  n: START_N, x: 0, tx: 0, run: 0, held: 0, grabPx: 0, grabX: 0,
   z: 0,                      // すすんだ きょり
-  pops: [], parts: [],
+  pops: [], parts: [], shots: [], fireCd: 0,
   msg: '', msgT: 0,
   phase: 'run',              // 'ready' | 'run' | 'boss' | 'end'
   readyT: 0,
@@ -359,8 +418,8 @@ function startStage(i) {
   audioStart();
   G.si = i;
   G.track = buildTrack(i);
-  G.n = START_N; G.x = 0; G.tx = 0; G.z = 0; G.run = 0;
-  G.pops.length = 0; G.parts.length = 0;
+  G.n = START_N; G.x = 0; G.tx = 0; G.z = 0; G.run = 0; G.held = 0;
+  G.pops.length = 0; G.parts.length = 0; G.shots.length = 0; G.fireCd = 0;
   G.phase = 'ready'; G.readyT = 1.6;
   G.bossMax = G.track.hp; G.bossHp = G.track.hp; G.bossT = 0; G.bossShake = 0;
   G.over = false; G.win = false;
@@ -405,9 +464,25 @@ function update(dt) {
 
   // --- そうさ（ゆびの ばしょが そのまま ばしょ） ---
   if (G.phase === 'run' || G.phase === 'ready') {
+    // ★ さいしょ「ゆびの ばしょ＝パレードの ばしょ」に して いた。
+    //   そうしたら 「3つ ならんで いるのに 右か左しか 行けない」と 言われた。
+    //   よこ持ちの スマホは **おや指が 画面の 右はしと 左はし**に ある ので、
+    //   まん中に ゆびを 置く こと じたいが むずかしかった。
+    //   いまは **ゆびを 置いた ところからの 動かした ぶん**で うごかす。
+    //   どこを さわっても いい し、すこし すべらせる だけで はしまで 行ける。
     if (IN.hold) {
-      // ★ 画面の はしまで ゆびを のばさなくても はしに 行けるように 少し ひろげる。
-      G.tx = clamp((IN.x - VW / 2) / (VW * 0.32), -1, 1);
+      if (!G.held) { G.held = 1; G.grabPx = IN.x; G.grabX = G.x; }
+      // ★ ゆびが 画面の はしまで 来たら、つかんだ ばしょを 少しずつ ずらして
+      //   そのまま すすみ つづけられる ように する。
+      //   これが ないと「左はしに おや指を 置いた 人は、左に 行けない」
+      //   という、さいしょと おなじ こまりかたに なる（テストで 見つけた）。
+      if (IN.x < VW * 0.10) G.grabPx += VW * DRAG_EDGE * dt;
+      else if (IN.x > VW * 0.90) G.grabPx -= VW * DRAG_EDGE * dt;
+      G.tx = clamp(G.grabX + (IN.x - G.grabPx) / (VW * DRAG_SPAN), -1, 1);
+      // はしまで 行ったら、つかみ なおしが なめらかに なるよう つかんだ ばしょも そろえる
+      if (G.tx <= -1 || G.tx >= 1) { G.grabX = G.tx; G.grabPx = IN.x; }
+    } else {
+      G.held = 0;
     }
     const k = keyDir();
     if (k === 'l') G.tx = clamp(G.tx - dt * 2.4, -1, 1);
@@ -435,6 +510,93 @@ function update(dt) {
   IN.fireTap = false;
 }
 
+// --- たまを 投げる／とばす -----------------------------------------------------------------
+function updateShots(dt, aimZ) {
+  // なかまが いる かぎり かってに 投げる
+  if (G.n > 0) {
+    G.fireCd -= dt;
+    const step = 1 / shotRate(G.n);
+    let guard = 0;
+    while (G.fireCd <= 0 && guard++ < 8) {
+      G.fireCd += step;
+      const front = crowdDepth();
+      const x0 = G.x + (Math.random() - 0.5) * Math.min(1.5, front * 0.30);
+      // ★ さいしょ たまを まっすぐ 前に とばして いた。そうしたら
+      //   パレードが 左に よって いる とき、右がわの てきに 1発も
+      //   あたらず、かんぺきに あそんでも 3〜6コースしか 勝てなく なった。
+      //   いまは **いちばん 近い てきの ほうへ すこし 曲がる**。
+      //   なかまが てきを ねらって 投げて いる、という かたち。
+      G.shots.push({
+        x: x0, tx: aimAt(x0), z: G.z + front * (0.7 + Math.random() * 0.3),
+        z0: G.z,
+        col: PAL[(G.shots.length + guard) % PAL.length],
+      });
+      if (Math.random() < 0.35) sfxShoot();
+    }
+  }
+  const dmg = shotDmg(G.n);
+  for (let i = G.shots.length - 1; i >= 0; i--) {
+    const b = G.shots[i];
+    b.z += SHOT_V * dt;
+    if (b.tx !== undefined) b.x += (b.tx - b.x) * Math.min(1, dt * 5);
+    // とどく はんい を こえたら 消す（大王の 手まえで 止める）
+    if (b.z - b.z0 > SHOT_REACH ||
+        b.z > (aimZ !== undefined ? aimZ + 1.5 : G.z + Z_FAR)) { G.shots.splice(i, 1); continue; }
+    if (!hitFoes(b, dmg)) continue;
+    G.shots.splice(i, 1);
+  }
+}
+
+// たまが むかう さき（いちばん 近い てき。いなければ まっすぐ）
+function aimAt(x0) {
+  if (G.phase === 'boss') return (Math.random() - 0.5) * 0.5;
+  // ★ さいしょ 「いちばん 近い 1ぴき」を ぜんいんで ねらって いた。
+  //   1ぴきに 30発 いっぺんに とんで いって、そいつが 死んだ あとの
+  //   29発が むだに なる。だから いくら なかまが 多くても
+  //   てきが 消えず、かんぺきに あそんでも 4〜6コースしか 勝てなかった。
+  //   いまは **のこって いる てきの 中から 1ぴき えらぶ**。
+  let grp = null, gd = 1e9;
+  for (const it of G.track.items) {
+    if (it.t !== 'foes' || it.done) continue;
+    const d = it.z - G.z;
+    if (d < -2 || d > SHOT_REACH) continue;
+    let any = false;
+    for (const f of it.foes) if (!f.dead) { any = true; break; }
+    if (any && d < gd) { gd = d; grp = it; }
+  }
+  if (!grp) return x0;
+  const alive = [];
+  for (const f of grp.foes) if (!f.dead) alive.push(f);
+  if (!alive.length) return x0;
+  const f = alive[Math.floor(Math.random() * alive.length)];
+  return f.x + (Math.random() - 0.5) * 0.06;
+}
+
+// たまが てきに あたったか
+function hitFoes(b, dmg) {
+  if (G.phase === 'boss') {
+    if (b.z >= G.track.bossZ - 1.2) { G.bossShake = Math.max(G.bossShake, 3); return true; }
+    return false;
+  }
+  for (const it of G.track.items) {
+    if (it.t !== 'foes' || it.done) continue;
+    if (Math.abs(it.z - b.z) > 9) continue;
+    for (const f of it.foes) {
+      if (f.dead) continue;
+      if (Math.abs(it.z + f.dz - b.z) > 1.6) continue;
+      if (Math.abs(f.x - b.x) > 0.13) continue;
+      f.hp -= dmg; f.hit = 0.14;
+      if (f.hp <= 0) {
+        f.dead = 1;
+        sfxFoe();
+        burst(f.x, it.z, '#B8A0D8', 7);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 // かたまりの さきあたまが、ゆいから どれだけ 先に あるか
 function crowdDepth() {
   const n = Math.max(1, Math.round(G.n));
@@ -454,6 +616,8 @@ function updateRun(dt) {
 
   // おわりに 近づくと BGM が もりあがる
   BG.hot = clamp((G.z - (tr.bossZ - 40)) / 40, 0, 1);
+
+  updateShots(dt, tr.bossZ);
 
   // ★ ゲートは **かたまりの さきあたま**が くぐった ときに きく。
   //   まん中で きくと「もう くぐったのに かずが かわらない」と 見えた。
@@ -486,6 +650,33 @@ function updateRun(dt) {
         sfxBad();
         burst(G.x, G.z + crowdDepth() * 0.6, '#B8C4D8', 8);
       }
+    } else if (it.t === 'foes') {
+      // てきが かたまりの さきあたま に とどいた
+      if (front < it.z) continue;
+      it.done = true;
+      let alive = 0;
+      for (const f of it.foes) if (!f.dead) alive++;
+      if (alive > 0) {
+        // ★ 1かいの てきで **ぜんめつ しない** ように 上げんを つける。
+        //   つけて いない ときは、コース10の さいごの てきで
+        //   なかま 1608人が 1人に なって いた（1ぴき あたりの ばつ ×12ひき）。
+        //   一気に 消えると 「何が おきたか」が 分からない し、
+        //   そこまで 育てた ことが むだに なる。
+        const cap = Math.floor(G.n * 0.40);
+        const lost = Math.min(cap, Math.min(G.n - 1, it.cost * alive));
+        if (lost > 0) {
+          G.n -= lost;
+          pop('-' + lost, '#7A86A8');
+          burst(G.x, G.z + crowdDepth() * 0.5, '#C8B8E0', 10);
+        }
+        sfxBump();
+        G.bossShake = 7;
+      } else {
+        // ★ ぜんぶ たおせた ときは ちゃんと ほめる。
+        //   「なかまを ふやすと ラクに なる」が 見えないと、ふやす いみが 分からない。
+        pop('ぜんぶ たおした！', '#8AF0B0');
+        sfxGood();
+      }
     } else if (it.t === 'wall') {
       if (front < it.z) continue;
       it.done = true;
@@ -511,6 +702,7 @@ function updateRun(dt) {
       } else if (G.z > it.z + 2) it.done = true;
     }
     if (it.flash > 0) it.flash = Math.max(0, it.flash - dt * 2.2);
+    if (it.t === 'foes') for (const f of it.foes) if (f.hit > 0) f.hit = Math.max(0, f.hit - dt);
   }
 
   if (G.z >= tr.bossZ) {
@@ -522,6 +714,7 @@ function updateRun(dt) {
 
 function updateBoss(dt) {
   G.bossT += dt;
+  updateShots(dt, G.track.bossZ);
   if (G.bossT < 0.8) return;                                  // ためる
   // ★ なかまと 大王が おなじ はやさで へっていく。
   //   だから **なかまの ほうが 多ければ かならず 勝つ**。
@@ -616,6 +809,7 @@ function drawPlay() {
     const z = it.z - G.z;
     if (z < -6 || z > Z_FAR) continue;
     if (it.t === 'heart' && it.done) continue;
+    if (it.t === 'foes' && it.done) continue;
     if (it.t === 'gate' && !it.done) {
       if (gateSeen >= GATE_SHOW) continue;          // ★ 手まえの 2つ だけ
       gateSeen++;
@@ -627,12 +821,14 @@ function drawPlay() {
   items.sort((a, b) => b.z - a.z);
   for (const e of items) {
     if (e.o.t === 'gate') drawGate(e.o, e.z, D, e.far);
+    else if (e.o.t === 'foes') drawFoes(e.o, e.z);
     else if (e.o.t === 'wall') drawWall(e.o, e.z);
     else if (e.o.t === 'heart') drawHeart(e.o, e.z);
     else drawBoss(e.z);
   }
 
   drawCrowd();
+  drawShots();
 
   // つぶ
   for (const q of G.parts) {
@@ -929,6 +1125,85 @@ function drawWall(w, z) {
   ctx.globalAlpha = 1;
 }
 
+// --- いじわるモンスター（たまで たおせる） ---------------------------------------------
+// ★ なかまは まるくて パステル。てきは **とがって いて くすんだ 色**に して、
+//   ひとめで「こっちは 味方じゃない」と 分かるように する。
+function drawFoes(g2, z) {
+  for (const f of g2.foes) {
+    if (f.dead) continue;
+    const fz = Math.max(0.2, z + f.dz);
+    const k = sc(fz);
+    const r = 24 * k;
+    if (r < 1.5) continue;
+    const px = zx(f.x, fz), py = zy(fz);
+    const bob = Math.sin(G.t * 5 + f.x * 9) * r * 0.16;
+    const cy = py - r - bob;
+    const flash = f.hit > 0;
+    // つの
+    ctx.fillStyle = flash ? '#FFFFFF' : '#6A5A88';
+    ctx.beginPath();
+    ctx.moveTo(px - r * 0.72, cy - r * 0.42); ctx.lineTo(px - r * 0.30, cy - r * 1.16);
+    ctx.lineTo(px - r * 0.10, cy - r * 0.60); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px + r * 0.72, cy - r * 0.42); ctx.lineTo(px + r * 0.30, cy - r * 1.16);
+    ctx.lineTo(px + r * 0.10, cy - r * 0.60); ctx.closePath(); ctx.fill();
+    // からだ（ぎざぎざ）
+    ctx.fillStyle = flash ? '#FFFFFF' : '#8A76B0';
+    ctx.beginPath();
+    for (let i = 0; i <= 12; i++) {
+      const a = Math.PI * 2 * i / 12;
+      const rr2 = r * (i % 2 ? 0.84 : 1);
+      const x = px + Math.cos(a) * rr2, y = cy + Math.sin(a) * rr2 * 0.94;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.fill();
+    if (r < 5) continue;
+    // おこった め
+    ctx.fillStyle = flash ? '#8A76B0' : '#2E2440';
+    circle(px - r * 0.32, cy + r * 0.02, r * 0.15); ctx.fill();
+    circle(px + r * 0.32, cy + r * 0.02, r * 0.15); ctx.fill();
+    ctx.strokeStyle = flash ? '#8A76B0' : '#2E2440';
+    ctx.lineWidth = Math.max(1, r * 0.11);
+    ctx.beginPath();
+    ctx.moveTo(px - r * 0.52, cy - r * 0.38); ctx.lineTo(px - r * 0.14, cy - r * 0.16);
+    ctx.moveTo(px + r * 0.52, cy - r * 0.38); ctx.lineTo(px + r * 0.14, cy - r * 0.16);
+    ctx.stroke();
+    if (r < 9) continue;
+    // のこりの たいりょく（ほそい おび）
+    const w = r * 1.5;
+    ctx.fillStyle = 'rgba(30,20,44,0.45)';
+    rr(px - w / 2, cy - r * 1.5, w, r * 0.20, r * 0.10); ctx.fill();
+    ctx.fillStyle = '#FF8FBB';
+    rr(px - w / 2, cy - r * 1.5, w * clamp(f.hp / Math.max(1, f.hp0 || f.hp), 0, 1),
+       r * 0.20, r * 0.10); ctx.fill();
+  }
+}
+
+// たま（なかまが 投げる ハート）
+function drawShots() {
+  for (const b of G.shots) {
+    const z = b.z - G.z;
+    if (z < 0 || z > Z_FAR) continue;
+    const k = sc(z);
+    const r = Math.max(1.4, 11 * k);
+    const px = zx(b.x, z), py = zy(z) - 30 * k;
+    // しっぽ（すこし うしろに のばす）。1本の 光の すじに 見える。
+    const kb = sc(Math.max(0, z - 2.2));
+    const py2 = zy(Math.max(0, z - 2.2)) - 30 * kb;
+    ctx.strokeStyle = b.col || '#FF8FBB';
+    ctx.globalAlpha = 0.40;
+    ctx.lineWidth = Math.max(1, r * 0.9);
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(zx(b.x, Math.max(0, z - 2.2)), py2); ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = b.col || '#FF8FBB';
+    circle(px, py, r); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    circle(px - r * 0.3, py - r * 0.3, r * 0.38); ctx.fill();
+  }
+}
+
 function drawHeart(h, z) {
   if (z < -2) return;
   const k = sc(Math.max(0, z));
@@ -1202,8 +1477,8 @@ function drawTitle() {
   bigText('ゆいの', VW / 2, 24, 17, '#FF8FBB', null);
   bigText('なかまパレード', VW / 2, 54, fitSize('なかまパレード', VW * 0.42, 36), '#FF5F9E', '#FFFFFF');
   const D = DF();
-  bigText('ゲートを えらんで なかまを ふやそう！ 全10コース',
-          VW / 2, 86, fitSize('ゲートを えらんで なかまを ふやそう！ 全10コース', VW * 0.9, 15), '#7A5A70', null);
+  bigText('ゲートで なかまを ふやして、たまで てきを けちらそう！ 全10コース',
+          VW / 2, 86, fitSize('ゲートで なかまを ふやして、たまで てきを けちらそう！ 全10コース', VW * 0.9, 15), '#7A5A70', null);
   bigText('いま ＝ ' + D.name + '：' + D.tip, VW / 2, 104,
           fitSize('いま ＝ ' + D.name + '：' + D.tip, VW * 0.9, 13), '#B0567F', null);
 
@@ -1248,15 +1523,16 @@ function drawHowto() {
   ctx.fillRect(-VW, -VOY - 4, VW * 3, VH + VOY + VOB + 8);
   bigText('あそびかた', VW / 2, 30, 24, '#FF5F9E');
   const lines = [
-    '① 画面の どこでも いいので ゆびを 置いて **左右に すべらせる**',
-    '　 ゆびの ある ほうへ パレードが よっていく（パソコンなら ← →）',
-    '② まえに ゲートが 2つ（ときどき 3つ）ならんで いる。通った ほうが きく',
+    '① 画面の どこでも いいので ゆびを 置いて、そこから **左右に すべらせる**',
+    '　 すこし すべらせる だけで はしまで 行ける（パソコンなら ← →）',
+    '② まえの ゲートを 通ると、書いて ある ぶんだけ なかまが かわる',
     '③ ピンク＝ふえる（＋・×）　青むらさき＝へる（−・÷）',
     '④ 「×2」と「＋30」は **いまの 人数しだい**。10人なら ＋30、50人なら ×2 が 得',
-    '⑤ むらさきの ふわふわは じゃま。ぶつかると なかまが はぐれる',
-    '⑥ ピンクの ハートは とると なかまが ふえる',
-    '⑦ さいごは もふもふ大王。**なかまの ほうが 多ければ かならず 勝てる**',
-    '⑧ やさしいでは、得な ほうの ゲートに ★が つく',
+    '⑤ なかまは **かってに たまを 投げる**。人数が 多いほど つよい',
+    '⑥ むらさきの いじわるモンスターは たまで たおす。たおしそこねると つれて いかれる',
+    '⑦ ピンクの ハートは とると なかまが ふえる。ふわふわの かべは よける',
+    '⑧ さいごは もふもふ大王。**なかまの ほうが 多ければ かならず 勝てる**',
+    '⑨ やさしいでは、得な ほうの ゲートに ★が つく',
   ];
   lines.forEach((s, i) => bigText(s.replace(/\*\*/g, ''), VW / 2, 58 + i * 28,
                                  fitSize(s.replace(/\*\*/g, ''), VW * 0.94, 15), '#6A4A60', null));

@@ -21,7 +21,7 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const HUD = 32;
 
 // --- おく行き（にせ 3D） ----------------------------------------------------------------
@@ -30,29 +30,48 @@ const HUD = 32;
 //   z = とおい … 画面の 上のほう、小さく なる
 //
 //   ちぢみぐあい sc(z) = FOC / (FOC + z)。これ 1つで 大きさも 高さも きまる。
-const FOC = 8.0;                 // 小さいほど おく行きが きつく なる
-const Z_FAR = 70;                // ここより 先は 描かない
-const ROAD_K = 0.37;             // z=0 での 道の はば（画面よこの なんばい か）
+//
+// ★ 「見おろす 角度が ちがう」と 言われた。もとの ゲームは
+//   **カメラが もっと 高くて、もっと 下を むいて** いる:
+//     ・地へいせんが 画面の ずっと 上（そらは ほんの ひとすじ）
+//     ・道が 画面の 下いっぱいに ひろがって、りょうはしから はみ出す
+//     ・その ぶん 道が とおくまで 見えて、おく行きが 出る
+//   カメラの かたむきは この 3つの すう字で きまる:
+//     hzY   … 地へいせんの 高さ（上げる ほど 見おろす）
+//     nearY … いちばん 手まえの 高さ
+//     ROAD_K… 手まえでの 道の はば
+//   （y も x も sc(z) に 正比れい する ので、これは ほんものの
+//     カメラを かたむけた ときと おなじ 形に なる）
+const FOC = 6.0;                 // 小さいほど おく行きが きつく なる
+const Z_FAR = 80;                // ここより 先は 描かない
+const ROAD_K = 0.52;             // z=0 での 道の はば（画面よこの なんばい か）
 // ★ ゲートは **手まえの 2つ しか 描かない**。
 //   3つめ 4つめまで 描いたら、とおい ゲートが 手まえの ゲートの すぐ 上に
 //   かさなって、すう字が 「+62+20」の ように つぶれて 読めなく なった。
 const GATE_SHOW = 2;
 
-function hzY() { return HUD + 92; }              // 地へいせん
-function nearY() { return VH * 0.90; }           // z=0 の 高さ
+function hzY() { return HUD + 56; }              // 地へいせん（前は +92。上げて 見おろしに）
+function nearY() { return VH * 0.87; }           // z=0 の 高さ
 function sc(z) { return FOC / (FOC + Math.max(0, z)); }
 function zy(z) { const k = sc(z); return hzY() + (nearY() - hzY()) * k; }
 function zx(x, z) { return VW / 2 + x * (VW * ROAD_K) * sc(z); }
-function zw(z) { return VW * ROAD_K * sc(z); }   // 道の はんぶんの はば（画面の ピクセル）
+// ★ 道は 地へいせんを ちょう点と する 三角。
+//   y が 下がる ほど はばは 正比れいで ひろがる ので、
+//   画面の いちばん 下まで まっすぐ のばせる（z=0 で 切ると すきまが できた）。
+function halfAtY(y) { return VW * ROAD_K * (y - hzY()) / (nearY() - hzY()); }
 
 // --- はしる はやさ など ------------------------------------------------------------------
 const SPEED = 15.0;              // 1びょうに すすむ z
 const MOVE_K = 11.0;             // ゆびに ついていく はやさ
 const START_N = 5;               // さいしょの なかま
 const N_MAX = 99999;
-const DRAW_MAX = 240;            // 画面に 描く なかまの 上げん（多すぎると おもい）
-const BLOB_SP = 0.062;           // なかま どうしの あいだ
-const BLOB_ZK = 2.4;             // かたまりは たてに 長い（行れつっぽく 見せる）
+const DRAW_MAX = 300;            // 画面に 描く なかまの 上げん（多すぎると おもい）
+// ★ もとの ゲームは 行れつが **道の おくまで ずーっと つづいて** いる。
+//   さいしょ ZK=2.4 に して いたら、手まえに 横1れつの かべの ように
+//   ならぶ だけで、おく行きが まったく 出て いなかった。
+//   z がわに 大きく のばして、とおくの 子ほど 小さく 見えるように する。
+const BLOB_SP = 0.043;           // なかま どうしの あいだ（よこ）
+const BLOB_ZK = 6.6;             // z がわの のばしぐあい（大きいほど おくへ つづく）
 
 // --- めん --------------------------------------------------------------------------------
 //
@@ -131,7 +150,7 @@ function sfxBump() { if (A.ctx) { const t = anow(); nz(t, 0.10, 0.09, 150, 1100)
 function sfxHeart(){ if (A.ctx) bleep(anow(), [88, 93], 0.04, 0.08, 0.11); }
 // ★ さいしょ 0.035 に して いたら、はかって みると RMS 0.0014 で
 //   まったく きこえて いなかった。もう少し 大きく、そして ゆっくりに。
-function sfxStep() { if (A.ctx) nz(anow(), 0.05, 0.10, 220, 1000); }
+function sfxStep() { if (A.ctx) nz(anow(), 0.06, 0.17, 200, 1000); }
 function sfxTickle(){ if (A.ctx) { const t = anow(); tone(t, 84 + Math.random() * 10, 0.05, 0.05, 'square'); } }
 function sfxWin()  {
   if (!A.ctx) return;
@@ -416,9 +435,12 @@ function update(dt) {
   IN.fireTap = false;
 }
 
+// かたまりの さきあたまが、ゆいから どれだけ 先に あるか
 function crowdDepth() {
-  const m = Math.min(G.n, DRAW_MAX);
-  return BLOB_SP * Math.sqrt(Math.max(1, m)) * BLOB_ZK;
+  const n = Math.max(1, Math.round(G.n));
+  const m = Math.min(n, DRAW_MAX);
+  const rk = n > DRAW_MAX ? Math.pow(n / DRAW_MAX, 0.17) : 1;
+  return BLOB_SP * Math.sqrt(m) * rk * 2 * BLOB_ZK * 0.55 + 0.30;
 }
 
 function updateRun(dt) {
@@ -435,7 +457,12 @@ function updateRun(dt) {
 
   // ★ ゲートは **かたまりの さきあたま**が くぐった ときに きく。
   //   まん中で きくと「もう くぐったのに かずが かわらない」と 見えた。
-  const front = G.z + crowdDepth();
+  //   ただし 行れつを おくまで のばした ら、なかまが 600人の とき
+  //   さきあたまが 5ユニット（0.3びょう）も 先に なって、
+  //   「まだ ゲートの 手まえなのに もう きまって いる」に なった。
+  //   ロボットの てすとで むずかしいの おわり3コースが 0勝に なった ので、
+  //   さきあたまは **2.2ユニットまで**に かぎる。
+  const front = G.z + Math.min(crowdDepth(), 2.2);
 
   for (const it of tr.items) {
     if (it.done) continue;
@@ -549,21 +576,26 @@ function drawPlay() {
   ctx.fillRect(-VW, hzY(), VW * 3, VH - hzY() + VOB + 8);
 
   // 道（しま もようで はやさを 見せる）
-  const STRIPE = 6;
+  const STRIPE = 5;
   const off = G.z % (STRIPE * 2);
+  const yBot = VH + VOB + 8;                    // 画面の いちばん 下まで のばす
+  const hBot = halfAtY(yBot);
   ctx.fillStyle = rc[0];
   ctx.beginPath();
-  ctx.moveTo(zx(-1, 0), zy(0) + 40); ctx.lineTo(zx(1, 0), zy(0) + 40);
+  ctx.moveTo(VW / 2 - hBot, yBot); ctx.lineTo(VW / 2 + hBot, yBot);
   ctx.lineTo(zx(1, Z_FAR), zy(Z_FAR)); ctx.lineTo(zx(-1, Z_FAR), zy(Z_FAR));
   ctx.closePath(); ctx.fill();
   ctx.fillStyle = rc[1];
   for (let i = 0; i * STRIPE * 2 < Z_FAR; i++) {
     const z0 = i * STRIPE * 2 - off, z1 = z0 + STRIPE;
-    const a = Math.max(0, z0), b2 = Math.max(0, z1);
-    if (b2 <= 0) continue;
+    if (z1 <= 0) continue;
+    // 手まえ がわは 画面の 下まで のばす（z=0 で 切ると 帯が 切れて 見えた）
+    let ya, ha;
+    if (z0 <= 0) { ya = yBot; ha = hBot; } else { ya = zy(z0); ha = halfAtY(ya); }
+    const yb = zy(z1), hb = halfAtY(yb);
     ctx.beginPath();
-    ctx.moveTo(zx(-1, a), zy(a)); ctx.lineTo(zx(1, a), zy(a));
-    ctx.lineTo(zx(1, b2), zy(b2)); ctx.lineTo(zx(-1, b2), zy(b2));
+    ctx.moveTo(VW / 2 - ha, ya); ctx.lineTo(VW / 2 + ha, ya);
+    ctx.lineTo(VW / 2 + hb, yb); ctx.lineTo(VW / 2 - hb, yb);
     ctx.closePath(); ctx.fill();
   }
   // 道の ふち
@@ -571,7 +603,7 @@ function drawPlay() {
   ctx.lineWidth = 2;
   for (const s of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(zx(s, 0), zy(0) + 40); ctx.lineTo(zx(s, Z_FAR), zy(Z_FAR));
+    ctx.moveTo(VW / 2 + s * hBot, yBot); ctx.lineTo(zx(s, Z_FAR), zy(Z_FAR));
     ctx.stroke();
   }
 
@@ -674,7 +706,7 @@ function drawSkyDeco(bg) {
   if (bg === 'night') {
     for (let i = 0; i < 26; i++) {
       const x = ((i * 137) % 100) / 100 * VW;
-      const y = 10 + ((i * 61) % 70) / 70 * (hzY() - 24);
+      const y = HUD + 6 + ((i * 61) % 70) / 70 * (hzY() - HUD - 14);
       const tw = 0.5 + 0.5 * Math.sin(G.t * 2 + i);
       ctx.globalAlpha = 0.45 + tw * 0.5;
       ctx.fillStyle = '#FFF6C8';
@@ -682,33 +714,33 @@ function drawSkyDeco(bg) {
     }
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#FFF0C0';
-    circle(VW * 0.80, 46, 20); ctx.fill();
+    circle(VW * 0.80, HUD + 26, 16); ctx.fill();
     ctx.fillStyle = SKY.night[0];
-    circle(VW * 0.80 - 8, 40, 18); ctx.fill();
+    circle(VW * 0.80 - 6, HUD + 21, 14); ctx.fill();
     return;
   }
   if (bg === 'rainbow') {
     const cols = ['#FF9AA2', '#FFD59A', '#FFF6A0', '#A8ECC8', '#A8D8FF', '#D9C2FF'];
-    ctx.lineWidth = 9;
+    ctx.lineWidth = 8;
     for (let i = 0; i < cols.length; i++) {
       ctx.strokeStyle = cols[i];
       ctx.beginPath();
-      ctx.arc(VW / 2, hzY() + 40, 120 + i * 9, Math.PI, Math.PI * 2);
+      ctx.arc(VW / 2, hzY() + 26, 96 + i * 8, Math.PI, Math.PI * 2);
       ctx.stroke();
     }
   }
   // おひさま
   ctx.fillStyle = 'rgba(255,240,170,0.9)';
-  circle(VW * 0.16, 44, 22); ctx.fill();
+  circle(VW * 0.16, HUD + 26, 17); ctx.fill();
   // くも
-  for (let i = 0; i < 4; i++) {
-    const x = ((G.z * 0.5 + i * 260) % (VW + 200)) - 100;
-    const y = 26 + (i % 3) * 22;
+  for (let i = 0; i < 5; i++) {
+    const x = ((G.z * 0.5 + i * 230) % (VW + 200)) - 100;
+    const y = HUD + 14 + (i % 3) * 13;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    circle(x, y, 16); ctx.fill();
-    circle(x + 16, y + 3, 12); ctx.fill();
-    circle(x - 15, y + 4, 11); ctx.fill();
-    rr(x - 16, y, 34, 12, 6); ctx.fill();
+    circle(x, y, 11); ctx.fill();
+    circle(x + 11, y + 2, 8); ctx.fill();
+    circle(x - 10, y + 3, 7); ctx.fill();
+    rr(x - 11, y, 23, 9, 4); ctx.fill();
   }
 }
 
@@ -771,7 +803,7 @@ function drawGate(gt, z, D, far) {
   const zz = Math.max(0, z);
   const k = sc(zz);
   const y = zy(zz);
-  const H = 190 * k;                                     // アーチの 高さ
+  const H = 265 * k;                                     // アーチの 高さ（見おろしに した ぶん 高く）
   const passed = gt.done;
   // 2つめの ゲートは うすく して、手まえの ほうが はっきり 見えるように する
   const base = fade * (passed ? 0.30 : (far >= 2 ? 0.45 : 1));
@@ -873,7 +905,7 @@ function drawWall(w, z) {
   const k = sc(Math.max(0, z));
   const y = zy(Math.max(0, z));
   const xa = zx(w.x0, Math.max(0, z)), xb = zx(w.x1, Math.max(0, z));
-  const H = 60 * k;
+  const H = 84 * k;
   ctx.fillStyle = '#C9B8E8';
   rr(xa, y - H, xb - xa, H, Math.max(3, 12 * k)); ctx.fill();
   ctx.fillStyle = '#DCD0F4';
@@ -926,13 +958,15 @@ function drawCrowd() {
   // DRAW_MAX を こえたら かたまりだけ 少し 大きく して 「もっと 多い」を 見せる
   const rk = n > DRAW_MAX ? Math.pow(n / DRAW_MAX, 0.17) : 1;
 
+  const rMax = BLOB_SP * Math.sqrt(Math.max(1, m - 1)) * rk;
   const list = [];
   for (let i = 0; i < m; i++) {
     const r = BLOB_SP * Math.sqrt(i) * rk;
     const a = i * 2.39996323;
     const ox = Math.cos(a) * r;
-    const oz = (Math.sin(a) * r + r * 0.15) * BLOB_ZK + 0.35;
-    list.push({ i: i, x: G.x + ox, z: Math.max(0.05, oz) });
+    // rMax を 足して、oz が かならず プラスに なるように する。
+    const oz = (Math.sin(a) * r + rMax) * BLOB_ZK * 0.55 + 0.30;
+    list.push({ i: i, x: G.x + ox, z: oz });
   }
   list.sort((p, q) => q.z - p.z);
   for (const p of list) {
@@ -944,7 +978,7 @@ function drawCrowd() {
 }
 
 function drawFriend(px, py, k, col, dark, bob) {
-  const r = 19 * k;
+  const r = 15 * k;
   if (r < 2.2) { ctx.fillStyle = col; circle(px, py - r, Math.max(1, r)); ctx.fill(); return; }
   const hop = bob * r * 0.35;
   const cy = py - r - hop;

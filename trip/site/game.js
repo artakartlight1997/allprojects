@@ -1,6 +1,6 @@
 // りなの せかい旅行
 //
-// ★ りなが 飛行機で 10の 国へ 旅に 出る。よこ から 見た 空の たび。
+// ★ りなが 飛行機で 11の 国へ 旅に 出る。よこ から 見た 空の たび。
 //   ・とんで いる あいだ … ゆびで 高さを かえて、よけて・あつめる
 //   ・さいご         … くうこうの すべりだいに **そっと おりる**
 //   ・つくと       … その 国の ゆうめいな 建もの と、パスポートの スタンプ
@@ -17,7 +17,7 @@
 
 'use strict';
 
-const GAME_VER = 1;
+const GAME_VER = 2;
 const HUD = 32;
 
 // --- 空の わりつけ -----------------------------------------------------------------------
@@ -40,28 +40,35 @@ const FUEL_MAX = 100;
 const HP_MAX = 3;
 
 // --- 行き先（近い ところから 遠い ところへ） ------------------------------------------------
+// ★ き ろく は **国の しるし（k）**で のこす。ならびの ばんごう（0,1,2…）で
+//   のこして いたら、あとから ハワイを あいだに 入れた とき、
+//   「フランスの スタンプ」が エジプトに ずれて しまう ところ だった。
 const STAGES = [
-  { c: 'かんこく',     city: 'ソウル',      km: 1160, len: 2400, mark: 'tower',
+  { k: 'kr', c: 'かんこく',     city: 'ソウル',      km: 1160, len: 2400, mark: 'tower',
     fact: 'キムチと やきにくの 国。日本から いちばん 近い', sky: 'day' },
-  { c: 'たいわん',     city: 'タイペイ',    km: 2100, len: 2680, mark: 'tp101',
+  { k: 'tw', c: 'たいわん',     city: 'タイペイ',    km: 2100, len: 2652, mark: 'tp101',
     fact: 'タピオカの ふるさと。あつくて 雨が よく ふる', sky: 'day' },
-  { c: 'ちゅうごく',   city: 'ペキン',      km: 2100, len: 2960, mark: 'wall',
+  { k: 'cn', c: 'ちゅうごく',   city: 'ペキン',      km: 2100, len: 2904, mark: 'wall',
     fact: '万里の長城は 2万キロも つづく なが〜い かべ', sky: 'dusk' },
-  { c: 'タイ',         city: 'バンコク',    km: 4600, len: 3240, mark: 'wat',
+  { k: 'th', c: 'タイ',         city: 'バンコク',    km: 4600, len: 3156, mark: 'wat',
     fact: 'ぞうさんの 国。おてらが 金ぴかで きらきら', sky: 'day' },
-  { c: 'インド',       city: 'デリー',      km: 5900, len: 3520, mark: 'taj',
+  { k: 'in', c: 'インド',       city: 'デリー',      km: 5900, len: 3408, mark: 'taj',
     fact: 'タージ・マハルは まっ白な 大理石の おはか', sky: 'dusk' },
-  { c: 'エジプト',     city: 'カイロ',      km: 9500, len: 3800, mark: 'pyramid',
+  { k: 'hi', c: 'ハワイ',       city: 'ホノルル',    km: 6200, len: 3660, mark: 'diamond',
+    fact: 'にじの島。ダイヤモンドヘッドは 大むかしの かざん', sky: 'tropic' },
+  { k: 'eg', c: 'エジプト',     city: 'カイロ',      km: 9500, len: 3912, mark: 'pyramid',
     fact: 'ピラミッドは 4500年も 前に つくられた', sky: 'desert' },
-  { c: 'イタリア',     city: 'ローマ',      km: 9900, len: 4080, mark: 'colos',
+  { k: 'it', c: 'イタリア',     city: 'ローマ',      km: 9900, len: 4164, mark: 'colos',
     fact: 'ピザと パスタの 国。コロッセオは 2000年前の きょうぎじょう', sky: 'day' },
-  { c: 'フランス',     city: 'パリ',        km: 9700, len: 4360, mark: 'eiffel',
+  { k: 'fr', c: 'フランス',     city: 'パリ',        km: 9700, len: 4416, mark: 'eiffel',
     fact: 'エッフェル塔は 324メートル。てっぺんまで のぼれる', sky: 'dusk' },
-  { c: 'アメリカ',     city: 'ニューヨーク', km: 10900, len: 4640, mark: 'liberty',
+  { k: 'us', c: 'アメリカ',     city: 'ニューヨーク', km: 10900, len: 4668, mark: 'liberty',
     fact: '自由の女神は フランスからの プレゼント', sky: 'night' },
-  { c: 'オーストラリア', city: 'シドニー',   km: 7800, len: 4920, mark: 'opera',
+  { k: 'au', c: 'オーストラリア', city: 'シドニー',   km: 7800, len: 4920, mark: 'opera',
     fact: 'カンガルーと コアラの 国。日本と きせつが 反対', sky: 'day' },
 ];
+// ハワイを 足す 前の ならび。むかしの きろくを 読みかえる ため だけに つかう。
+const OLD_ORDER = ['kr', 'tw', 'cn', 'th', 'in', 'eg', 'it', 'fr', 'us', 'au'];
 
 // --- むずかしさ --------------------------------------------------------------------------
 const DIFF = [
@@ -69,18 +76,27 @@ const DIFF = [
     tip: 'じゃまが 少なく、ねんりょうも たっぷり' },
   { name: 'ふつう',    col: '#FFD24A', haz: 1.00, burn: 1.00, speed: 1.00, land: 1.3, hp: 3,
     tip: 'とりや かみなりを よけながら すすむ' },
-  { name: 'むずかしい', col: '#FF9A6A', haz: 1.45, burn: 1.35, speed: 1.15, land: 0.9, hp: 3,
+  { name: 'むずかしい', col: '#FF9A6A', haz: 1.10, burn: 1.22, speed: 1.15, land: 0.9, hp: 3,
     tip: 'じゃまが 多く、ねんりょうも きびしい' },
 ];
 function DF() { return DIFF[clamp(save.diff | 0, 0, DIFF.length - 1)]; }
 
 const SAVE_KEY = 'trip.save.v1';
-const save = { clear: {}, best: {}, stamp: {}, plays: 0, km: 0, diff: 0 };
+const save = { clear: {}, best: {}, stamp: {}, plays: 0, km: 0, diff: 0, v2: 1 };
 try {
   const s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
   if (s.clear && typeof s.clear === 'object') save.clear = s.clear;
   if (s.best && typeof s.best === 'object') save.best = s.best;
   if (s.stamp && typeof s.stamp === 'object') save.stamp = s.stamp;
+  // ★ むかしは 's0' 's1' … の ばんごうで のこして いた。国の しるしに 読みかえる。
+  if (!s.v2) {
+    for (let i = 0; i < OLD_ORDER.length; i++) {
+      const kk = OLD_ORDER[i];
+      if (save.clear['s' + i]) save.clear[kk] = 1;
+      if (save.stamp['s' + i]) save.stamp[kk] = 1;
+      if (save.best['s' + i]) save.best[kk] = save.best['s' + i];
+    }
+  }
   if (Number.isFinite(s.plays)) save.plays = s.plays;
   if (Number.isFinite(s.km)) save.km = s.km;
   if (Number.isFinite(s.diff)) save.diff = clamp(s.diff | 0, 0, DIFF.length - 1);
@@ -93,6 +109,7 @@ const SKYC = {
   dusk:   { top: '#5B4A9A', bot: '#FFB98A', sea: '#6A5A9A', sea2: '#4E4380', cloud: 'rgba(255,225,235,0.85)' },
   night:  { top: '#1E1B4A', bot: '#4A3E7A', sea: '#22204E', sea2: '#191840', cloud: 'rgba(210,220,255,0.55)' },
   desert: { top: '#7EC8F0', bot: '#FFE6B8', sea: '#E8C88A', sea2: '#D4AF6E', cloud: 'rgba(255,255,255,0.85)' },
+  tropic: { top: '#5FC8F5', bot: '#DFF6FF', sea: '#2FD0C8', sea2: '#1BA6A6', cloud: 'rgba(255,255,255,0.95)' },
 };
 
 // --- 音 ----------------------------------------------------------------------------------
@@ -192,7 +209,14 @@ function rng(seed) {
 // ★ 「ぜったいに 通れない ならび」が できないように、
 //   じゃまは **たてに 0.45 いじょうの すきま**を かならず のこす。
 //   作った あとで もう一度 見なおして、せまい ところを ひろげる。
-const GAP_MIN = 0.42;
+// ★ 「通れる」の めやす。ひこうきの 大きさは じゃまの はんいに 足して ある ので、
+//   ここは **のこりの あきスペース**。0.28 ＝ 空の たかさの 4分の1 より すこし 上。
+//   さいしょ 0.42 に して いたら きびしすぎて、まん中に かみなり雲が
+//   1つ ある だけで「通れない」と はんてい され、じゃまを 消しすぎて
+//   スカスカの 空に なって いた。ぎゃくに 0.24 に したら
+//   かんぺきに とんでも 5コースしか つけなく なった。
+//   0.28 なら 「まん中に 1つ」は のこり、「たてに ならんだ かべ」だけ 直る。
+const GAP_MIN = 0.28;
 
 function buildTrip(si) {
   const st = STAGES[si];
@@ -202,7 +226,11 @@ function buildTrip(si) {
   const L = st.len;
 
   // --- じゃま ---
-  const nHaz = Math.round((L / 130) * D.haz * (0.80 + si * 0.030));
+  // ★ じゃまの こみぐあい。L/130 に して いた ときは 1つ 117きょり ごと
+  //   （1.9びょうに 1つ）で、かんぺきに とんでも 5コースしか つけなかった。
+  //   ※ 前は 見なおしで じゃまを たくさん 消して いたので 気づかなかった。
+  //   いまは さいしょから ちょうど よい かずに して、消すのは まれに する。
+  const nHaz = Math.round((L / 200) * D.haz * (0.85 + si * 0.028));
   const kinds = ['bird', 'cloud', 'balloon'];
   if (si >= 2) kinds.push('plane');
   if (si >= 3) kinds.push('storm');
@@ -215,7 +243,7 @@ function buildTrip(si) {
       t: 'haz', kind: kind, d: d, a: a, a0: a,
       amp: kind === 'bird' ? 0.06 + rnd() * 0.10 : 0,
       ph: rnd() * 6.28, sp: 1.2 + rnd() * 1.4,
-      r: kind === 'storm' ? 0.13 : kind === 'plane' ? 0.075 : 0.062,
+      r: kind === 'storm' ? 0.115 : kind === 'plane' ? 0.075 : 0.062,
       hit: 0, bolt: rnd() * 2,
     });
   }
@@ -241,11 +269,11 @@ function buildTrip(si) {
   //   さいしょ「2 + めん/3」で きめて いたら、むずかしいで
   //   かんぺきに とんでも 99% の ところで ガス欠に なる めんが 5つ あった。
   //   1本ぶんで たびの 0.75/burn、タンク 1こで その 34%。
-  //   ぜんぶで たびの 1.25ばい に なる かず を 出す。
+  //   ぜんぶで たびの 1.45ばい に なる かず を 出す。
   //   1本ぶんで たびの 0.85/burn、タンク 1こで その 34%。
   //   じゃまを よけて いると **タンクの 6わり ぐらいしか とれない** ので、
   //   それも 見こんで かずを 出す。ぜんぶ とれたら 大あまり ＝ それで いい。
-  const need = (1.25 * D.burn / 0.85 - 1) / (0.34 * 0.6);
+  const need = (1.45 * D.burn / 0.85 - 1) / (0.34 * 0.6);
   const nFuel = Math.max(2, Math.ceil(need) + Math.floor(si / 4));
   for (let i = 0; i < nFuel; i++) {
     items.push({
@@ -404,11 +432,12 @@ function finish(win, why) {
   G.msg = why || ''; G.msgT = 3;
   if (win) {
     sfxArrive();
-    save.clear['s' + G.si] = 1;
-    save.stamp['s' + G.si] = 1;
+    const kk = STAGES[G.si].k;
+    save.clear[kk] = 1;
+    save.stamp[kk] = 1;
     save.km += STAGES[G.si].km;
     const sc = G.star * 10 + G.bag * 100 + Math.round(G.fuel) + (G.landOK === 2 ? 300 : 100);
-    if (!save.best['s' + G.si] || save.best['s' + G.si] < sc) save.best['s' + G.si] = sc;
+    if (!save.best[kk] || save.best[kk] < sc) save.best[kk] = sc;
     G.score = sc;
     storeSave();
     setTimeout(function () { sfxStamp(); }, 700);
@@ -1086,6 +1115,67 @@ function drawMark(kind, s) {
       ctx.fillStyle = '#5A4A38';
       ctx.fillRect(x - S * 0.035, y - S * 0.22, S * 0.07, S * 0.10);
     }
+  } else if (kind === 'diamond') {                          // ハワイ（ダイヤモンドヘッド）
+    // にじ
+    const rb = ['#FF9AA2', '#FFD59A', '#FFF6A0', '#A8ECC8', '#A8D8FF', '#D9C2FF'];
+    ctx.lineWidth = S * 0.055;
+    for (let i = 0; i < rb.length; i++) {
+      ctx.strokeStyle = rb[i];
+      ctx.beginPath();
+      ctx.arc(-S * 0.30, S * 0.46, S * (0.52 + i * 0.055), Math.PI * 1.02, Math.PI * 1.98);
+      ctx.stroke();
+    }
+    // かざんの やま（まん中が くぼんだ かたち＝ダイヤモンドヘッド）
+    ctx.fillStyle = '#7A8A5E';
+    ctx.beginPath();
+    ctx.moveTo(-S * 0.95, S * 0.46);
+    ctx.lineTo(-S * 0.30, -S * 0.28);
+    ctx.lineTo(-S * 0.02, -S * 0.10);
+    ctx.lineTo(S * 0.24, -S * 0.34);
+    ctx.lineTo(S * 0.95, S * 0.46);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#93A472';                              // 日の あたる がわ
+    ctx.beginPath();
+    ctx.moveTo(S * 0.24, -S * 0.34);
+    ctx.lineTo(S * 0.95, S * 0.46);
+    ctx.lineTo(S * 0.42, S * 0.46);
+    ctx.closePath(); ctx.fill();
+    // すな はま と 海
+    ctx.fillStyle = '#F2E2BE';
+    ctx.fillRect(-S, S * 0.46, S * 2, S * 0.12);
+    ctx.fillStyle = '#2FD0C8';
+    ctx.fillRect(-S, S * 0.58, S * 2, S * 0.16);
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = S * 0.022;
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * S * 0.36 - S * 0.12, S * 0.65);
+      ctx.quadraticCurveTo(i * S * 0.36, S * 0.61, i * S * 0.36 + S * 0.12, S * 0.65);
+      ctx.stroke();
+    }
+    // やしの木 2本
+    for (const t of [[-0.62, 1], [0.60, -1]]) {
+      const bx = t[0] * S, dir = t[1];
+      ctx.strokeStyle = '#9A7A50'; ctx.lineWidth = S * 0.045; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(bx, S * 0.50);
+      ctx.quadraticCurveTo(bx + dir * S * 0.06, S * 0.16, bx + dir * S * 0.10, -S * 0.06);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.fillStyle = '#4FA85E';
+      const hx = bx + dir * S * 0.10, hy = -S * 0.06;
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI + i * Math.PI / 5;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.quadraticCurveTo(hx + Math.cos(a) * S * 0.16, hy + Math.sin(a) * S * 0.16 - S * 0.05,
+                             hx + Math.cos(a) * S * 0.30, hy + Math.sin(a) * S * 0.22);
+        ctx.quadraticCurveTo(hx + Math.cos(a) * S * 0.15, hy + Math.sin(a) * S * 0.14 + S * 0.03,
+                             hx, hy);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = '#D8A048';
+      circle(hx, hy + S * 0.03, S * 0.035); ctx.fill();
+    }
   } else if (kind === 'wat') {                              // ワット・アルン
     ctx.fillStyle = '#E8DCC0';
     ctx.beginPath();
@@ -1243,8 +1333,8 @@ function drawTitle() {
   bigText('りなの', VW / 2, 22, 17, '#2A6A9A', null);
   bigText('せかい旅行', VW / 2, 52, fitSize('せかい旅行', VW * 0.38, 36), '#1E5A8A', '#FFFFFF');
   const D = DF();
-  bigText('ひこうきで 10の 国へ！ よけて・あつめて・そっと ちゃくりく',
-          VW / 2, 84, fitSize('ひこうきで 10の 国へ！ よけて・あつめて・そっと ちゃくりく', VW * 0.9, 15), '#2A5A7A', null);
+  bigText('ひこうきで 11の 国へ！ よけて・あつめて・そっと ちゃくりく',
+          VW / 2, 84, fitSize('ひこうきで 11の 国へ！ よけて・あつめて・そっと ちゃくりく', VW * 0.9, 15), '#2A5A7A', null);
   bigText('いま ＝ ' + D.name + '：' + D.tip, VW / 2, 102,
           fitSize('いま ＝ ' + D.name + '：' + D.tip, VW * 0.9, 13), '#1E5A8A', null);
 
@@ -1256,7 +1346,7 @@ function drawTitle() {
   ctx.restore();
 
   const names = STAGES.map(function (s) { return s.c; });
-  const clear = STAGES.map(function (s, i) { return !!save.clear['s' + i]; });
+  const clear = STAGES.map(function (s) { return !!save.clear[s.k]; });
   const y = stagePicker(STAGES.length, STAGES.length, clear, names, 120, startStage, '#FFD24A');
 
   bigText('むずかしさ', VW / 2, y + 12, 13, 'rgba(20,60,90,0.8)', null);
@@ -1297,7 +1387,7 @@ function drawPassport() {
     const cy = HUD + 62 + Math.floor(i / cols) * ch + ch / 2;
     ctx.strokeStyle = 'rgba(30,58,90,0.18)'; ctx.lineWidth = 1;
     rr(cx - cw / 2 + 4, cy - ch / 2 + 3, cw - 8, ch - 6, 6); ctx.stroke();
-    if (save.stamp['s' + i]) {
+    if (save.stamp[STAGES[i].k]) {
       ctx.save();
       ctx.translate(cx, cy - 6);
       ctx.rotate(((i * 37) % 20 - 10) * 0.014);
@@ -1313,7 +1403,7 @@ function drawPassport() {
       bigText(STAGES[i].c, cx, cy + 28, fitSize(STAGES[i].c, cw - 12, 11), 'rgba(30,58,90,0.45)', null);
     }
   }
-  const got = STAGES.filter(function (s, i) { return save.stamp['s' + i]; }).length;
+  const got = STAGES.filter(function (s) { return save.stamp[s.k]; }).length;
   bigText('スタンプ ' + got + ' / ' + n + '　とんだ きょり ' + save.km + ' キロ',
           VW / 2, VH - 62, 15, '#1E3A5A', null);
   const bw = Math.min(180, VW * 0.22);

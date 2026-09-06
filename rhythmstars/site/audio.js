@@ -429,6 +429,11 @@ function sfxHit(kind, good) {
     // かたな で スパッと きる
     nzHit(t, 0.09, 0.42, 2500, 9000, A.sfx);
     glide(t, 2600, 700, 0.13, 0.22, 'sawtooth', 3000, 6);
+  } else if (kind === 'snip') {
+    // はさみの チョキン
+    nzHit(t, 0.025, 0.42, 3000, 11000, A.sfx);
+    nzHit(t + 0.035, 0.03, 0.34, 2400, 9000, A.sfx);
+    pluck(t + 0.02, 96, 0.14, 0.16, A.sfx);
   } else if (kind === 'weed') {
     // もじゃもじゃを スポッと ぬく
     glide(t, 300, 1300, 0.10, 0.30, 'sine');

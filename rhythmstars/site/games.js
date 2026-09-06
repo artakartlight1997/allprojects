@@ -47,110 +47,180 @@ function banner(text, y, col, h) {
   ctx.textAlign = 'left';
 }
 
-// --- ① もじゃもじゃトマト（ひげ抜き から）------------------------------------------
+// --- ① モンスターとこや（ひげ抜き から）--------------------------------------------
+//
+// リズム天国の ひげ抜きと 同じで、**さきに おてほんを 見せて から まねる**。
+//   1小節め: 毛が「ピョコ・ピョコ」と はえる（じどう）… これが リズムの おてほん
+//   2小節め: 同じ リズムで チョキンと きる（きみ）
+// 音符は 'c'（はえる）と 'x'（きる）の ペア。じゅんばんに 1本ずつ むすんで ある。
 
-const SC_MOJYA = {
-  key: 'mojya',
+const SC_BARBER = {
+  key: 'barber',
+
+  // 「はえた 毛」と「きる タイミング」を じゅんばんに ペアに する
+  pairs(ns) {
+    const calls = [], taps = [];
+    for (const n of ns) {
+      if (n.k === 'call') calls.push(n);
+      else if (n.k === 'tap') taps.push(n);
+    }
+    const out = [], cnt = {};
+    const m = Math.min(calls.length, taps.length);
+    for (let i = 0; i < m; i++) {
+      const gid = Math.floor(calls[i].b / 4);          // お手本の 小節ごとに ひとまとまり
+      cnt[gid] = (cnt[gid] || 0) + 1;
+      out.push({ c: calls[i], t: taps[i], gid: gid, k: cnt[gid] - 1 });
+    }
+    for (const p of out) p.n = cnt[p.gid];
+    return out;
+  },
+
   draw(v, ns) {
     const b = v.beat;
-    // そら と はたけ
-    ctx.fillStyle = skyGrad(0, H, '#BFE8FF', '#F2F8D8');
+
+    // --- とこやの なか ---
+    ctx.fillStyle = skyGrad(0, H, '#F6E4C8', '#E0C4A0');
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#FFE066';
-    cir(W * 0.86, H * 0.16, H * 0.09); ctx.fill();
-    ctx.fillStyle = 'rgba(255,240,150,0.35)';
-    cir(W * 0.86, H * 0.16, H * 0.14); ctx.fill();
-    drawCloud(W * 0.16, H * 0.16, H * 0.07, 0.9);
-    drawCloud(W * 0.62, H * 0.11, H * 0.055, 0.75);
-    ctx.fillStyle = '#8FD07A';
-    ctx.beginPath();
-    ctx.moveTo(0, H * 0.62);
-    ctx.quadraticCurveTo(W * 0.3, H * 0.5, W * 0.62, H * 0.62);
-    ctx.quadraticCurveTo(W * 0.85, H * 0.7, W, H * 0.6);
-    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#8A5E38';
-    ctx.fillRect(0, H * 0.78, W, H * 0.22);
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    for (let i = 0; i < 6; i++) ctx.fillRect(0, H * (0.80 + i * 0.035), W, H * 0.012);
-
-    const cx = W * 0.34, gy = H * 0.88, s = H * 0.48;
-    const r = s * 0.5;
-
-    // もじゃもじゃ を くみたてる
-    const hairs = [];
-    const flying = [];
-    for (const n of ns) {
-      if (n.k !== 'tap') continue;
-      const app = n.b - 1;                     // 1拍まえに ピョコッと 出る
-      if (n.res && n.jb !== undefined) {
-        const t = b - n.jb;
-        if (t >= 0 && t < 1.4 && n.res !== 'miss') flying.push({ n, t });
-        continue;
+    // かべの したの いた
+    ctx.fillStyle = '#8A5E42';
+    ctx.fillRect(0, H * 0.62, W, H * 0.06);
+    ctx.fillStyle = '#A87A56';
+    ctx.fillRect(0, H * 0.68, W, H * 0.1);
+    // ゆか（いちまつ）
+    for (let i = 0; i < 14; i++) {
+      for (let j = 0; j < 3; j++) {
+        ctx.fillStyle = (i + j) % 2 ? '#E8D8C0' : '#C8B098';
+        ctx.fillRect(i * W / 14, H * 0.78 + j * H * 0.08, W / 14, H * 0.08);
       }
-      if (b < app - 0.1 || b > n.b + 1.2) continue;
-      const u = cl01((b - app) / 0.55);
-      hairs.push({
-        ang: n.ang, len: pop01(u), ph: b * 4 + n.i,
-        ready: Math.abs(b - n.b) < 0.28,
-      });
+    }
+    // かがみ
+    ctx.fillStyle = '#C8A070';
+    rr(ctx, W * 0.24, H * 0.12, W * 0.34, H * 0.5, H * 0.03); ctx.fill();
+    ctx.fillStyle = '#DCEAF0';
+    rr(ctx, W * 0.255, H * 0.135, W * 0.31, H * 0.47, H * 0.02); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.27, H * 0.6); ctx.lineTo(W * 0.4, H * 0.14);
+    ctx.lineTo(W * 0.46, H * 0.14); ctx.lineTo(W * 0.33, H * 0.6);
+    ctx.closePath(); ctx.fill();
+    // くるくる かんばん
+    ctx.fillStyle = '#E8E0D0';
+    rr(ctx, W * 0.05, H * 0.16, W * 0.045, H * 0.4, W * 0.022); ctx.fill();
+    ctx.save();
+    rr(ctx, W * 0.05, H * 0.16, W * 0.045, H * 0.4, W * 0.022); ctx.clip();
+    for (let i = -6; i < 12; i++) {
+      ctx.fillStyle = i % 2 ? '#E04A6E' : '#4A7AD8';
+      ctx.save();
+      ctx.translate(W * 0.05, H * 0.16 + i * H * 0.06 + (b * H * 0.03) % (H * 0.12));
+      ctx.transform(1, 0, -0.6, 1, 0, 0);
+      ctx.fillRect(0, 0, W * 0.09, H * 0.03);
+      ctx.restore();
+    }
+    ctx.restore();
+    // たな と びん
+    ctx.fillStyle = '#8A5E42';
+    ctx.fillRect(W * 0.66, H * 0.42, W * 0.28, H * 0.025);
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = ['#7FC8F8', '#FFB020', '#E86A9C', '#7FE0A0'][i];
+      rr(ctx, W * (0.69 + i * 0.06), H * 0.34, W * 0.03, H * 0.08, W * 0.008); ctx.fill();
     }
 
-    const beat4 = Math.abs(bob(b, 1));
-    drawTomato(cx, gy, s, {
-      hairs,
-      wob: bob(b, 1) * 0.5,
+    // じゅんばんを まつ おきゃくさん（トマトくん）
+    drawTomato(W * 0.88, H * 0.86, H * 0.22, {
+      mood: 'happy', wob: bob(b, 1) * 0.3, look: -0.4,
+    });
+
+    // いす
+    const cx = W * 0.42, gy = H * 0.96, s = H * 0.46;
+    ctx.fillStyle = '#5E4636';
+    rr(ctx, cx - H * 0.02, gy - H * 0.02, H * 0.04, H * 0.1, H * 0.01); ctx.fill();
+    ell(cx, gy + H * 0.07, H * 0.12, H * 0.03); ctx.fill();
+    ctx.fillStyle = '#C0392B';
+    rr(ctx, cx - H * 0.16, gy - H * 0.06, H * 0.32, H * 0.06, H * 0.02); ctx.fill();
+
+    // --- 毛（お手本で はえて、あとで きる）---
+    const P = this.pairs(ns);
+    const hairs = [], cutFx = [];
+    let next = null;
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i];
+      const ang = (p.k - (p.n - 1) / 2) * 0.34;
+      if (b < p.c.b - 0.1) continue;
+      const grow = pop01(cl01((b - p.c.b) / 0.4));
+      if (p.t.res && p.t.jb !== undefined) {
+        const t = b - p.t.jb;
+        if (p.t.res === 'miss') {
+          // きれなかった 毛は しおれて 消える
+          if (t < 1.2) {
+            hairs.push({ ang: ang, len: grow * Math.max(0, 1 - t * 0.7), ph: b, ready: 0 });
+          }
+          continue;
+        }
+        if (t < 1.4) cutFx.push({ ang: ang, t: t });
+        continue;
+      }
+      hairs.push({ ang: ang, len: grow, ph: b * 3 + i, ready: !next });
+      if (!next) next = { p: p, ang: ang, len: grow };
+    }
+
+    const r = s * 0.5;
+    drawFluff(cx, gy, s, {
+      hairs: hairs,
+      cape: 1,
+      ph: b * 0.6,
+      wob: bob(b, 1) * 0.4,
       mood: b - v.missB < 0.9 ? 'sad' : (b - v.hitB < 0.5 ? 'happy' : 'idle'),
-      open: b - v.hitB < 0.35 ? 0.5 : 0,
+      open: b - v.hitB < 0.3 ? 0.4 : 0,
       look: 0.2,
     });
 
-    // ぬけた もじゃもじゃ が とんでいく
-    for (const f of flying) {
-      const a = -Math.PI / 2 + f.n.ang;
+    // きった 毛が とんでいく
+    for (const f of cutFx) {
+      const a = -Math.PI / 2 + f.ang;
       const bx = cx + Math.cos(a) * r * 1.5 + f.t * r * 0.7;
-      const by = gy - r + Math.sin(a) * r * 1.4 - f.t * r * 1.5;
+      const by = gy - r + Math.sin(a) * r * 1.4 - f.t * r * 1.2 + f.t * f.t * r * 1.2;
       ctx.globalAlpha = Math.max(0, 1 - f.t / 1.2);
       ctx.save();
-      ctx.translate(bx, by); ctx.rotate(f.t * 6);
-      drawHair(0, 0, r, { ang: 0, len: 0.8, ph: f.t * 10 });
+      ctx.translate(bx, by); ctx.rotate(f.t * 5);
+      drawHair(0, 0, r, { ang: 0, len: 0.7, ph: f.t * 8 });
       ctx.restore();
-      if (f.t < 0.6) drawSpark(bx, by, r * 0.4, f.t / 0.6, '#FFF6B8');
+      if (f.t < 0.6) drawSpark(bx, by, r * 0.35, f.t / 0.6, '#FFF6B8');
       ctx.globalAlpha = 1;
     }
 
-    // つぎに ぬく もじゃもじゃ を さがして、そこへ ピンセットを 持っていく。
-    // 「どれを ねらうか」が ひとめで わかる ようにする ため。
-    let tgt = null, td = 9e9;
+    // --- いま どっちの ばん？ ---
+    let nextCall = 9e9, nextTap = 9e9;
     for (const n of ns) {
-      if (n.k !== 'tap' || n.res) continue;
-      const d = n.b - b;
-      if (d < -0.4 || d > 2.4 || d >= td) continue;
-      td = d; tgt = n;
+      if (n.k === 'call' && n.b > b - 0.2 && n.b < nextCall) nextCall = n.b;
+      if (n.k === 'tap' && !n.res && n.b > b - 0.2 && n.b < nextTap) nextTap = n.b;
     }
-    let tx = cx + r * 1.1, ty = gy - r * 1.8;
-    if (tgt) {
-      const gl = pop01(cl01((b - (tgt.b - 1)) / 0.55));
-      const tp = hairTip(cx, gy - r, r, { ang: tgt.ang, len: gl });
+    const yourTurn = nextTap < nextCall;
+
+    // はさみ。つぎに きる 毛の 先へ 持っていく
+    const snap = cl01(1 - (b - v.hitB) * 3.5);
+    let tx = cx + r * 1.2, ty = gy - r * 2.0;
+    if (next) {
+      const tp = hairTip(cx, gy - r, r, { ang: next.ang, len: next.len });
       tx = tp.x; ty = tp.y;
     }
-    // りな と ピンセット
-    const snap = cl01(1 - (b - v.hitB) * 3.5);
-    const rx = W * 0.78, ry = H * 0.98, rs = H * 0.44;
-    drawRina(rx, ry, rs, {
-      arm: 0.6 + snap * 0.4, mood: 'happy', look: -0.5, jump: snap * 0.3,
-    });
-    // ピンセットは 「ゆびの かわり」。つぎに ぬく もじゃもじゃ の 上で ふわふわ する。
-    const tang = 0.42 - snap * 0.12;
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ell(tx + H * 0.02, ty + H * 0.03, H * 0.05, H * 0.014); ctx.fill();
-    drawTweezers(tx, ty + beat4 * H * 0.008 - snap * H * 0.012, H * 0.16, tang, snap);
+    if (yourTurn || next) {
+      ctx.globalAlpha = yourTurn ? 1 : 0.45;
+      drawScissors(tx, ty - H * 0.004 - Math.abs(bob(b, 1)) * H * 0.008, H * 0.16,
+                   -(Math.PI - 0.8) + snap * 0.12, snap);
+      ctx.globalAlpha = 1;
+    }
+
+    banner(yourTurn ? '同じ リズムで チョキン！' : 'はえる リズムを おぼえて',
+           H * 0.135, yourTurn ? '#FFE066' : '#B8E8FF', H * 0.045);
   },
+
   icon(x, y, s) {
-    drawTomato(x, y + s * 0.8, s * 1.35, {
-      hairs: [{ ang: -0.5, len: 0.7, ph: 1 }, { ang: 0.1, len: 0.9, ph: 2, ready: 1 },
-              { ang: 0.6, len: 0.6, ph: 3 }],
-      mood: 'happy', wob: 0.2,
+    drawFluff(x, y + s * 0.8, s * 1.3, {
+      hairs: [{ ang: -0.34, len: 0.8, ph: 1 }, { ang: 0, len: 1, ph: 2, ready: 1 },
+              { ang: 0.34, len: 0.7, ph: 3 }],
+      mood: 'happy', cape: 1, wob: 0.1,
     });
+    drawScissors(x + s * 0.18, y - s * 0.5, s * 0.55, -(Math.PI - 0.5), 0.2);
   },
 };
 
@@ -685,59 +755,52 @@ const SC_OBAKE = {
 // --- ⑦ リミックス の しかい（りな）--------------------------------------------------
 
 const SCENES = {};
-for (const s of [SC_MOJYA, SC_NINJA, SC_TAP, SC_FROG, SC_ROBO, SC_OBAKE]) SCENES[s.key] = s;
+for (const s of [SC_BARBER, SC_NINJA, SC_TAP, SC_FROG, SC_ROBO, SC_OBAKE]) SCENES[s.key] = s;
 
 // --- リズム（面ごと の たたく ところ）----------------------------------------------
+//
+// ★ ならびは 「やさしい → むずかしい」。lv は むずかしさ（1〜5）。
+//   1 見てから たたく → 2 まねっこ → 3 ながおし → 4 おぼえて まねる
+//   → 5 がまん → 6 うら拍 → 7 ぜんぶ
+//   どれから でも あそべる ように して あるが、ならんでいる じゅんに
+//   すすむと むりなく うまく なる。
+//
+// どの 面も なかで だんだん むずかしく なる。さいしょの 2小節は
+// 4分音符だけ、うしろに いくほど 8分や 2連続が ふえる。
 
 const STAGES = [
   {
-    key: 'mojya', name: 'もじゃもじゃトマト', from: 'ひげ抜き から',
-    col: '#F2453D', scene: 'mojya', hit: 'weed',
-    bpm: 112, drum: 'basic', root: 64, prog: [0, 0, 5, 7], intro: 2,
-    rule: 'ピョコッと 出た もじゃもじゃを ちょうどで ぬく！',
-    how: ['もじゃもじゃが 出てから 1拍で ぬく',
-          '2つ ならんだ ときは トン・トンと つづけて'],
-    pats: [
-      'x...x...x...x...',
-      'x...x...x...x...',
-      'x...x...x.x.x...',
-      'x...x...x...x...',
-      'x.x.x...x...x...',
-      'x...x.x.x...x...',
-      'x...x...x.x.x.x.',
-      'x...x...x...x...',
-      'x.x.x...x.x.x...',
-      'x...x.......x...',
-    ],
-  },
-  {
-    key: 'ninja', name: 'ねこざむらい', from: '忍者 から',
+    key: 'ninja', name: 'ねこざむらい', from: '忍者 から', lv: 1,
     col: '#7A6FD0', scene: 'ninja', hit: 'slice',
-    bpm: 126, drum: 'wa', root: 62, prog: [0, 0, 3, 5], min: [0, 1, 2, 3], intro: 2,
+    bpm: 120, drum: 'wa', root: 62, prog: [0, 0, 3, 5], min: [0, 1, 2, 3], intro: 2,
     rule: 'とんできた ものを かたなで スパッと きる！',
-    how: ['ねこの まえに 来た しゅんかんに タップ',
-          '2つ つづけて とんでくる ことも ある'],
+    how: ['ねこの まえの わっかに 来た しゅんかんに タップ',
+          'さいごの ほうは 2つ つづけて とんでくる'],
     pats: [
+      'x.......x.......',
       'x.......x.......',
       'x.......x...x...',
       'x.......x.......',
+      'x...x...x.......',
+      'x.......x...x...',
       'x...x...x.x.....',
       'x.......x.......',
       'x.x.....x...x...',
       'x...x...x.x.....',
       'x.......x.x.x...',
-      'x...x...x...x...',
       'x.......x.......',
     ],
   },
   {
-    key: 'tap', name: 'ぺんぎんタップ', from: 'タップダンス から',
+    key: 'tap', name: 'ぺんぎんタップ', from: 'タップダンス から', lv: 2,
     col: '#FFB020', scene: 'tap', hit: 'stomp',
-    bpm: 120, drum: 'swing', root: 65, prog: [0, 5, 7, 5], intro: 2,
+    bpm: 116, drum: 'swing', root: 65, prog: [0, 5, 7, 5], intro: 2,
     rule: 'せんせいの ステップを おぼえて、そのまま まねる！',
     how: ['さきに せんせいが おどる（おてほん）',
           'つぎの 1小節で 同じ リズムを タップ'],
     pats: [
+      'c...c...........',
+      'x...x...........',
       'c...c...c...c...',
       'x...x...x...x...',
       'c...c.c.c.......',
@@ -748,12 +811,10 @@ const STAGES = [
       'x.x.x...x...x...',
       'c...c.c.c...c.c.',
       'x...x.x.x...x.x.',
-      'c.c.c.c.c...c...',
-      'x.x.x.x.x...x...',
     ],
   },
   {
-    key: 'frog', name: 'かえるコーラス', from: 'コーラスメン から',
+    key: 'frog', name: 'かえるコーラス', from: 'コーラスメン から', lv: 3,
     col: '#4FAE5E', scene: 'frog', hit: 'ribbit',
     bpm: 100, drum: 'night', root: 60, prog: [0, 5, 7, 0], intro: 2,
     rule: 'おしっぱなしで うたって、ちょうどで はなす！',
@@ -761,6 +822,7 @@ const STAGES = [
           '上の せんに ついた しゅんかんに はなす'],
     hold: 1,
     pats: [
+      'H......R........',
       'H......R........',
       'H..........R....',
       'H......R....H..R',
@@ -772,9 +834,51 @@ const STAGES = [
     ],
   },
   {
-    key: 'robo', name: 'ロボこうば', from: 'もちつき から',
+    key: 'barber', name: 'モンスターとこや', from: 'ひげ抜き から', lv: 4,
+    col: '#3EA88A', scene: 'barber', hit: 'snip',
+    bpm: 108, drum: 'soft', root: 64, prog: [0, 0, 5, 7], intro: 2,
+    rule: 'はえてくる リズムを おぼえて、同じ リズムで チョキン！',
+    how: ['1小節め… 毛が ピョコピョコ はえる（おてほん）',
+          '2小節め… 同じ リズムで きる。はさみが つぎの 毛を さす'],
+    pats: [
+      'c...c...........',
+      'x...x...........',
+      'c...c...c...c...',
+      'x...x...x...x...',
+      'c...c.c.........',
+      'x...x.x.........',
+      'c...c...c.c.....',
+      'x...x...x.x.....',
+      'c.c.c...c...c...',
+      'x.x.x...x...x...',
+      'c...c.c.c...c.c.',
+      'x...x.x.x...x.x.',
+    ],
+  },
+  {
+    key: 'obake', name: 'おばけドア', from: 'みならい忍者 から', lv: 4,
+    col: '#E86A9C', scene: 'obake', hit: 'ghost',
+    bpm: 112, drum: 'disco', root: 61, prog: [0, 3, 5, 3], min: [0, 1, 2, 3], intro: 2,
+    rule: 'ピンクは たたく。あおは じっと がまん！',
+    how: ['ピンクおばけ＝ちょうどで タップ',
+          'あおおばけ＝ぜったいに タップ しない'],
+    pats: [
+      'x...x...x...x...',
+      'x...x...x...o...',
+      'x...x...o...x...',
+      'x...o...x...x...',
+      'x.x.x...o...x...',
+      'o...x...x.x.x...',
+      'x...x.x.o...x...',
+      'x.x.o...x...o...',
+      'o...x.x.o...x...',
+      'x...x...x.x.x...',
+    ],
+  },
+  {
+    key: 'robo', name: 'ロボこうば', from: 'もちつき から', lv: 5,
     col: '#7FC8F8', scene: 'robo', hit: 'stamp',
-    bpm: 128, drum: 'funk', root: 63, prog: [0, 0, 5, 3], min: [0, 1, 3], intro: 2,
+    bpm: 124, drum: 'funk', root: 63, prog: [0, 0, 5, 3], min: [0, 1, 3], intro: 2,
     rule: 'プレスの あとの「うら」で ハンマーを おろす！',
     how: ['ドン（じどう）→ タン（きみ）の くりかえし',
           '「と」の ところ。あわてず 半拍 まってから'],
@@ -782,58 +886,39 @@ const STAGES = [
       'c.x.c.x.c.x.c.x.',
       'c.x.c.x.c.x.c.x.',
       'c.x.c.x.c...c.x.',
-      'c.x.c.x.c.x.x.x.',
       'c.x.c.x.c.x.c.x.',
+      'c.x.c.x.c.x.x.x.',
       'c...c.x.c.x.c.x.',
-      'c.x.x.x.c.x.c.x.',
       'c.x.c.x.c.x.c...',
+      'c.x.x.x.c.x.c.x.',
+      'c.x.c.x.c.x.c.x.',
     ],
   },
   {
-    key: 'obake', name: 'おばけドア', from: 'みならい忍者 から',
-    col: '#E86A9C', scene: 'obake', hit: 'ghost',
-    bpm: 118, drum: 'disco', root: 61, prog: [0, 3, 5, 3], min: [0, 1, 2, 3], intro: 2,
-    rule: 'ピンクは たたく。あおは じっと がまん！',
-    how: ['ピンクおばけ＝ちょうどで タップ',
-          'あおおばけ＝ぜったいに タップ しない'],
-    pats: [
-      'x...x...x...o...',
-      'x...o...x...x...',
-      'x...x...o...x...',
-      'x.x.o...x...x...',
-      'o...x...x.x.o...',
-      'x...x...o...x.x.',
-      'x.x.x...o...o...',
-      'x...o...x.x.x...',
-      'o...x.x.o...x...',
-      'x...x...x...x...',
-    ],
-  },
-  {
-    key: 'remix', name: 'オールスター リミックス', from: 'ぜんぶ まざる',
-    col: '#FFD166', scene: 'mojya', hit: 'pop',
-    bpm: 124, drum: 'drive', root: 64, prog: [0, 5, 3, 7], intro: 2,
+    key: 'remix', name: 'オールスター リミックス', from: 'ぜんぶ まざる', lv: 5,
+    col: '#FFD166', scene: 'ninja', hit: 'pop',
+    bpm: 122, drum: 'drive', root: 64, prog: [0, 5, 3, 7], intro: 2,
     rule: 'ぜんぶ まざって 出てくる！ 画面を よく見て。',
     how: ['2小節ごとに ゲームが かわる',
-          'さいごは はやくなる。おちついて'],
+          'ならんだ じゅんに むずかしく なる。おちついて'],
     remix: 1,
     pats: [
-      { p: 'x...x...x...x...', g: 'mojya' },
-      { p: 'x...x...x.x.x...', g: 'mojya' },
       { p: 'x.......x.......', g: 'ninja' },
-      { p: 'x...x...x.x.....', g: 'ninja' },
-      { p: 'c...c.c.c.......', g: 'tap' },
-      { p: 'x...x.x.x.......', g: 'tap' },
+      { p: 'x.......x...x...', g: 'ninja' },
+      { p: 'c...c...c...c...', g: 'tap' },
+      { p: 'x...x...x...x...', g: 'tap' },
       { p: 'H......R........', g: 'frog' },
       { p: 'H..........R....', g: 'frog' },
+      { p: 'c...c.c.........', g: 'barber' },
+      { p: 'x...x.x.........', g: 'barber' },
+      { p: 'x...x...x...o...', g: 'obake' },
+      { p: 'x...o...x...x...', g: 'obake' },
       { p: 'c.x.c.x.c.x.c.x.', g: 'robo' },
       { p: 'c.x.c.x.c...c.x.', g: 'robo' },
-      { p: 'x...o...x...x...', g: 'obake' },
-      { p: 'x...x...o...x...', g: 'obake' },
-      { p: 'x...x.x.x...x...', g: 'mojya' },
       { p: 'x.......x.x.....', g: 'ninja' },
-      { p: 'x...x...x...x...', g: 'obake' },
-      { p: 'x...x...x...x...', g: 'mojya' },
+      { p: 'x...x...x.x.x...', g: 'obake' },
+      { p: 'c...c.c.c.......', g: 'tap' },
+      { p: 'x...x.x.x.......', g: 'tap' },
     ],
   },
 ];

@@ -153,9 +153,9 @@ function drawTitle(t) {
   // ステージに ならんだ なかまたち（画面の 下の れつ）
   const gy = H * 0.98;
   const wobble = (i) => Math.sin(t * 4 + i * 1.1);
-  drawTomato(W * 0.08, gy - Math.abs(wobble(0)) * H * 0.02, H * 0.26,
-             { hairs: [{ ang: -0.3, len: 0.6, ph: t * 6 }, { ang: 0.4, len: 0.8, ph: t * 5 }],
-               mood: 'happy', wob: wobble(0) * 0.4 });
+  drawFluff(W * 0.08, gy - Math.abs(wobble(0)) * H * 0.02, H * 0.26,
+            { hairs: [{ ang: -0.3, len: 0.6, ph: t * 6 }, { ang: 0.4, len: 0.8, ph: t * 5 }],
+              mood: 'happy', wob: wobble(0) * 0.4, ph: t * 0.6 });
   drawNinjaCat(W * 0.22, gy, H * 0.26, { slash: (Math.sin(t * 2) + 1) / 2 * 0.5, mood: 'idle' });
   drawPenguin(W * 0.35, gy, H * 0.25, { teacher: 1, step: Math.abs(wobble(2)), dir: 1 });
   drawFrog(W * 0.66, gy, H * 0.24, { puff: (wobble(3) + 1) / 2 * 0.8 });
@@ -188,7 +188,9 @@ function drawSelect(t) {
   ctx.fillStyle = 'rgba(10,6,24,0.35)';
   ctx.fillRect(0, 0, W, H);
 
-  text('どれで あそぶ？', W * 0.5, H * 0.09, H * 0.075, '#FFF6C8', 'center');
+  text('どれで あそぶ？', W * 0.5, H * 0.075, H * 0.065, '#FFF6C8', 'center');
+  text('← やさしい　　　だんだん むずかしく なるよ　　　むずかしい →',
+       W * 0.5, H * 0.135, H * 0.038, '#C8B8E0', 'center', '', W * 0.56);
 
   // むずかしさ の きりかえ
   const tw = Math.min(W * 0.2, H * 0.42), th = H * 0.08;
@@ -204,9 +206,15 @@ function drawSelect(t) {
   // カード 4れつ × 2だん
   const cols = 4, rows = 2;
   const m = H * 0.03;
-  const top = H * 0.17;
+  const top = H * 0.18;
   const cw = (W - m * (cols + 1)) / cols;
   const ch = (H - top - m * (rows + 1)) / rows;
+
+  // まだ クリアして いない いちばん 前の 面 ＝ つぎに やると いい ところ
+  let nextI = -1;
+  for (let i = 0; i < STAGES.length; i++) {
+    if (bestRank(STAGES[i], RG.fast) < 1) { nextI = i; break; }
+  }
 
   for (let i = 0; i < STAGES.length; i++) {
     const st = STAGES[i];
@@ -238,7 +246,7 @@ function drawSelect(t) {
     ctx.save();
     ctx.translate(0, -hot * ch * 0.015);
     if (st.remix) {
-      SCENES.mojya.icon(cx + cw * 0.28, cy + ch * 0.32, ch * 0.2);
+      SCENES.barber.icon(cx + cw * 0.28, cy + ch * 0.32, ch * 0.2);
       SCENES.ninja.icon(cx + cw * 0.6, cy + ch * 0.32, ch * 0.2);
       drawGhost(cx + cw * 0.86, cy + ch * 0.22, ch * 0.12, { good: 1, t: t });
     } else if (scn) {
@@ -247,10 +255,35 @@ function drawSelect(t) {
     ctx.restore();
     ctx.restore();
 
+    if (i === nextI) {
+      const bounce = Math.abs(Math.sin(t * 3)) * ch * 0.03;
+      ctx.fillStyle = '#FFE066';
+      rr(ctx, cx + cw * 0.5 - ch * 0.32, cy - ch * 0.11 - bounce, ch * 0.64, ch * 0.16,
+         ch * 0.08); ctx.fill();
+      text('つぎは ここ！', cx + cw * 0.5, cy - ch * 0.03 - bounce, ch * 0.1,
+           '#3A2A10', 'center');
+    }
+
     // なまえ
     text(st.name, cx + cw * 0.5, cy + ch * 0.68, ch * 0.145, '#FFFFFF', 'center', 'bold ', cw * 0.9);
     text(st.from, cx + cw * 0.5, cy + ch * 0.8, ch * 0.105, 'rgba(255,255,255,0.7)',
          'center', '', cw * 0.9);
+
+    // じゅんばん の ばんごう
+    ctx.fillStyle = st.col;
+    cir(cx + ch * 0.15, cy + ch * 0.15, ch * 0.095); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    cir(cx + ch * 0.15, cy + ch * 0.15, ch * 0.095); ctx.stroke();
+    text(String(i + 1), cx + ch * 0.15, cy + ch * 0.155, ch * 0.12, '#2A2440', 'center');
+
+    // むずかしさ（●の かず）
+    ctx.fillStyle = 'rgba(20,14,34,0.4)';
+    rr(ctx, cx + cw - ch * 0.12 - 4 * ch * 0.085 - ch * 0.05, cy + ch * 0.14 - ch * 0.05,
+       4 * ch * 0.085 + ch * 0.1, ch * 0.1, ch * 0.05); ctx.fill();
+    for (let k = 0; k < 5; k++) {
+      ctx.fillStyle = k < st.lv ? '#FFD166' : 'rgba(255,255,255,0.22)';
+      cir(cx + cw - ch * 0.12 - (4 - k) * ch * 0.085, cy + ch * 0.14, ch * 0.028); ctx.fill();
+    }
 
     // せいせき
     const r = bestRank(st, RG.fast);
@@ -281,8 +314,11 @@ function drawRule(t) {
   ctx.fillStyle = st.col;
   rr(ctx, W * 0.38, H * 0.14, W * 0.56, H * 0.1, H * 0.03); ctx.fill();
   text(st.name, W * 0.66, H * 0.19, H * 0.065, '#FFFFFF', 'center', 'bold ', W * 0.52);
-  text(st.from + '　/　' + (RG.pendFast ? 'はやい' : 'ふつう'),
-       W * 0.66, H * 0.27, H * 0.042, '#FFE0B0', 'center');
+  const idx = STAGES.indexOf(st);
+  text(st.from + '　/　' + (RG.pendFast ? 'はやい' : 'ふつう') +
+       '　/　' + (idx + 1) + 'ばんめ　むずかしさ ' +
+       '●'.repeat(st.lv || 1) + '○'.repeat(5 - (st.lv || 1)),
+       W * 0.66, H * 0.27, H * 0.04, '#FFE0B0', 'center', '', W * 0.56);
 
   text(st.rule, W * 0.66, H * 0.37, H * 0.055, '#FFF6C8', 'center', 'bold ', W * 0.56);
   for (let i = 0; i < st.how.length; i++) {
@@ -389,7 +425,7 @@ function drawResult(t) {
   stars(W * 0.5 - H * 0.06, H * 0.29, H * 0.05, r, 2);
 
   // よろこぶ キャラクター
-  const scn = SCENES[st.remix ? 'mojya' : st.scene];
+  const scn = SCENES[st.remix ? 'ninja' : st.scene];
   ctx.save();
   ctx.translate(0, -Math.abs(Math.sin(t * 4)) * H * (r >= 1 ? 0.03 : 0.005));
   if (scn) scn.icon(W * 0.2, H * 0.52, H * 0.3);

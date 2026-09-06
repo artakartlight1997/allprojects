@@ -175,14 +175,17 @@ function schedNote(n) {
   if (n.k === 'call') {
     if (t < anow()) return;
     if (g === 'tap') { nzHit(t, 0.035, 0.44, 2600, 9000, A.music); tom(t, 260, 0.3, A.music); }
-    else { kick(t, 0.9, A.music); nzHit(t, 0.06, 0.3, 900, 4200, A.music); }
+    else if (g === 'barber') {
+      // 毛が ピョコッと はえる 音。これが リズムの おてほん に なる
+      glide(t, 420, 1150, 0.1, 0.2, 'sine');
+      pluck(t + 0.02, 88, 0.16, 0.12, A.music);
+    } else { kick(t, 0.9, A.music); nzHit(t, 0.06, 0.3, 900, 4200, A.music); }
     return;
   }
   // 「くるよ」の しらせ。1拍まえに 鳴る。
   const tc = timeOfBeat(n.b - 1);
   if (tc > anow()) {
-    if (g === 'mojya') glide(tc, 480, 980, 0.09, 0.14, 'sine');
-    else if (g === 'ninja') swish(tc, 0.2);
+    if (g === 'ninja') swish(tc, 0.2);
     else if (g === 'obake') pluck(tc, n.k === 'skip' ? 55 : 74, 0.2, 0.13, A.music);
   }
   if (n.k === 'hold') {
@@ -364,7 +367,7 @@ function rTap() {
 
 function hitKind(n) {
   const g = n.g;
-  if (g === 'mojya') return 'weed';
+  if (g === 'barber') return 'snip';
   if (g === 'ninja') return 'slice';
   if (g === 'tap') return 'stomp';
   if (g === 'frog') return 'ribbit';

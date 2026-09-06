@@ -134,7 +134,122 @@ function mouth(x, y, s, open, smile) {
   ctx.stroke();
 }
 
-// --- ① もじゃもじゃトマト -----------------------------------------------------------
+// --- ① もふもふモンスター（とこや の おきゃくさん）--------------------------------
+//
+//  o = { mood, wob（ゆれ）, hairs: [{ang, len, ready}], cape（ケープを つける）}
+//
+// まるい からだの ふちを 少しずつ ふくらませて「もふもふ」に 見せている。
+// あたまから はねた 毛（hairs）を チョキンと 切るのが ゲーム。
+
+function drawFluff(x, y, s, o) {
+  o = o || {};
+  const r = s * 0.5;
+  const wob = o.wob || 0;
+  shadow(x, y + s * 0.02, r * 1.06, 0.25);
+
+  ctx.save();
+  ctx.translate(x, y - r * (1 - wob * 0.05));
+  ctx.scale(1 + wob * 0.06, 1 - wob * 0.06);
+
+  const hairs = o.hairs || [];
+  for (const h of hairs) if (h.ang < 0) drawHair(0, 0, r, h);
+
+  // あし
+  ctx.fillStyle = '#3EA88A';
+  for (const sg of [-1, 1]) { ell(sg * r * 0.42, r * 0.94, r * 0.24, r * 0.12); ctx.fill(); }
+
+  // もふもふの からだ
+  const g = ctx.createRadialGradient(-r * 0.32, -r * 0.38, r * 0.1, 0, 0, r * 1.2);
+  g.addColorStop(0, '#C8F6E0');
+  g.addColorStop(0.55, '#8FE0C0');
+  g.addColorStop(1, '#3EA88A');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  const N = 64;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const rad = r * (1 + 0.05 * Math.sin(a * 13 + (o.ph || 0)));
+    const px = Math.cos(a) * rad, py = Math.sin(a) * rad * 0.96;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+
+  // みみ
+  for (const sg of [-1, 1]) {
+    ctx.fillStyle = '#7FD8B8';
+    ell(sg * r * 0.66, -r * 0.72, r * 0.2, r * 0.26, sg * 0.4); ctx.fill();
+    ctx.fillStyle = '#FFC0D8';
+    ell(sg * r * 0.66, -r * 0.72, r * 0.1, r * 0.14, sg * 0.4); ctx.fill();
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ell(-r * 0.38, -r * 0.44, r * 0.22, r * 0.13, -0.5); ctx.fill();
+
+  // かお
+  eyes(0, -r * 0.08, r * 0.32, r * 0.34, o.mood || 'idle', o.look);
+  blush(0, r * 0.26, r * 0.46, r * 0.56, 'rgba(255,105,150,0.62)');
+  mouth(0, r * 0.32, r * 0.38, o.open || 0, o.mood !== 'sad');
+
+  // とこや の ケープ
+  if (o.cape) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.52, r * 0.3);
+    ctx.quadraticCurveTo(0, r * 0.52, r * 0.52, r * 0.3);
+    ctx.lineTo(r * 0.92, r * 1.02);
+    ctx.quadraticCurveTo(0, r * 1.26, -r * 0.92, r * 1.02);
+    ctx.closePath();
+    ctx.clip();
+    ctx.fillStyle = '#F4F0F8';
+    ctx.fillRect(-r * 1.1, r * 0.2, r * 2.2, r * 1.2);
+    ctx.fillStyle = '#7FB8E0';
+    for (let i = -5; i <= 5; i++) {
+      ctx.fillRect(i * r * 0.22 - r * 0.05, r * 0.2, r * 0.1, r * 1.2);
+    }
+    ctx.restore();
+    ctx.fillStyle = '#E04A6E';
+    rr(ctx, -r * 0.18, r * 0.24, r * 0.36, r * 0.12, r * 0.05); ctx.fill();
+  }
+
+  for (const h of hairs) if (h.ang >= 0) drawHair(0, 0, r, h);
+  ctx.restore();
+}
+
+// 大きな はさみ。(x, y) が「きる ところ」＝ 刃の 先。
+function drawScissors(x, y, s, ang, snap) {
+  const open = (1 - (snap || 0)) * 0.34 + 0.06;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang || 0);
+  for (const sg of [-1, 1]) {
+    ctx.save();
+    // まんなかの ねじ を じくに して ひらく
+    ctx.translate(0, s * 0.55);
+    ctx.rotate(sg * open);
+    ctx.translate(0, -s * 0.55);
+    ctx.fillStyle = '#D8E4F0';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(sg * s * 0.09, s * 0.16);
+    ctx.lineTo(sg * s * 0.07, s * 0.62);
+    ctx.lineTo(-sg * s * 0.03, s * 0.62);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#FF6FA8'; ctx.lineWidth = s * 0.07;
+    ctx.beginPath();
+    ctx.moveTo(sg * s * 0.02, s * 0.6);
+    ctx.lineTo(sg * s * 0.12, s * 0.86);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(sg * s * 0.18, s * 1.0, s * 0.13, s * 0.16, sg * 0.3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = '#8A94A8';
+  cir(0, s * 0.55, s * 0.06); ctx.fill();
+  ctx.restore();
+}
+
+// --- トマト（とこやで じゅんばんを まつ おきゃくさん）------------------------------
 //
 //  o = { mood, wob（ゆれ）, hairs: [{ang, len, pull}] }
 

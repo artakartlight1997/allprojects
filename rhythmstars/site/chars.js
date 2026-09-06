@@ -821,9 +821,16 @@ function drawRina(x, y, s, o) {
   // あたま
   const hy = -s * 1.02;
   const hs = s * 0.3;
-  // かみ（うしろ）
+  // かみ（うしろ）。
+  // ★ ここを 大きな まる 1つで かいて いたら、かみが あごの 下まで まわりこんで
+  //   「ひげが 生えて いる」ように 見えて しまった。
+  //   「あたまの うしろ」と「ほほの よこに たれる 分」に わけて、
+  //   あごの 下には ぜったいに かからない ように する。
   ctx.fillStyle = '#5A3520';
-  ell(0, hy + hs * 0.2, hs * 1.26, hs * 1.32); ctx.fill();
+  ell(0, hy - hs * 0.1, hs * 1.18, hs * 1.08); ctx.fill();
+  for (const sg of [-1, 1]) {
+    ell(sg * hs * 0.94, hy + hs * 0.22, hs * 0.27, hs * 0.6); ctx.fill();
+  }
   ctx.fillStyle = '#FFE0C8';
   cir(0, hy, hs * 1.02); ctx.fill();
   // まえがみ

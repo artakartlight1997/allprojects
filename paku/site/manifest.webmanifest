@@ -1,0 +1,16 @@
+{
+  "name": "ゆいのパクパクおおきくなれ",
+  "short_name": "パクパク",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#FFE0EC",
+  "theme_color": "#FFE0EC",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

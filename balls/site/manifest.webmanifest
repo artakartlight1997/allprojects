@@ -1,0 +1,16 @@
+{
+  "name": "まさきのボールふえふえ大くずし",
+  "short_name": "ボールふえふえ",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1A1440",
+  "theme_color": "#1A1440",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

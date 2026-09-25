@@ -1,4 +1,4 @@
-// 小倉っ子クエスト の バランスしらべ。
+// 小倉っ子（おぐらっこ）クエスト の バランスしらべ。
 //   node kokura/tools/sim.js
 // ゲームを はじめから おわりまで じどうで すすめて、
 // 「なんかい たたかえば レベルが たりるか」「ボスに かてるか」を 数える。
@@ -176,10 +176,10 @@ function run(plan, log) {
   return out;
 }
 const plan = [
-  { name: '小倉→大ガニ', zone: 'z1', lv: 4, join: 'masaki', shops: ['kokura_eq', 'tanga_eq', 'tanga_it'], dun: 'cave1', dn: 9, chest: ['leather'], boss: 'kani' },
-  { name: '門司→大ダコ', zone: 'z2', lv: 9, join: 'aoi', shops: ['moji_eq', 'moji_it'], dun: 'tunnel', dn: 10, chest: ['bellrod'], boss: 'tako' },
-  { name: '八幡→テング', zone: 'z3', lv: 13, shops: ['yahata_eq', 'yahata_it', 'moji_eq'], dun: 'mount', dn: 11, chest: ['steel'], boss: 'tengu' },
-  { name: 'くろがね城→まおう', zone: 'castle', lv: 17, shops: ['yahata_eq', 'yahata_it'], dun: 'castle', dn: 14, chest: ['light'], boss: 'kurogane' },
+  { name: '小倉台→大ザリガニ', zone: 'z1', lv: 4, join: 'masaki', shops: ['kokura_eq', 'tanga_eq', 'tanga_it'], dun: 'cave1', dn: 9, chest: ['leather'], boss: 'kani' },
+  { name: '都賀→大ガラス', zone: 'z2', lv: 9, join: 'aoi', shops: ['moji_eq', 'moji_it'], dun: 'tunnel', dn: 10, chest: ['bellrod'], boss: 'tako' },
+  { name: '桜木→どきまじん', zone: 'z3', lv: 13, shops: ['yahata_eq', 'yahata_it', 'moji_eq'], dun: 'mount', dn: 11, chest: ['steel'], boss: 'tengu' },
+  { name: 'やみの御殿→まおう', zone: 'castle', lv: 17, shops: ['yahata_eq', 'yahata_it'], dun: 'castle', dn: 14, chest: ['light'], boss: 'kurogane' },
 ];
 const res = run(plan);
 console.table(res);

@@ -1,8 +1,9 @@
-// 小倉っ子クエスト。タイトル・フィールド・まち・はなし・おみせ・メニュー・セーブ。
+// 小倉っ子（おぐらっこ）クエスト。ぶたいは 千葉市 若葉区の 小倉台。
+// タイトル・フィールド・まち・はなし・おみせ・メニュー・セーブ。
 // たたかいは battle.js。
 //
 // ★ セーブ（つづきから）
-//   まちに 出入りした とき・たたかいの あと・やどや・とのさま・メニューの「きろく」、
+//   まちに 出入りした とき・たたかいの あと・やどや・えきちょう・メニューの「きろく」、
 //   それと 30歩ごとに じどうで きろくする。子どもは「セーブ」を わすれるので、
 //   とちゅうで やめても かならず ちかい ところから つづけられる。
 
@@ -10,7 +11,7 @@
 
 const SAVE_KEY = 'kokuraquest.v1';
 const BOSSFLAG = { kani: 'boss1', tako: 'boss2', tengu: 'boss3', kurogane: 'boss4' };
-const BACHI = { kani: 'あかい たいこの ばち', tako: 'あおい たいこの ばち', tengu: 'きいろい たいこの ばち' };
+const BACHI = { kani: 'あかい でんきだま', tako: 'あおい でんきだま', tengu: 'きいろい でんきだま' };
 
 let S = null;          // セーブ される じょうたい
 const G = {
@@ -169,7 +170,7 @@ function interact(x, y) {
   const c = tileAt(x, y);
   if (c === 'c' && mapKind() !== 'town' && mapKind() !== 'world') { openChest(x, y); return true; }
   if (c === '4' && mapKind() === 'world' && !S.flags.boss3) {
-    say(['大きな てつの とびらが ある。', '3つの くぼみが ある……。「たいこの ばち」を はめるのかも しれない。']);
+    say(['くろい きりに つつまれた 御殿の とびらが ある。', '3つの まるい くぼみが ある……。「でんきだま」を はめるのかも しれない。']);
     return true;
   }
   return false;
@@ -211,18 +212,18 @@ function kingTalk() {
   let lines;
   if (!f.king) {
     f.king = 1;
-    lines = ['とのさま「よく きてくれた、りな、ゆい。」',
-      '「小倉祇園太鼓の ちからが、まおう くろがねに うばわれて しもうた。」',
-      '「まおうは 西の くろがね城に おる。城の とびらは 3本の たいこの ばちが ないと ひらかぬ。」',
-      '「ばちは 3びきの 大きな まものが もって おる。 たのんだぞ！」',
-      '「まずは 川の むこうの 旦過市場へ ゆけ。 まさきが まっておる。」',
-      '（とのさまから 50ゴールドを もらった！）'];
+    lines = ['えきちょう「よく きてくれた、りな、ゆい。」',
+      '「モノレールを うごかす 3つの でんきだまが、まおう ヤミタカに うばわれて しまったんだ。」',
+      '「まおうは 北西の やみの 御殿に いる。とびらは 3つの でんきだまが ないと ひらかない。」',
+      '「でんきだまは 3びきの 大きな まものが もって いる。 たのんだよ！」',
+      '「まずは 川の むこうの 千城台へ いきなさい。 まさきが まっているよ。」',
+      '（えきちょうさんから 50ゴールドを もらった！）'];
     S.gold += 50;
-  } else if (!f.boss1) lines = ['とのさま「旦過市場の 南、紫川の どうくつに 大ガニが おる。」', '「HPが へったら やどやで やすむのじゃぞ。」'];
-  else if (!f.boss2) lines = ['とのさま「北の 門司港へ ゆけ。 あおいが まっておる。」', '「関門トンネルの おくに 大ダコが おるそうじゃ。」'];
-  else if (!f.boss3) lines = ['とのさま「西の 八幡へ ゆけ。 その 南の 皿倉山に テングまるが おる。」'];
-  else if (!f.boss4) lines = ['とのさま「3本の ばちが そろったな！」', '「八幡の 北西、くろがね城へ いそぐのじゃ！」'];
-  else lines = ['とのさま「ほんとうに ありがとう！ 小倉に 太鼓の おとが もどったぞ！」'];
+  } else if (!f.boss1) lines = ['えきちょう「千城台の 南、大草谷津田に 大ザリガニが いるそうだ。」', '「HPが へったら やどやで やすむんだよ。」'];
+  else if (!f.boss2) lines = ['えきちょう「北の 都賀へ いきなさい。 あおいが まっているよ。」', '「モノレールの レールの うえに 大ガラスが いるそうだ。」'];
+  else if (!f.boss3) lines = ['えきちょう「西の 桜木へ いきなさい。 その 南の 加曽利貝塚に どきまじんが いる。」'];
+  else if (!f.boss4) lines = ['えきちょう「3つの でんきだまが そろったね！」', '「桜木の 北西、やみの 御殿へ いそいで！」'];
+  else lines = ['えきちょう「ほんとうに ありがとう！ モノレールが また はしれるよ！」'];
   say(lines, () => {
     say(['「ぼうけんを きろく しておこう。」'], () => { saveGame(); say('（ぼうけんを きろくしました）'); });
   });
@@ -231,8 +232,8 @@ function kingTalk() {
 function joinTalk(n) {
   const id = n.join;
   const lines = id === 'masaki'
-    ? ['まさき「おっ、りな と ゆい！ 大ガニ たいじに いくんだって？」', '「おれも いく！ ちからしごとは まかせとけ！」']
-    : ['あおい「みんな！ まってたよ。」', '「関門トンネルの 大ダコ、わたしの まほうで やっつけよう！」'];
+    ? ['まさき「おっ、りな と ゆい！ 大ザリガニ たいじに いくんだって？」', '「おれも いく！ ちからしごとは まかせとけ！」']
+    : ['あおい「みんな！ まってたよ。」', '「レールの うえの 大ガラス、わたしの まほうで やっつけよう！」'];
   say(lines, () => {
     const lv = Math.max(1, S.party[0].lv - 1);
     const m = newMember(id, lv);
@@ -246,11 +247,11 @@ function joinTalk(n) {
 
 function bossTalk(e) {
   const pre = {
-    kani: ['大ガニ キング「ブクブク……ここは おれさまの どうくつだ！」', '「あかい ばちは わたさんぞ！」'],
-    tako: ['大ダコ カンモン「タコタコ〜！ この トンネルは わしの ものじゃ！」'],
-    tengu: ['テングまる「ハッハッハ！ この 山の 夜景は わしが ひとりじめ じゃ！」'],
-    kurogane: ['まおう くろがね「よくぞ ここまで きたな、小倉っ子たち。」',
-      '「太鼓の ちからで、この 国を てつで うめつくして くれるわ！」', '「かかって こい！」'],
+    kani: ['大ザリガニ キング「ブクブク……この やつだは おれさまの ものだ！」', '「あかい でんきだまは わたさんぞ！」'],
+    tako: ['大ガラス ガーガー「カァー！ この レールは おれの すだ！」', '「ひかる たまは おれの たからもの だ！」'],
+    tengu: ['どきまじん「ゴゴゴ……わしは 縄文の つぼから うまれた まじん。」', '「きいろい でんきだまは わしの ひの もとじゃ！」'],
+    kurogane: ['まおう ヤミタカ「よくぞ ここまで きたな、小倉っ子たち。」',
+      '「モノレールが とまれば、この まちの そらは わしの ものだ！」', '「かかって こい！」'],
   }[e.key];
   say(pre, () => startBattle([e.key], { boss: e }));
 }
@@ -560,7 +561,7 @@ function drawMenu() {
     });
     text('もっている おかね ' + S.gold + ' G　　ぼうけん じかん ' + fmtTime(S.time), 40, VH - 50, 20, '#FFFFFF');
     const bachi = ['boss1', 'boss2', 'boss3'].filter((f) => S.flags[f]).length;
-    text('たいこの ばち ' + bachi + ' / 3', VW - 40, VH - 50, 20, '#FFE066', 'right');
+    text('でんきだま ' + bachi + ' / 3', VW - 40, VH - 50, 20, '#FFE066', 'right');
   } else if (mn.tab === 1) {
     const keys = Object.keys(ITEMS).filter((k) => S.items[k] > 0);
     if (!keys.length) text('なにも もっていない。', 60, top + 40, 22, '#C8B8E0');
@@ -642,6 +643,7 @@ function drawField(t) {
     else drawDungeonTile(ch === 'B' ? '.' : ch, x, y, px, py, t, k, S.chests[G.map + ':' + x + ',' + y]);
   }
   for (const b of G.blocks) drawBlock(b.c, b.x, b.y, b.w, b.h, t);
+  if (k === 'world') drawWorldMonorail(t);
   // ひと と なかまを 下から じゅんに かく（手前が うえに かさなる）
   const draws = [];
   for (const n of G.npcs) draws.push({ y: n.y, f: () => drawPerson(n.look, n.x * TS + TS / 2, n.y * TS + TS - 2, n.dir, Math.floor(t * 2 + n.x) % 2) });
@@ -675,6 +677,22 @@ function drawField(t) {
     ctx.fillStyle = g; ctx.fillRect(cx, cy, VW, VH);
   }
   ctx.restore();
+}
+
+// ワールドの モノレール。じっさいの 2号線と おなじ じゅん（千城台 ― 小倉台 ― 桜木）に つなぐ
+function drawWorldMonorail(t) {
+  const [ax, ay] = placeOf('A'), [bx, by] = placeOf('B'), [dx] = placeOf('D');
+  const y = (ay - 0.2) * TS, x0 = (dx + 0.5) * TS, x1 = (bx + 0.5) * TS;
+  for (let x = Math.ceil(dx / 2) * 2; x <= bx; x += 2) fillR(x * TS + TS / 2 - 2, y, 4, TS * 0.7, 'rgba(180,188,200,0.9)');
+  fillR(x0, y - 4, x1 - x0, 6, '#C8D0DA');
+  fillR(x1 - 3, y - 4, 6, (by - ay + 0.2) * TS, '#C8D0DA');
+  // でんしゃ（クリア まえは 小倉台で とまって いる）
+  const cw = TS * 1.3;
+  let cx = (ax + 0.5) * TS - cw / 2;
+  if (MONO_RUN) cx = x0 + ((t * 50) % Math.max(1, x1 - x0 - cw));
+  fillR(cx + cw * 0.25, y + 2, 3, 5, '#6A7280'); fillR(cx + cw * 0.75, y + 2, 3, 5, '#6A7280');
+  fillRR(cx, y + 6, cw, 14, 5, '#FFFFFF');
+  fillR(cx, y + 15, cw, 2, '#3A7AD8');
 }
 
 function drawHud(t) {
@@ -765,28 +783,22 @@ function drawTitle(t) {
     fillC(x, y, 1.6, '#FFF6C8');
   }
   ctx.globalAlpha = 1;
-  // 小倉城の シルエット
+  // 小倉台駅 と とまった モノレール
+  MONO_RUN = false;
   ctx.save();
   ctx.translate(VW / 2 - 108, VH * 0.62 - 176);
   drawBlock('K', 0, 0, 6, 5, t, 1);
   ctx.restore();
   fillR(0, VH * 0.62, VW, VH * 0.38, '#3A5A3A');
-  // はなび
-  for (let i = 0; i < 3; i++) {
-    const u = (t * 0.35 + i / 3) % 1;
-    const hx = VW * (0.18 + i * 0.32), hy = VH * 0.25;
-    if (u > 0.3) {
-      const r = (u - 0.3) * 120;
-      ctx.globalAlpha = 1 - u;
-      for (let j = 0; j < 12; j++) {
-        const a = j / 12 * Math.PI * 2;
-        fillC(hx + Math.cos(a) * r, hy + Math.sin(a) * r, 3, ['#FFE066', '#FF6FA8', '#7FE0F0'][i]);
-      }
-      ctx.globalAlpha = 1;
-    }
+  // さくらの はなびら
+  for (let i = 0; i < 26; i++) {
+    const u = (t * 0.12 + i * 0.137) % 1;
+    const x = ((i * 97) % VW) + Math.sin(t * 1.5 + i) * 30, y = u * VH;
+    ellipse(x, y, 4, 2.4, t + i); ctx.fillStyle = 'rgba(255,190,215,0.85)'; ctx.fill();
   }
-  textO('小倉っ子クエスト', VW / 2, 80, 64, '#FFE066', '#3A1A0A');
-  text('〜 きえた 祇園太鼓 〜', VW / 2, 136, 24, '#FFFFFF', 'center');
+  text('千葉市 若葉区', VW / 2, 34, 18, '#FFFFFF', 'center');
+  textO('小倉っ子クエスト', VW / 2, 84, 64, '#FFE066', '#3A1A0A');
+  text('おぐらっこ クエスト 〜 とまった モノレール 〜', VW / 2, 138, 22, '#FFFFFF', 'center');
   // 4きょうだい
   ['rina', 'yui', 'masaki', 'aoi'].forEach((id, i) => drawPerson(id, VW / 2 - 90 + i * 60, VH * 0.66 + Math.abs(Math.sin(t * 4 + i)) * -6, 0, Math.floor(t * 3 + i) % 2, 1.6));
   const sv = loadGame();
@@ -811,6 +823,7 @@ function drawTitle(t) {
 
 function startNew() {
   S = newSave();
+  MONO_RUN = false;
   store.set(SAVE_KEY, S);
   G.mode = 'prologue';
   G.pro = { i: 0, t: 0 };
@@ -818,15 +831,17 @@ function startNew() {
 }
 function startFromSave(sv) {
   S = sv;
+  MONO_RUN = !!S.cleared;
   G.mode = 'field';
   enterMap(S.map, S.x, S.y, S.dir);
 }
 
 const PROLOGUE = [
-  'ここは 九州の いちばん 北、北九州の 小倉。',
-  'まいとし 夏に ひびく「小倉祇園太鼓」の おとが、ことしは きこえない。',
-  'まおう くろがねが 太鼓の ちからを うばい、まちから げんきが きえて しまったのだ。',
-  'りな と ゆいは、小倉城の とのさまに よばれた——',
+  'ここは 千葉市 若葉区の 小倉台（おぐらだい）。',
+  'まちの そらには、レールに ぶらさがって はしる モノレールが とおって いる。',
+  'ところが ある日、モノレールが ぴたりと とまって しまった。',
+  'まおう ヤミタカが、モノレールを うごかす 3つの でんきだまを うばって いったのだ。',
+  'りな と ゆいは、小倉台駅の えきちょうさんに よばれた——',
 ];
 function drawPrologue(t) {
   fillR(0, 0, VW, VH, '#0E0A20');
@@ -861,33 +876,32 @@ function startEnding() {
   playBgm('ending');
 }
 const ENDING = [
-  'まおう くろがねを たおした！',
-  'うばわれていた 太鼓の ちからが、まちへ かえっていく——',
-  'ドン、ドドン！ 小倉の まちに 祇園太鼓の おとが もどってきた。',
-  'とのさま「りな、ゆい、まさき、あおい。ほんとうに ありがとう！」',
-  '4人は まつりの 夜空の 下で、いつまでも 太鼓を たたいた。',
+  'まおう ヤミタカを たおした！',
+  '3つの でんきだまが ひかりを とりもどし、レールに でんきが ながれて いく——',
+  'ウィーン……！ 小倉台の そらを、モノレールが また はしりだした。',
+  'えきちょう「りな、ゆい、まさき、あおい。ほんとうに ありがとう！」',
+  '4人は さくらの した から、はしる モノレールに いつまでも 手を ふった。',
   '小倉っ子クエスト　おしまい',
 ];
 function drawEnding(t) {
   const e = G.end;
   e.t += 1 / 60;
-  ctx.fillStyle = grad(0, VH, '#0A1030', '#3A1A4A'); ctx.fillRect(0, 0, VW, VH);
-  for (let i = 0; i < 5; i++) {
-    const u = (t * 0.3 + i / 5) % 1;
-    const hx = VW * (0.1 + i * 0.2), hy = VH * (0.2 + (i % 2) * 0.1);
-    const r = u * 140;
-    ctx.globalAlpha = 1 - u;
-    for (let j = 0; j < 16; j++) { const a = j / 16 * Math.PI * 2; fillC(hx + Math.cos(a) * r, hy + Math.sin(a) * r, 3, ['#FFE066', '#FF6FA8', '#7FE0F0', '#9AF0B8', '#FFB020'][i]); }
-    ctx.globalAlpha = 1;
-  }
+  ctx.fillStyle = grad(0, VH, '#6AB8F0', '#FFE0EC'); ctx.fillRect(0, 0, VW, VH);
+  fillR(0, VH * 0.78, VW, VH * 0.22, '#8FCB6E');
+  MONO_RUN = true;
   ctx.save(); ctx.translate(VW / 2 - 108, VH * 0.5 - 150); drawBlock('K', 0, 0, 6, 5, t, 1); ctx.restore();
-  // 太鼓を たたく 4人
+  // さくらの 木 と はなびら
+  for (const x of [VW * 0.12, VW * 0.88]) { fillR(x - 6, VH * 0.62, 12, VH * 0.2, '#7A5234'); fillC(x, VH * 0.58, 60, '#FFB8D0'); fillC(x - 24, VH * 0.54, 30, '#FFD0E0'); }
+  for (let i = 0; i < 30; i++) {
+    const u = (t * 0.1 + i * 0.113) % 1;
+    const x = ((i * 89) % VW) + Math.sin(t + i) * 30;
+    ellipse(x, u * VH, 4, 2.4, t + i); ctx.fillStyle = 'rgba(255,170,200,0.9)'; ctx.fill();
+  }
+  // 手を ふる 4人
   ['rina', 'yui', 'masaki', 'aoi'].forEach((id, i) => {
-    const x = VW / 2 - 150 + i * 100, y = VH * 0.86;
-    fillC(x + 22, y - 18, 16, '#8A4A2A'); fillC(x + 22, y - 18, 12, '#F4E8D0');
+    const x = VW / 2 - 150 + i * 100, y = VH * 0.9 - Math.abs(Math.sin(t * 4 + i)) * 8;
     drawPerson(id, x, y, 0, Math.floor(t * 4 + i) % 2, 1.4);
   });
-  if (Math.floor(t * 2) % 2 === 0 && Math.floor(t * 60) % 30 === 0) { noise(0.25, 0.25, 180); }
   const idx = Math.min(ENDING.length - 1, Math.floor(e.t / 4));
   fillRR(VW / 2 - 380, 26, 760, 70, 12, 'rgba(0,0,0,0.5)');
   text(ENDING[idx], VW / 2, 61, 24, '#FFFFFF', 'center', true, 720);

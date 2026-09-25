@@ -335,8 +335,8 @@ function endBattle(kind) {
     G.ents = G.ents.filter((e) => e !== bossEnt);
     if (bossEnt.key === 'kurogane') { saveGame(); G.fade = 0.001; G.fadeMsg = null; G.fadeTo = () => startEnding(); return; }
     const n = ['boss1', 'boss2', 'boss3'].filter((f) => S.flags[f]).length;
-    const next = { kani: 'これで 北の 門司港へ いけるように なった！', tako: 'これで 西の 八幡へ いけるように なった！', tengu: '3本の ばちが そろった！ くろがね城の とびらが ひらく！' }[bossEnt.key];
-    say(['（' + n + '本めの ばちを てにいれた）', next]);
+    const next = { kani: 'これで 北の 都賀へ いけるように なった！', tako: 'これで 西の 桜木へ いけるように なった！', tengu: '3つの でんきだまが そろった！ やみの 御殿の とびらが ひらく！' }[bossEnt.key];
+    say(['（' + n + 'こめの でんきだま「' + BACHI[bossEnt.key] + '」を てにいれた）', next]);
   }
   playBgm(MAPS[G.map].bgm);
   saveGame();

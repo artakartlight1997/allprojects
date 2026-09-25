@@ -11,10 +11,15 @@ function hash2(x, y) {
 
 // --- マス --------------------------------------------------------------------------
 
+let MONO_RUN = false;   // モノレールが はしって いるか（クリア したら true）
+
 const THEME = {
-  cave:   { floor: '#6E5C4A', floor2: '#62523F', wall: '#3A2E26', top: '#54443A', acc: '#8A7460' },
-  tunnel: { floor: '#5E6C7C', floor2: '#556372', wall: '#1E3A58', top: '#2E5478', acc: '#7FC8F8' },
-  mount:  { floor: '#5E7050', floor2: '#566848', wall: '#2A3A2A', top: '#3E5238', acc: '#9AC08A' },
+  // 大草谷津田（たんぼの あぜみち と あし）
+  cave:   { floor: '#7A8A4E', floor2: '#728246', wall: '#2E4A2A', top: '#446A38', acc: '#DFFF7A' },
+  // よるの モノレール レール（てつの あしば と よぞら）
+  tunnel: { floor: '#8A94A4', floor2: '#7E8898', wall: '#16244A', top: '#243A6A', acc: '#FFE066' },
+  // 加曽利貝塚（すなと かいがら）
+  mount:  { floor: '#B8A684', floor2: '#AE9C7A', wall: '#5E7446', top: '#728A56', acc: '#F6F2EA' },
   castle: { floor: '#5A4A5E', floor2: '#4E4052', wall: '#2A1E2E', top: '#46344A', acc: '#E04A6E' },
 };
 
@@ -38,14 +43,13 @@ function tree(cx, cy, r, c) {
 
 function drawWorldTile(ch, x, y, px, py, t) {
   switch (ch) {
-    case '~': {
-      fillR(px, py, TS, TS, '#3A86D0');
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
-      const o = Math.sin(t * 2 + x * 0.7 + y * 0.9) * 4;
-      ctx.beginPath();
-      ctx.moveTo(px + 6 + o, py + 12); ctx.quadraticCurveTo(px + 12 + o, py + 8, px + 18 + o, py + 12);
-      ctx.moveTo(px + 16 - o, py + 26); ctx.quadraticCurveTo(px + 22 - o, py + 22, px + 28 - o, py + 26);
-      ctx.stroke();
+    case '~': case '^': {
+      // ふかい もり と やぶ（とおれない）。千葉の 台地の まわりは 木が しげって いる
+      fillR(px, py, TS, TS, ch === '~' ? '#2E5A34' : '#3A6A3A');
+      const h = hash2(x, y);
+      tree(px + 10 + h * 4, py + 12, 10, '#1E4A2A');
+      tree(px + 26 - h * 4, py + 16, 11, '#245A30');
+      tree(px + 16, py + 26, 10, ch === '~' ? '#1A4026' : '#2A6634');
       break;
     }
     case 'r': {
@@ -73,16 +77,6 @@ function drawWorldTile(ch, x, y, px, py, t) {
       tree(px + 11, py + 13, 10, '#2E8A44');
       tree(px + 25, py + 22, 11, '#3E9B4F');
       break;
-    case '^': {
-      grass(px, py, x, y, '#7CC66A', '#6AB058');
-      ctx.fillStyle = '#8A7A6A';
-      ctx.beginPath(); ctx.moveTo(px + 1, py + TS - 2); ctx.lineTo(px + TS / 2, py + 3); ctx.lineTo(px + TS - 1, py + TS - 2); ctx.fill();
-      ctx.fillStyle = '#6A5A4E';
-      ctx.beginPath(); ctx.moveTo(px + TS / 2, py + 3); ctx.lineTo(px + TS - 1, py + TS - 2); ctx.lineTo(px + TS / 2 + 3, py + TS - 2); ctx.fill();
-      ctx.fillStyle = '#F4F4F8';
-      ctx.beginPath(); ctx.moveTo(px + TS / 2 - 6, py + 12); ctx.lineTo(px + TS / 2, py + 3); ctx.lineTo(px + TS / 2 + 6, py + 12); ctx.fill();
-      break;
-    }
     case 'h':
       grass(px, py, x, y, '#7CC66A', '#6AB058');
       ellipse(px + TS / 2, py + TS * 0.7, TS * 0.46, TS * 0.3); ctx.fillStyle = '#9AD47A'; ctx.fill();
@@ -96,52 +90,45 @@ function drawWorldTile(ch, x, y, px, py, t) {
 
 function drawPlaceIcon(ch, px, py, t) {
   const cx = px + TS / 2, by = py + TS - 3;
-  if (ch === 'A') {            // 小倉城
-    fillR(cx - 13, by - 10, 26, 10, '#E8E4DA');
-    fillR(cx - 10, by - 18, 20, 8, '#F4F0E8');
-    ctx.fillStyle = '#3A3A4A';
-    ctx.beginPath(); ctx.moveTo(cx - 16, by - 10); ctx.lineTo(cx, by - 16); ctx.lineTo(cx + 16, by - 10); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(cx - 13, by - 18); ctx.lineTo(cx, by - 27); ctx.lineTo(cx + 13, by - 18); ctx.fill();
-  } else if (ch === 'B') {     // 市場
-    for (let i = 0; i < 3; i++) {
-      const c = ['#E04A6E', '#FFB020', '#4A8AE8'][i];
-      fillR(px + 3 + i * 10, by - 12, 9, 12, '#E8DCC8');
-      ctx.fillStyle = c; ctx.beginPath();
-      ctx.moveTo(px + 1 + i * 10, by - 12); ctx.lineTo(px + 7 + i * 10, by - 20); ctx.lineTo(px + 13 + i * 10, by - 12); ctx.fill();
-    }
-  } else if (ch === 'C') {     // 門司港（えき と ふね）
-    fillR(cx - 13, by - 14, 26, 14, '#E8C890');
-    fillR(cx - 9, by - 20, 18, 6, '#4A7A6A');
-    fillR(cx - 3, by - 10, 6, 10, '#6A4A30');
-  } else if (ch === 'D') {     // 八幡（えんとつ）
-    fillR(cx - 13, by - 12, 26, 12, '#8A6A5A');
-    fillR(cx + 4, by - 28, 5, 16, '#6A5A5A');
-    fillR(cx - 8, by - 22, 5, 10, '#6A5A5A');
-    ctx.fillStyle = 'rgba(220,220,230,0.6)';
-    circ(cx + 7 + Math.sin(t * 2) * 2, by - 31, 4); ctx.fill();
-  } else if (ch === '1') {     // どうくつ
-    ellipse(cx, by - 8, 15, 12); ctx.fillStyle = '#6A5A4A'; ctx.fill();
-    ellipse(cx, by - 5, 9, 9); ctx.fillStyle = '#1A1210'; ctx.fill();
-  } else if (ch === '2') {     // トンネル
-    fillR(cx - 15, by - 22, 30, 22, '#9AA0A8');
-    ellipse(cx, by - 4, 10, 14); ctx.fillStyle = '#1A2230'; ctx.fill();
-    fillR(cx - 15, by - 4, 30, 4, '#9AA0A8');
-  } else if (ch === '3') {     // 皿倉山
-    ctx.fillStyle = '#4A6A4A';
-    ctx.beginPath(); ctx.moveTo(cx - 16, by); ctx.lineTo(cx, by - 26); ctx.lineTo(cx + 16, by); ctx.fill();
-    fillR(cx, by - 32, 2, 12, '#5A4A3A');
-    ctx.fillStyle = '#FF6FA8'; ctx.beginPath(); ctx.moveTo(cx + 2, by - 32); ctx.lineTo(cx + 12, by - 28); ctx.lineTo(cx + 2, by - 24); ctx.fill();
-  } else if (ch === '4') {     // くろがね城
-    fillR(cx - 14, by - 18, 28, 18, '#3A3448');
-    for (let i = 0; i < 4; i++) fillR(cx - 14 + i * 8, by - 22, 5, 4, '#3A3448');
-    fillR(cx - 4, by - 10, 8, 10, '#E04A2A');
-    ctx.fillStyle = 'rgba(255,90,40,' + (0.4 + Math.sin(t * 4) * 0.2) + ')';
+  if (ch === 'A' || ch === 'B' || ch === 'C') {   // えきの ある まち（小倉台・千城台・都賀）
+    const c = { A: '#FF8FB8', B: '#FFB020', C: '#6AC0E8' }[ch];
+    fillR(cx - 14, by - 13, 28, 13, '#F4F4F8');
+    fillR(cx - 14, by - 16, 28, 4, c);
+    for (let i = 0; i < 3; i++) fillR(cx - 11 + i * 8, by - 10, 6, 5, '#8AC8F0');
+    fillR(cx - 3, by - 6, 6, 6, '#5A6A8A');
+    if (ch === 'A') { fillC(cx - 13, by - 22, 5, '#FFC8DC'); fillC(cx + 13, by - 22, 5, '#FFC8DC'); }   // さくら
+    if (ch === 'B') { fillR(cx - 10, by - 24, 20, 8, '#FFFFFF'); fillR(cx - 10, by - 24, 20, 2, '#FFB020'); }  // おかいもの
+  } else if (ch === 'D') {     // 桜木（たてあな じゅうきょ）
+    ctx.fillStyle = '#C8A060';
+    ctx.beginPath(); ctx.moveTo(cx - 15, by); ctx.lineTo(cx, by - 24); ctx.lineTo(cx + 15, by); ctx.fill();
+    ctx.strokeStyle = '#9A7440'; ctx.lineWidth = 1.5;
+    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(cx, by - 24); ctx.lineTo(cx + i * 6, by); ctx.stroke(); }
+    ellipse(cx, by - 3, 4, 5); ctx.fillStyle = '#3A2A1A'; ctx.fill();
+  } else if (ch === '1') {     // 大草谷津田（たんぼ と ホタル）
+    fillRR(cx - 15, by - 14, 30, 14, 3, '#6A9A4A');
+    ctx.strokeStyle = '#4A7A34'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(cx - 12 + i * 8, by - 2); ctx.lineTo(cx - 12 + i * 8, by - 12); ctx.stroke(); }
+    for (let i = 0; i < 3; i++) fillC(cx - 8 + i * 8 + Math.sin(t * 2 + i) * 3, by - 20 - Math.cos(t * 3 + i) * 3, 2, 'rgba(220,255,120,' + (0.5 + Math.sin(t * 5 + i) * 0.4) + ')');
+  } else if (ch === '2') {     // モノレールの はしら と レール
+    fillR(cx - 3, by - 26, 6, 26, '#B8C0CC');
+    fillR(cx - 16, by - 28, 32, 6, '#C8D0DA');
+    fillRR(cx - 12, by - 20, 24, 10, 4, '#FFFFFF');
+    fillR(cx - 12, by - 14, 24, 2, '#3A7AD8');
+  } else if (ch === '3') {     // 加曽利貝塚（かいがらの おか）
+    ellipse(cx, by - 4, 16, 10); ctx.fillStyle = '#9AB870'; ctx.fill();
+    for (let i = 0; i < 6; i++) fillC(cx - 10 + (i % 3) * 10, by - 8 + Math.floor(i / 3) * 5, 2.5, '#F6F2EA');
+  } else if (ch === '4') {     // やみの 御殿
+    fillR(cx - 14, by - 14, 28, 14, '#3A3448');
+    ctx.fillStyle = '#2A2238';
+    ctx.beginPath(); ctx.moveTo(cx - 18, by - 13); ctx.lineTo(cx, by - 26); ctx.lineTo(cx + 18, by - 13); ctx.fill();
+    fillR(cx - 4, by - 10, 8, 10, '#8A4AE0');
+    ctx.fillStyle = 'rgba(160,90,255,' + (0.4 + Math.sin(t * 4) * 0.2) + ')';
     circ(cx, by - 6, 9); ctx.fill();
   }
 }
 
 function drawTownTile(ch, x, y, px, py, t, tk) {
-  const g1 = tk === 'yahata' ? '#A8B890' : '#9AD08A';
+  const g1 = '#9AD08A';
   switch (ch) {
     case '#':
       fillR(px, py, TS, TS, '#8A7A6A');
@@ -172,6 +159,16 @@ function drawTownTile(ch, x, y, px, py, t, tk) {
       grass(px, py, x, y, g1, '#86BE76');
       tree(px + TS / 2, py + TS / 2 - 2, 14);
       break;
+    case 's':    // さくら
+      grass(px, py, x, y, g1, '#86BE76');
+      tree(px + TS / 2, py + TS / 2 - 2, 14, '#FFB8D0');
+      for (let i = 0; i < 4; i++) fillC(px + 8 + ((i * 11 + x * 7) % 20), py + 6 + ((i * 7 + y * 5) % 14), 2.5, '#FFFFFF');
+      break;
+    case 'j':    // JRの せんろ
+      fillR(px, py, TS, TS, '#A89A8A');
+      for (let i = 0; i < 3; i++) fillR(px + 2 + i * 12, py + 8, 6, 20, '#6A5040');
+      fillR(px, py + 11, TS, 3, '#8A8E98'); fillR(px, py + 22, TS, 3, '#8A8E98');
+      break;
     case 'f': {
       grass(px, py, x, y, g1, '#86BE76');
       const cs = ['#FF6FA8', '#FFE066', '#FFFFFF', '#B98FE0'];
@@ -190,11 +187,16 @@ function drawDungeonTile(ch, x, y, px, py, t, kind, opened) {
     // すぐ 下が ゆかなら かべの かおを かく（立体に 見える）
     fillR(px, py, TS, 6, T.top);
     if (kind === 'castle' && (x + y) % 5 === 0) fillR(px + 12, py + 8, 12, 18, T.acc);
-    if (kind === 'tunnel' && (x * 3 + y) % 7 === 0) {
-      fillRR(px + 8, py + 10, 20, 14, 4, '#2A6AA8');
-      fillC(px + 14 + Math.sin(t + x) * 3, py + 17, 2, '#9AE0FF');
+    if (kind === 'tunnel' && hash2(x, y) < 0.35) fillC(px + 6 + hash2(y, x) * 24, py + 10 + hash2(x + 3, y) * 20, 1.6 + Math.sin(t * 3 + x) * 0.6, '#FFF6C8');   // ほし
+    if (kind === 'cave') {   // あし（くさ）と ホタル
+      ctx.strokeStyle = '#5E8A3E'; ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(px + 8 + i * 10, py + TS); ctx.lineTo(px + 6 + i * 10 + Math.sin(t + x + i) * 2, py + 10); ctx.stroke(); }
+      if (hash2(x, y) < 0.2) fillC(px + TS / 2 + Math.sin(t * 2 + y) * 6, py + 14 + Math.cos(t * 2.5 + x) * 5, 2.2, 'rgba(220,255,120,' + (0.5 + Math.sin(t * 5 + x) * 0.4) + ')');
     }
-    if (kind === 'mount' && hash2(x, y) < 0.3) tree(px + TS / 2, py + TS / 2, 11, '#2A5A34');
+    if (kind === 'mount') {  // かいがらの つもった どて
+      for (let i = 0; i < 4; i++) fillC(px + 6 + ((i * 9 + x * 5) % 26), py + 12 + ((i * 7 + y * 3) % 20), 2.6, i % 2 ? '#F6F2EA' : '#E0D8C8');
+      if (hash2(x, y) < 0.15) tree(px + TS / 2, py + TS / 2, 10, '#3E6A34');
+    }
     return;
   }
   fillR(px, py, TS, TS, (x + y) % 2 ? T.floor : T.floor2);
@@ -234,23 +236,30 @@ function drawBlock(ch, x0, y0, w, h, t, noShadow) {
     fillRR(px + W2 / 2 - 9, py + H2 - 26, 18, 24, 3, '#8A5A34');
     fillRR(px + 10, py + H2 * 0.58, 16, 14, 2, '#9AD0F0');
     fillRR(px + W2 - 26, py + H2 * 0.58, 16, 14, 2, '#9AD0F0');
-  } else if (ch === 'K') {       // 小倉城（てんしゅかく）
-    fillR(px + 10, py + H2 * 0.55, W2 - 20, H2 * 0.45, '#9A8A7A');        // いしがき
-    ctx.fillStyle = '#8A7A6A';
-    for (let i = 0; i < W2 - 20; i += 16) ctx.fillRect(px + 10 + i, py + H2 * 0.55 + ((i / 16) % 2) * 8, 14, 6);
-    const cx = px + W2 / 2;
-    const lv = [[0.62, 0.34], [0.5, 0.29], [0.38, 0.23], [0.26, 0.17]];
-    for (let i = 0; i < lv.length; i++) {
-      const [yy, ww] = lv[i];
-      const bw = W2 * ww;
-      fillR(cx - bw / 2, py + H2 * yy - H2 * 0.12, bw, H2 * 0.12, '#F6F2EA');
-      ctx.fillStyle = '#3A3A4A';
-      ctx.beginPath(); ctx.moveTo(cx - bw / 2 - 12, py + H2 * yy - H2 * 0.1); ctx.lineTo(cx, py + H2 * yy - H2 * 0.2);
-      ctx.lineTo(cx + bw / 2 + 12, py + H2 * yy - H2 * 0.1); ctx.fill();
+  } else if (ch === 'K') {       // 小倉台駅（ぶらさがる モノレール の えき）
+    const beamY = py + Math.max(8, H2 * 0.1);
+    // えきの たてもの
+    fillR(px + W2 * 0.2, py + H2 * 0.42, W2 * 0.6, H2 * 0.58 - 2, '#EEF2F6');
+    for (let i = 0; i < 6; i++) fillRR(px + W2 * 0.23 + i * W2 * 0.093, py + H2 * 0.5, W2 * 0.07, H2 * 0.2, 3, '#8AC8F0');
+    fillRR(px + W2 / 2 - 18, py + H2 - 34, 36, 32, 3, '#5A6A8A');
+    // はしら と レール
+    for (const u of [0.06, 0.94]) fillR(px + W2 * u - 6, beamY, 12, H2 - (beamY - py) - 2, '#B8C0CC');
+    fillR(px - 8, beamY - 4, W2 + 16, 12, '#C8D0DA');
+    fillR(px - 8, beamY + 8, W2 + 16, 3, '#9AA2AE');
+    // ぶらさがる モノレール（とまって いる。クリア したら はしる）
+    const cw = Math.min(W2 * 0.34, 190), ch2 = Math.min(H2 * 0.3, 46);
+    let carX = px + W2 / 2 - cw / 2;
+    if (MONO_RUN) carX = px - cw + ((t * 90) % (W2 + cw * 2));
+    for (const k of [0.25, 0.75]) fillR(carX + cw * k - 4, beamY + 8, 8, 10, '#6A7280');
+    fillRR(carX, beamY + 16, cw, ch2, 10, '#FFFFFF');
+    fillR(carX, beamY + 16 + ch2 * 0.62, cw, ch2 * 0.12, '#3A7AD8');
+    for (let i = 0; i < 4; i++) fillRR(carX + 10 + i * (cw - 20) / 4, beamY + 22, (cw - 20) / 4 - 6, ch2 * 0.34, 3, '#2A3A5A');
+    fillRR(px + W2 / 2 - 46, py + H2 * 0.42 + 4, 92, 20, 5, '#2A3A6A');
+    text('おぐらだい', px + W2 / 2, py + H2 * 0.42 + 14, 14, '#FFFFFF', 'center', true);
+    if (!MONO_RUN) {
+      fillRR(carX + cw + 6, beamY + 18, 78, 22, 6, '#E04A4A');
+      text('うんきゅう', carX + cw + 45, beamY + 29, 13, '#FFFFFF', 'center', true);
     }
-    ctx.fillStyle = '#FFD24A';
-    circ(cx - 14, py + H2 * 0.05, 3); ctx.fill(); circ(cx + 14, py + H2 * 0.05, 3); ctx.fill();
-    fillRR(cx - 16, py + H2 - 34, 32, 34, 4, '#5A3A28');
   } else if (ch === 'M') {       // やたい
     fillR(px + 4, py + H2 * 0.45, W2 - 8, H2 * 0.55 - 4, '#E8D8C0');
     const cols = ['#E04A6E', '#FFFFFF'];
@@ -261,31 +270,28 @@ function drawBlock(ch, x0, y0, w, h, t, noShadow) {
     // しなもの
     const goods = ['#FF8A3A', '#8FD07A', '#FFE066', '#E04A4A', '#8AC8FF'];
     for (let i = 0; i < w * 2; i++) fillC(px + 10 + i * (W2 - 20) / (w * 2 - 1), py + H2 * 0.62, 7, goods[(i + x0) % 5]);
-  } else if (ch === 'F') {       // こうじょう（えんとつ）
-    fillR(px + 2, py + H2 * 0.4, W2 - 4, H2 * 0.6, '#9A6A5A');
-    fillR(px + W2 * 0.55, py - 6, W2 * 0.22, H2 * 0.5, '#7A5A50');
-    fillR(px + W2 * 0.55, py - 6, W2 * 0.22, 6, '#E8E0D0');
-    ctx.fillStyle = 'rgba(230,230,240,0.55)';
-    for (let i = 0; i < 3; i++) {
-      const u = (t * 0.4 + i / 3) % 1;
-      circ(px + W2 * 0.66 + u * 20, py - 10 - u * 30, 6 + u * 8); ctx.fill();
-    }
-    for (let i = 0; i < 2; i++) fillR(px + 8 + i * 22, py + H2 * 0.55, 14, 12, '#FFE066');
-  } else if (ch === 'R') {       // 門司港駅（レトロな えき）
-    fillR(px + 4, py + H2 * 0.3, W2 - 8, H2 * 0.7 - 4, '#F0D8A8');
-    ctx.fillStyle = '#4A7A6A';
-    ctx.beginPath(); ctx.moveTo(px, py + H2 * 0.34); ctx.lineTo(px + W2 * 0.2, py + 6); ctx.lineTo(px + W2 * 0.8, py + 6); ctx.lineTo(px + W2, py + H2 * 0.34); ctx.fill();
-    for (let i = 0; i < 5; i++) fillRR(px + 16 + i * (W2 - 44) / 4, py + H2 * 0.45, 12, 22, 5, '#5A7AA8');
-    fillRR(px + W2 / 2 - 14, py + H2 - 36, 28, 34, 4, '#6A4A30');
-    fillC(px + W2 / 2, py + H2 * 0.2, 9, '#FFFFFF');
-    ctx.strokeStyle = '#3A3A4A'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(px + W2 / 2, py + H2 * 0.2); ctx.lineTo(px + W2 / 2, py + H2 * 0.2 - 6);
-    ctx.moveTo(px + W2 / 2, py + H2 * 0.2); ctx.lineTo(px + W2 / 2 + 5, py + H2 * 0.2); ctx.stroke();
+  } else if (ch === 'F') {       // たてあな じゅうきょ（加曽利貝塚の そばの むかしの いえ）
+    const cx = px + W2 / 2;
+    ctx.fillStyle = '#C8A060';
+    ctx.beginPath(); ctx.moveTo(px + 2, py + H2 - 2); ctx.lineTo(cx - 6, py + H2 * 0.08); ctx.lineTo(cx + 6, py + H2 * 0.08); ctx.lineTo(px + W2 - 2, py + H2 - 2); ctx.fill();
+    ctx.strokeStyle = '#A07C44'; ctx.lineWidth = 2;
+    for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(cx + i * 2, py + H2 * 0.08); ctx.lineTo(cx + i * W2 * 0.15, py + H2 - 2); ctx.stroke(); }
+    fillR(cx - 8, py + H2 * 0.02, 3, 10, '#7A5A34'); fillR(cx + 5, py + H2 * 0.02, 3, 10, '#7A5A34');
+    ellipse(cx, py + H2 - 14, 11, 13); ctx.fillStyle = '#3A2A1A'; ctx.fill();
+    ctx.fillStyle = 'rgba(230,230,240,0.45)';
+    const u = (t * 0.4) % 1; circ(cx + u * 10, py - u * 24, 4 + u * 6); ctx.fill();
+  } else if (ch === 'R') {       // 都賀駅（JR と モノレール の のりかえ）
+    fillR(px + 4, py + H2 * 0.25, W2 - 8, H2 * 0.75 - 4, '#F2F4F6');
+    fillR(px, py + H2 * 0.18, W2, H2 * 0.1, '#5A6A8A');
+    for (let i = 0; i < 5; i++) fillRR(px + 14 + i * (W2 - 40) / 4, py + H2 * 0.4, 14, H2 * 0.24, 3, '#8AC8F0');
+    fillRR(px + W2 / 2 - 16, py + H2 - 38, 32, 36, 3, '#5A6A8A');
+    fillRR(px + W2 / 2 - 34, py + 2, 68, 22, 5, '#FFFFFF');
+    text('つが えき', px + W2 / 2, py + 13, 14, '#2A3A5A', 'center', true);
   }
 }
 
 // --- ひと ---------------------------------------------------------------------------
-//  look … rina / yui / masaki / aoi / king / inn / shop / shop2 / oji / oba / boy / girl / soldier / banana
+//  look … rina / yui / masaki / aoi / king（えきちょう）/ inn / shop / shop2 / oji / oba / boy / girl / soldier
 //  dir … 0=下 1=左 2=右 3=上 ／ step … 0 か 1（あし）
 
 const LOOKS = {
@@ -293,7 +299,7 @@ const LOOKS = {
   yui:     { body: '#8FD07A', hair: '#6A3A22', skin: '#FFE0C8', bob: 1, ribbon: '#FF6FA8' },
   masaki:  { body: '#4A8AE8', hair: '#2A1A10', skin: '#F4D0B0', short: 1, cap: '#E04A4A' },
   aoi:     { body: '#B98FE0', hair: '#3A2418', skin: '#FFE0C8', pony: 1, hat: '#6A4AA8' },
-  king:    { body: '#C8342A', hair: '#E8E8E8', skin: '#F4D0B0', crown: 1, robe: 1 },
+  king:    { body: '#2A3A6A', hair: '#9A9A9A', skin: '#F4D0B0', cap: '#2A3A6A', apron: '#3A4A7A' },   // えきちょうさん
   inn:     { body: '#F4F0E8', hair: '#6A4A30', skin: '#F4D0B0', apron: '#E88AA8' },
   shop:    { body: '#6A8AB8', hair: '#3A2A20', skin: '#F4D0B0', apron: '#5A4A3A', band: '#E04A4A' },
   shop2:   { body: '#E8A04A', hair: '#4A3020', skin: '#F4D0B0', apron: '#FFFFFF' },
@@ -509,6 +515,39 @@ function drawMon(art, cx, cy, s, col, t, boss) {
       monEyes(s * 0.2, 0, s * 0.6, 1); monMouth(s * 0.22, s * 0.28, s * 0.55, 1);
       break;
     }
+    case 'ginkgo': {   // イチョウの は（小倉いちょう通り）
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(0, s * 0.7);
+      ctx.lineTo(-s * 0.95, -s * 0.35); ctx.quadraticCurveTo(-s * 0.5, -s * 0.95, -s * 0.05, -s * 0.6);
+      ctx.lineTo(0, -s * 0.35); ctx.lineTo(s * 0.05, -s * 0.6);
+      ctx.quadraticCurveTo(s * 0.5, -s * 0.95, s * 0.95, -s * 0.35); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = dk; ctx.lineWidth = 2;
+      for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(0, s * 0.6); ctx.lineTo(i * s * 0.26, -s * 0.5); ctx.stroke(); }
+      fillR(-2, s * 0.6, 4, s * 0.3, '#8A6A30');
+      monEyes(0, -s * 0.15, s * 0.7, 1); monMouth(0, s * 0.1, s * 0.55, 1);
+      break;
+    }
+    case 'pot': {      // 縄文どき の まじん
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(-s * 0.55, -s * 0.6); ctx.quadraticCurveTo(-s * 0.85, s * 0.2, -s * 0.35, s * 0.9);
+      ctx.lineTo(s * 0.35, s * 0.9); ctx.quadraticCurveTo(s * 0.85, s * 0.2, s * 0.55, -s * 0.6); ctx.closePath(); ctx.fill();
+      // ふちの かざり（ほのお みたいな もよう）
+      for (let i = 0; i < 4; i++) {
+        const bx = -s * 0.5 + i * s * 0.33;
+        ctx.beginPath(); ctx.moveTo(bx, -s * 0.55); ctx.quadraticCurveTo(bx + s * 0.1, -s * (0.95 + Math.sin(t * 4 + i) * 0.05), bx + s * 0.25, -s * 0.55); ctx.fill();
+      }
+      // もよう：よこに はしる ぎざぎざ の おび と うずまき（かおから はなして、ひげに 見えない ように）
+      ctx.strokeStyle = dk; ctx.lineWidth = 3;
+      for (const yy of [s * 0.42, s * 0.62]) {
+        ctx.beginPath();
+        for (let i = 0; i <= 10; i++) { const xx = -s * 0.55 + i * s * 0.11; if (i) ctx.lineTo(xx, yy + (i % 2 ? -s * 0.06 : s * 0.06)); else ctx.moveTo(xx, yy); }
+        ctx.stroke();
+      }
+      for (const sg of [-1, 1]) { ctx.beginPath(); ctx.arc(sg * s * 0.52, -s * 0.05, s * 0.1, 0, Math.PI * 1.6); ctx.stroke(); }
+      monEyes(0, -s * 0.28, s * 0.85, 1); monMouth(0, s * 0.05, s * 0.6, 1);
+      if (boss) { ctx.fillStyle = 'rgba(255,220,90,0.8)'; circ(0, -s * 0.72, s * 0.1 + Math.sin(t * 6) * s * 0.02); ctx.fill(); }
+      break;
+    }
     case 'eel': {
       ctx.strokeStyle = col; ctx.lineWidth = s * 0.34; ctx.lineCap = 'round';
       ctx.beginPath();
@@ -614,13 +653,20 @@ function drawMon(art, cx, cy, s, col, t, boss) {
       break;
     }
     case 'maou': {
-      // まおう くろがね：てつの よろいの 大男。むねに ようこうろ の ひかり
-      ctx.fillStyle = 'rgba(255,80,30,0.25)'; circ(0, 0, s * 1.05 + Math.sin(t * 3) * s * 0.05); ctx.fill();
+      // まおう ヤミタカ：くろい つばさの まおう。むねに うばった ひかり
+      ctx.fillStyle = 'rgba(140,70,255,0.22)'; circ(0, 0, s * 1.05 + Math.sin(t * 3) * s * 0.05); ctx.fill();
+      ctx.fillStyle = '#231C30';
+      for (const sg of [-1, 1]) {
+        ctx.save(); ctx.scale(sg, 1); ctx.rotate(Math.sin(t * 3) * 0.12);
+        ctx.beginPath(); ctx.moveTo(s * 0.5, -s * 0.2); ctx.lineTo(s * 1.35, -s * 0.9); ctx.lineTo(s * 1.25, -s * 0.35);
+        ctx.lineTo(s * 1.4, -s * 0.2); ctx.lineTo(s * 1.15, 0); ctx.lineTo(s * 1.25, s * 0.25); ctx.lineTo(s * 0.6, s * 0.3); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
       fillRR(-s * 0.8, -s * 0.15, s * 1.6, s * 1.0, s * 0.2, '#3A3448');
       fillRR(-s * 0.95, -s * 0.3, s * 0.45, s * 0.35, s * 0.1, '#5A5068');
       fillRR(s * 0.5, -s * 0.3, s * 0.45, s * 0.35, s * 0.1, '#5A5068');
       const glow = 0.6 + Math.sin(t * 4) * 0.3;
-      fillC(0, s * 0.3, s * 0.22, 'rgba(255,120,40,' + glow + ')');
+      fillC(0, s * 0.3, s * 0.22, 'rgba(170,110,255,' + glow + ')');
       fillC(0, s * 0.3, s * 0.12, '#FFE066');
       fillRR(-s * 0.4, -s * 0.85, s * 0.8, s * 0.7, s * 0.16, '#4A4458');
       ctx.fillStyle = '#8A8098';
@@ -628,6 +674,7 @@ function drawMon(art, cx, cy, s, col, t, boss) {
       fillRR(-s * 0.3, -s * 0.62, s * 0.6, s * 0.18, s * 0.06, '#1A1420');
       fillC(-s * 0.13, -s * 0.53, s * 0.06, '#FF4A2A'); fillC(s * 0.13, -s * 0.53, s * 0.06, '#FF4A2A');
       fillR(-s * 0.2, -s * 0.3, s * 0.4, s * 0.05, '#FFB020');
+      ctx.fillStyle = '#FFB020'; ctx.beginPath(); ctx.moveTo(-s * 0.1, -s * 0.46); ctx.lineTo(0, -s * 0.3); ctx.lineTo(s * 0.1, -s * 0.46); ctx.fill();
       break;
     }
     default:

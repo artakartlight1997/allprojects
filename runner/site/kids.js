@@ -66,7 +66,7 @@ function drawKid(id, x, y, h, o) {
     ctx.beginPath(); ctx.moveTo(-16 * s, -36 * s); ctx.lineTo(-22 * s, -24 * s); ctx.lineTo(22 * s, -24 * s); ctx.lineTo(16 * s, -36 * s); ctx.fill();
     fillR(-21 * s, -27 * s, 42 * s, 3 * s, K.body2);
   }
-  fillRR(-8 * s, bodyTop + 4 * s, 16 * s, 10 * s, 4 * s, K.body2);   // えり
+  if (dir !== 3) fillRR(-8 * s, bodyTop + 4 * s, 16 * s, 10 * s, 4 * s, K.body2);   // えり
   if (!side) arm(-1, -armL);
   arm(1, armR);
   // あたま

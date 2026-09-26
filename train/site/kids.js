@@ -71,7 +71,7 @@ function drawKid(id, x, y, h, o) {
   arm(1, armR);
   // あたま
   const hy = -86 * s, hr = 24 * s;
-  if (K.twin && dir !== 3) { fillC(-24 * s, hy + 6 * s, 9 * s, K.hair); fillC(24 * s, hy + 6 * s, 9 * s, K.hair); fillC(-24 * s, hy - 3 * s, 4 * s, K.ribbon); fillC(24 * s, hy - 3 * s, 4 * s, K.ribbon); }
+  if (K.twin) { fillC(-24 * s, hy + 6 * s, 9 * s, K.hair); fillC(24 * s, hy + 6 * s, 9 * s, K.hair); fillC(-24 * s, hy - 3 * s, 4 * s, K.ribbon); fillC(24 * s, hy - 3 * s, 4 * s, K.ribbon); }
   // ポニーテール：まえむき では あたまの よこ うしろに だけ 見せる（あごの 下には ぜったい かかない）
   if (K.pony) {
     if (side || dir === 3) { fillC(-22 * s, hy - 2 * s, 9 * s, K.hair); ellipse(-28 * s, hy + 12 * s, 7 * s, 13 * s, 0.4); ctx.fillStyle = K.hair; ctx.fill(); }

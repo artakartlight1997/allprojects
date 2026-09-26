@@ -22,7 +22,7 @@ const CHARS = {
   rina:   { ab: '料理が はやい（1.5ばい）' },
   yui:    { ab: '買った 食材が すぐ とどく' },
   masaki: { ab: 'アルバイトを やとう お金が たまに 半がく' },
-  aoi:    { ab: 'はじめの お金 +3000円・たまーに お金が もらえる' },
+  aoi:    { ab: 'はじめの お金が 30,000円・たまーに お金が もらえる' },
   eito:   { ab: 'テーブルなどを 買う とき ルーレットが 出て 2ぶんの1で 半がく' },
 };
 const CHAR_IDS = ['rina', 'yui', 'masaki', 'aoi', 'eito'];
@@ -33,7 +33,7 @@ const DIFFS = [
   { name: 'イージー', col: '#9AF0B8', rev: 0.8, tip: 0.5, tipR: [0.2, 0.5], pat: 1.1, furn: 1, dirty: 0.6, badT: 10, desc: 'レビューが あまい。お客さんが チップを 多く くれる' },
   { name: 'ノーマル', col: '#FFE066', rev: 0, tip: 0.15, tipR: [0.1, 0.3], pat: 1, furn: 1, dirty: 1, badT: 8, desc: 'レビューが ふつう。お客さんに たまに チップが もらえる' },
   { name: 'ハード', col: '#FFB08A', rev: -0.7, tip: 0, tipR: [0, 0], pat: 0.9, furn: 1.3, dirty: 1.5, badT: 6, desc: 'レビューが きびしい。チップは もらえない。かぐが すこし 高い' },
-  { name: 'おに', col: '#D8A0FF', rev: -1.2, tip: 0, tipR: [0, 0], pat: 0.75, furn: 2, dirty: -1, badT: 3, desc: 'よごれが のこると ★1。めいわく客は すぐ おいだす。チップ なし。かぐ 2ばい' },
+  { name: '鬼', yomi: 'おに', col: '#D8A0FF', rev: -1.2, tip: 0, tipR: [0, 0], pat: 0.75, furn: 2, dirty: -1, badT: 3, desc: 'よごれが のこると ★1。めいわく客は すぐ おいだす。チップ なし。かぐ 2ばい' },
 ];
 const EXT_MAX = 2;   // 増築できる 回数
 const SHOP_NAMES = ['にこにこ食堂', 'ほしぞらキッチン', 'もぐもぐ亭', 'おひさまレストラン', 'わくわく食堂', 'ぱくぱくハウス', 'レストラン にじいろ', 'まんぷく屋', 'きらきらダイナー', 'こもれびカフェ'];
@@ -95,7 +95,7 @@ const CITIES = [
 // --- セーブ ---------------------------------------------------------------------------
 
 function newSave(ch, startMoney, diff, name) {
-  return { v: 1, ch, diff, name, money: startMoney + (ch === 'aoi' ? 3000 : 0), day: 1, land: -1, tables: 0, stoves: 0, decor: 0,
+  return { v: 1, ch, diff, name, money: startMoneyOf(ch, startMoney), day: 1, land: -1, tables: 0, stoves: 0, decor: 0,
     stock: {}, coming: {}, menu: ['salad', 'onigiri'], known: ['salad', 'onigiri', 'omurice'], plv: {}, staff: [], branches: [],
     stars: 1, rating: 1.4, reviews: 0, ext: 0, total: 0, served: 0, goalDone: 0, log: [], nameN: 0 };
 }
@@ -111,6 +111,8 @@ function load() {
   if (d.ext === undefined) d.ext = 0;
   return d;
 }
+// あおいは えらんだ お金に かかわらず 30,000円から
+function startMoneyOf(ch, m) { return ch === 'aoi' ? 30000 : m; }
 function defaultName(ch) { return KIDS[ch].name + 'の レストラン'; }
 function DIFF() { return DIFFS[S.diff]; }
 function starStr(n) { let st = ''; for (let i = 0; i < 5; i++) st += i < n ? '★' : '☆'; return st; }
@@ -900,15 +902,23 @@ function drawTitle(t) {
   });
   fillRR(VW / 2 - 290, 298, 580, 40, 12, 'rgba(255,255,255,0.8)');
   text(KIDS[G.pick].name + '：' + CHARS[G.pick].ab, VW / 2, 318, 16, '#8A3A1A', 'center', true, 560);
-  // はじめの お金
-  text('はじめの お金', VW / 2 - 170, 356, 16, '#6A3A1A', 'center');
-  [1000, 10000].forEach((m, i) => btn(VW / 2 - 290 + i * 124, 372, 116, 60, m.toLocaleString() + '円', () => { G.start = m; }, { col: G.start === m ? '#FFE066' : '#FFFFFF', size: 20, sub: i === 0 ? 'むずかしい' : 'ふつう' }));
-  text('（1000円だと さいしょの 赤字が 大きい）', VW / 2 - 170, 448, 12, '#8A6A4A', 'center');
+  // はじめの お金（あおいは 30,000円 きまり）
+  text('はじめの お金', VW / 2 - 146, 352, 15, '#6A3A1A', 'center', true);
+  if (G.pick === 'aoi') {
+    fillRR(VW / 2 - 290, 364, 288, 48, 14, '#E8D8FF');
+    text('30,000円から スタート（あおい）', VW / 2 - 146, 388, 17, '#6A3AA8', 'center', true, 270);
+  } else {
+    [1000, 10000].forEach((m, i) => btn(VW / 2 - 290 + i * 146, 364, 142, 48, m.toLocaleString() + '円', () => { G.start = m; }, { col: G.start === m ? '#FFE066' : '#FFFFFF', size: 18, sub: i === 0 ? 'むずかしい' : 'ふつう' }));
+  }
+  // なんいど
+  text('なんいど', VW / 2 - 146, 428, 15, '#6A3A1A', 'center', true);
+  DIFFS.forEach((d, i) => btn(VW / 2 - 290 + i * 73, 440, 68, 50, d.name, () => { G.diff = i; }, { col: G.diff === i ? d.col : '#FFFFFF', size: d.yomi ? 22 : 14, sub: d.yomi }));
+  text(DIFFS[G.diff].name + '：' + DIFFS[G.diff].desc, VW / 2, 506, 13, '#8A3A1A', 'center', true, 580);
   // はじめから / つづきから
   btn(VW / 2 + 20, 360, 270, 62, 'はじめから', () => { if (sv) G.confirm = true; else goSetup(); }, { col: '#FF8A5A', size: 22 });
   btn(VW / 2 + 20, 430, 270, 62, 'つづきから', () => { if (sv) { S = sv; G.mode = 'prep'; G.tab = 0; } }, { col: sv ? '#9AF0B8' : '#E8E0D8', off: !sv, size: 22,
     sub: sv ? sv.name + '・' + DIFFS[sv.diff].name + '・' + sv.day + '日め・' + yen(sv.money) : 'セーブ なし' });
-  text('目ひょう：日本中に 支店を 出して 1億円（億万長者）！', VW / 2, VH - 18, 15, '#6A3A1A', 'center');
+  text('目ひょう：日本中に 支店を 出して 1億円（億万長者）！', VW / 2, VH - 12, 14, '#6A3A1A', 'center');
   if (G.confirm) {
     fillR(0, 0, VW, VH, 'rgba(0,0,0,0.55)');
     fillRR(VW / 2 - 240, 170, 480, 200, 18, '#FFFFFF');
@@ -948,7 +958,7 @@ function drawSetup(t) {
   ctx.fillStyle = grad(0, VH, '#FFB870', '#FFF0D8'); ctx.fillRect(0, 0, VW, VH);
   textO('あたらしい お店を つくる', VW / 2, 42, 32, '#C8503A', '#FFFFFF');
   drawKid(G.pick, VW / 2 - 250, 190, 110, { t, pose: 'wave' });
-  text(KIDS[G.pick].name + '・はじめの お金 ' + G.start.toLocaleString() + '円', VW / 2 - 250, 206, 13, '#6A3A1A', 'center', true, 170);
+  text(KIDS[G.pick].name + '・はじめの お金 ' + startMoneyOf(G.pick, G.start).toLocaleString() + '円', VW / 2 - 250, 206, 13, '#6A3A1A', 'center', true, 170);
   // お店の 名前
   text('お店の 名前（あとから かえられないよ）', VW / 2 + 60, 88, 16, '#6A3A1A', 'center', true);
   nameInput(true, VW / 2 - 110, 106, 280, 54);
@@ -957,7 +967,7 @@ function drawSetup(t) {
   }, { col: '#FFFFFF', size: 16 });
   // なんいど
   text('なんいど', VW / 2, 238, 18, '#6A3A1A', 'center', true);
-  DIFFS.forEach((d, i) => btn(VW / 2 - 290 + i * 148, 256, 136, 64, d.name, () => { G.diff = i; }, { col: G.diff === i ? d.col : '#FFFFFF', size: 22 }));
+  DIFFS.forEach((d, i) => btn(VW / 2 - 290 + i * 148, 256, 136, 64, d.name, () => { G.diff = i; }, { col: G.diff === i ? d.col : '#FFFFFF', size: 22, sub: d.yomi }));
   fillRR(VW / 2 - 290, 334, 580, 44, 12, 'rgba(255,255,255,0.85)');
   text(DIFFS[G.diff].desc, VW / 2, 356, 15, '#8A3A1A', 'center', true, 560);
   text('お店の ★は お客さんの レビュー（☆5つ）で 全て きまる！', VW / 2, 400, 14, '#6A3A1A', 'center', true, 580);

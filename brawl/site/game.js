@@ -268,8 +268,9 @@ function drawPlay(t) {
   fillRR(62, 18, 200, 16, 8, 'rgba(0,0,0,0.35)'); fillRR(62, 18, 200 * P.hp / 100, 16, 8, P.hp < 30 ? '#FF6A6A' : '#7FE0A0');
   fillRR(62, 38, 200, 10, 5, 'rgba(0,0,0,0.35)'); fillRR(62, 38, 200 * P.sp / 100, 10, 5, P.sp >= 100 ? '#FFE066' : '#9AB8FF');
   text(P.sp >= 100 ? 'ひっさつ OK！' : 'ひっさつ', 270, 43, 12, P.sp >= 100 ? '#FFE066' : '#FFFFFF', 'left');
-  text('ステージ ' + (P.si + 1) + '　' + P.S.name, VW / 2, 26, 18, '#FFFFFF', 'center');
-  fillRR(VW / 2 - 100, 40, 200, 8, 4, 'rgba(0,0,0,0.3)'); fillRR(VW / 2 - 100, 40, 200 * Math.min(1, P.camX / (P.S.len - VW)), 8, 4, '#FFE066');
+  const hx = Math.max(VW / 2, 480);
+  text('ステージ ' + (P.si + 1) + '　' + P.S.name, hx, 26, 18, '#FFFFFF', 'center', true, 240);
+  fillRR(hx - 100, 40, 200, 8, 4, 'rgba(0,0,0,0.3)'); fillRR(hx - 100, 40, 200 * Math.min(1, P.camX / (P.S.len - VW)), 8, 4, '#FFE066');
   btn(VW - 100, 12, 88, 38, 'やめる', () => { G.mode = 'title'; }, { col: 'rgba(255,255,255,0.8)', size: 14 });
   if (P.go > 0 && Math.floor(P.go * 3) % 2) textO('GO →', VW - 130, 160, 44, '#FFE066', '#E04A2A');
   if (P.msgT > 0) { ctx.globalAlpha = Math.min(1, P.msgT * 2); textO(P.msg, VW / 2, 120, 34, '#FFFFFF', '#2A2440', 'center', VW - 40); ctx.globalAlpha = 1; }

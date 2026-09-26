@@ -214,7 +214,7 @@ function drawTitle(t) {
   fillR(0, 0, VW, VH, 'rgba(14,26,58,0.55)');
   textO('あおいの エアホッケー', VW / 2, 60, 48, '#FFFFFF', '#E84A6A');
   text('ゆびで マレットを うごかして、パックを あいての ゴールへ！', VW / 2, 112, 19, '#DDEBFF', 'center');
-  drawKid('aoi', 120, VH - 30, 180, { t, pose: 'wave' });
+  drawKid('aoi', VW / 2 - 290 + 2 * 200 + 90, VH - 22, 170, { t, pose: 'wave' });
   FOES.forEach((F, i) => {
     const open = i <= sv.beat;
     const x = VW / 2 - 290 + (i % 3) * 200, y = 160 + Math.floor(i / 3) * 170;

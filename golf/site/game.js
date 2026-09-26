@@ -191,8 +191,8 @@ function drawPlay(t) {
   text('パー ' + P.h.par + '　うった かず ' + P.shots, 20, 56, 17, '#DDF8D8', 'left');
   text('ごうけい ' + P.total, VW - 20, 30, 20, '#FFFFFF', 'right');
   btn(VW - 120, 44, 100, 36, 'やめる', () => { G.mode = 'title'; }, { col: 'rgba(255,255,255,0.8)', size: 15 });
-  if (P.msgT > 0) { fillRR(VW / 2 - 200, 20, 400, 44, 12, 'rgba(0,0,0,0.45)'); text(P.msg, VW / 2, 42, 19, '#FFFFFF', 'center', true, 380); }
-  if (!P.moving && !P.done && P.shots === 0 && P.i === 0 && !P.aim) text('ボールの ちかくから うしろに ひっぱって はなそう！', VW / 2, VH - 24, 17, '#FFFFFF', 'center');
+  if (P.msgT > 0) { fillRR(VW / 2 - 200, VH - 50, 400, 42, 12, 'rgba(0,0,0,0.45)'); text(P.msg, VW / 2, VH - 29, 19, '#FFFFFF', 'center', true, 380); }
+  else if (!P.moving && !P.done && P.shots === 0 && P.i === 0 && !P.aim) text('ボールの ちかくから うしろに ひっぱって はなそう！', VW / 2, VH - 24, 17, '#FFFFFF', 'center');
   if (P.done > 0.5) {
     fillR(0, 0, VW, VH, 'rgba(0,0,0,0.35)');
     textO(P.word, VW / 2, 190, 56, '#FFE066', '#2A6A3A');

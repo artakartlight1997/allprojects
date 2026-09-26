@@ -97,7 +97,7 @@ const CITIES = [
 function newSave(ch, startMoney, diff, name) {
   return { v: 1, ch, diff, name, money: startMoneyOf(ch, startMoney), day: 1, land: -1, tables: 0, stoves: 0, decor: 0,
     stock: {}, coming: {}, menu: ['salad', 'onigiri'], known: ['salad', 'onigiri', 'omurice'], plv: {}, staff: [], branches: [],
-    stars: 1, rating: 1.4, reviews: 0, ext: 0, total: 0, served: 0, goalDone: 0, log: [], nameN: 0 };
+    stars: 1, rating: 1.4, reviews: 0, ext: 0, dayMoney: startMoneyOf(ch, startMoney), total: 0, served: 0, goalDone: 0, log: [], nameN: 0 };
 }
 let S = null;
 function save() { if (S) store.set(SAVE, S); }
@@ -109,6 +109,7 @@ function load() {
   if (!d.name) d.name = defaultName(d.ch);
   if (d.rating === undefined) { d.rating = d.stars; d.reviews = 0; }
   if (d.ext === undefined) d.ext = 0;
+  if (d.dayMoney === undefined) d.dayMoney = d.money;
   return d;
 }
 // あおいは えらんだ お金に かかわらず 30,000円から
@@ -311,7 +312,9 @@ function openShop() {
   times.sort((a, b) => a - b);
   G.D = { t: 0, arrivals: times, cust: [], orders: [], stoves: Array(S.stoves).fill(null), ready: [], sales: 0, cost: 0, served: 0, angry: 0, happy: 0,
     staffT: S.staff.map(() => 0), delivered: S.ch === 'yui', fx: [], closed: false, totalCust: times.length, tips: 0, revs: [], best: null, worst: null,
-    dirty: Array(S.tables).fill(false), vip: 0, bad: 0, kicked: 0, cleaned: 0 };
+    dirty: Array(S.tables).fill(false), vip: 0, bad: 0, kicked: 0, cleaned: 0,
+    // じゅんびで つかった お金（土地・かぐ・食材・スタッフ・支店 など）
+    prep: Math.max(0, S.dayMoney - S.money) };
   G.mode = 'open';
   jingle([72, 76, 79, 84], 0.1, 'triangle', 0.12);
 }
@@ -519,15 +522,16 @@ function endDay() {
   // ひょうばんは レビューで きまる（review() で まいかい こうしん ずみ）
   S.total += D.sales; S.served += D.served;
   const avg = D.revs.length ? D.revs.reduce((a, b) => a + b, 0) / D.revs.length : 0;
-  G.R = { sales: D.sales, tips: D.tips, cost: D.cost, wages, util, br, served: D.served, angry: D.angry, stars: S.stars, extra: [],
+  G.R = { sales: D.sales, tips: D.tips, cost: D.cost, wages, util, br, served: D.served, angry: D.angry, stars: S.stars, extra: [], prep: D.prep, start: S.dayMoney, gift: 0,
     avg, nrev: D.revs.length, best: D.best, worst: D.worst, vip: D.vip, bad: D.bad, kicked: D.kicked, cleaned: D.cleaned };
   // きょうだいの ちから（たまに）
   if (S.ch === 'aoi' && Math.random() < 0.08) {
     const gift = Math.max(3000, Math.round(Math.abs(S.money) * 0.05 / 1000) * 1000 || 3000);
     const g2 = Math.min(gift, 5000000);
-    S.money += g2; G.R.extra.push('あおいが くじびきで あたり！ +' + yen(g2));
+    S.money += g2; G.R.gift = g2; G.R.extra.push('あおいが くじびきで あたり！ +' + yen(g2));
   }
   S.day++;
+  S.dayMoney = S.money;   // あしたの じゅんびは ここから
   // つぎの 日の できごと
   G.event = null;
   const r = Math.random();
@@ -842,15 +846,24 @@ function drawResult(t) {
   const profit = R.sales + R.tips - R.wages - R.util + R.br;
   const rows = [['売上（お客さん ' + R.served + '人）', '+' + yen(R.sales), '#2A8A3A']];
   if (R.tips) rows.push(['チップ', '+' + yen(R.tips), '#D85A9A']);
-  rows.push(['食材を つかった ぶん（買った ときに はらいずみ）', yen(R.cost), '#8A8A9A'],
-    ['アルバイトの きゅうりょう', '-' + yen(R.wages), '#C83A3A'], ['電気・ガス代', '-' + yen(R.util), '#C83A3A']);
+  rows.push(['アルバイトの きゅうりょう', '-' + yen(R.wages), '#C83A3A'], ['電気・ガス代', '-' + yen(R.util), '#C83A3A']);
   if (R.br) rows.push(['支店の もうけ（' + S.branches.length + 'けん）', '+' + yen(R.br), '#2A8A3A']);
-  rows.forEach((r, i) => { text(r[0], x + 30, 122 + i * 24, 14, '#4A2A1A', 'left', false, w - 200); text(r[1], x + w - 30, 122 + i * 24, 16, r[2], 'right'); });
-  const yy = 122 + rows.length * 24;
+  rows.forEach((r, i) => { text(r[0], x + 30, 116 + i * 22, 14, '#4A2A1A', 'left', false, w - 200); text(r[1], x + w - 30, 116 + i * 22, 15, r[2], 'right'); });
+  const yy = 116 + rows.length * 22;
   fillR(x + 30, yy - 10, w - 60, 2, '#E0D0C0');
-  text('きょうの もうけ', x + 30, yy + 8, 17, '#4A2A1A', 'left', true);
-  text((profit >= 0 ? '+' : '') + yen(profit), x + w - 30, yy + 8, 22, profit >= 0 ? '#2A8A3A' : '#C83A3A', 'right');
-  let y = yy + 36;
+  const pm = (n) => (n >= 0 ? '+' : '') + yen(n);
+  text('お店の もうけ（営業で ふえた お金）', x + 30, yy + 6, 15, '#4A2A1A', 'left', true, w - 200);
+  text(pm(profit), x + w - 30, yy + 6, 17, profit >= 0 ? '#2A8A3A' : '#C83A3A', 'right');
+  // じゅんびで 買った ものも 見せて、いまの お金と あう ように する
+  const prep = R.prep || 0, gift = R.gift || 0;
+  text('じゅんびで 買った もの（土地・かぐ・食材 など）', x + 30, yy + 28, 15, '#4A2A1A', 'left', true, w - 200);
+  text(prep ? '-' + yen(prep) : '0円', x + w - 30, yy + 28, 17, prep ? '#C83A3A' : '#8A8A9A', 'right');
+  fillR(x + 30, yy + 42, w - 60, 2, '#E0D0C0');
+  const start = R.start !== undefined ? R.start : S.money - profit - gift + prep;
+  text('いまの お金（' + (S.day - 1 === 1 ? 'はじめの お金' : 'きのうの おわり') + ' ' + yen(start) + ' から）', x + 30, yy + 58, 16, '#4A2A1A', 'left', true, w - 220);
+  text(yen(S.money) + (S.money < 0 ? '（赤字）' : ''), x + w - 30, yy + 58, 21, S.money < 0 ? '#C83A3A' : '#2A6A8A', 'right');
+  let y = yy + 84;
+  if (S.money < 0 && profit > 0) { text('お店は もうかって いる！ 買い物の ぶん まだ 赤字だけど、つづければ とりもどせるよ', VW / 2, y, 13, '#2A8A3A', 'center', true, w - 40); y += 22; }
   if (R.angry) { text('おこって かえった お客さん ' + R.angry + '人' + (R.angry > R.served * 0.3 ? '… コンロや キッチン係・ホール係を ふやそう！' : ''), VW / 2, y, 13, '#C83A3A', 'center', true, w - 40); y += 22; }
   const st2 = [];
   if (R.vip) st2.push('VIP ' + R.vip + '人');

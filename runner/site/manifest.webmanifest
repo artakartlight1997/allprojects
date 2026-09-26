@@ -1,0 +1,16 @@
+{
+  "name": "りなのレーンダッシュ",
+  "short_name": "レーンダッシュ",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#FF8FB8",
+  "theme_color": "#FF8FB8",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

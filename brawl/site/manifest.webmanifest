@@ -1,0 +1,16 @@
+{
+  "name": "エイトくんのベルトスクロール",
+  "short_name": "ベルトスクロール",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#3EC08A",
+  "theme_color": "#3EC08A",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

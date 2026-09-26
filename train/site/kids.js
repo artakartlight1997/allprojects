@@ -120,6 +120,7 @@ function drawKid(id, x, y, h, o) {
 // かおだけ（ボタンや スコア ひょうじ よう）
 function drawKidFace(id, x, y, r) {
   const K = KIDS[id] || KIDS.rina;
+  fillRR(x - r * 0.9, y + r * 0.72, r * 1.8, r * 0.55, r * 0.26, K.body);   // かた（ふくの いろで だれか わかる）
   if (K.twin) { fillC(x - r * 1.0, y + r * 0.2, r * 0.38, K.hair); fillC(x + r * 1.0, y + r * 0.2, r * 0.38, K.hair); }
   fillC(x, y, r, K.hair);
   ellipse(x, y + r * 0.16, r * 0.86, r * 0.8); ctx.fillStyle = K.skin; ctx.fill();

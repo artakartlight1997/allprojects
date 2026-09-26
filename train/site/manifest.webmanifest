@@ -1,0 +1,16 @@
+{
+  "name": "りなのモノレール運転士",
+  "short_name": "モノレール運転士",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2A4A7A",
+  "theme_color": "#2A4A7A",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

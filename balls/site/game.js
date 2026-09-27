@@ -4,12 +4,14 @@
 //   ・アイテム … ×2 / ×3（いま ある ボール ぜんぶが ふえる）、+8、ワイド、ファイア
 //   ・ゲート … とおりぬけた ボールが ふえる バー（1つの ボールは 1つの ゲートで 1回だけ）
 //   ・5めんごとに ボス（うごく でかブロック）
-// ボールは 400こ まで（スマホで おもく ならない ように）。
+// ボールは 1200こ まで。アイテムは たくさん 出る（シールド・ボール ばくはつ も）。
+// ふえる たびに 大きな もじ・コンボ・「〇〇こ とっぱ！」・フィーバーで もりあげる。
 
 'use strict';
 
 const SAVE = 'ballsfuefue.v1';
-const MAXB = 400;
+const MAXB = 1200;
+const MILES = [50, 100, 200, 300, 500, 800, 1000, 1200];
 const COLS = 14;
 
 // --- めん --------------------------------------------------------------------------
@@ -20,8 +22,12 @@ const STAGES = [
   { name: 'はじめの いっぽ', rows: [
     '..............',
     '.111111111111.',
-    '.111111x11111.',
+    '.111x1111x111.',
     '.111111111111.',
+    '.222222222222.',
+    '.1111111X1111.',
+    '.111111111111.',
+    '.222222222222.',
   ], gates: [[0.5, 0.62, 0.3, 2, 0]] },
   { name: 'ふえる たのしさ', rows: [
     '22222222222222',
@@ -49,7 +55,7 @@ const STAGES = [
     '11b1111b1111b1',
     '33333x33x33333',
   ], gates: [[0.5, 0.64, 0.25, 2, 60]] },
-  { name: 'ボス：でかブロック', boss: 70, rows: [
+  { name: 'ボス：でかブロック', boss: 400, rows: [
     '..............',
     '..............',
     '..............',
@@ -97,7 +103,7 @@ const STAGES = [
     '33333333333333',
     '3333b3333b3333',
   ], gates: [[0.5, 0.74, 0.34, 3, 0]] },
-  { name: 'ボス：ぐるぐるブロック', boss: 150, rows: [
+  { name: 'ボス：ぐるぐるブロック', boss: 900, rows: [
     '..............',
     '..............',
     '..............',
@@ -144,7 +150,7 @@ const STAGES = [
     '55555555555555',
     '4444x4444x4444',
   ], gates: [[0.25, 0.7, 0.2, 3, 0], [0.75, 0.7, 0.2, 3, 0]] },
-  { name: 'ボス：キングブロック', boss: 320, rows: [
+  { name: 'ボス：キングブロック', boss: 1800, rows: [
     '..............',
     '..............',
     '..............',
@@ -160,7 +166,8 @@ const STAGES = [
 const sv = store.get(SAVE, { best: 0, stars: {} });
 const W = { mode: 'title', stage: 0, balls: [], bricks: [], items: [], parts: [], gates: [], texts: [],
   pad: { x: 0, w: 110, wideT: 0 }, fireT: 0, lives: 3, score: 0, held: true, boss: null, t: 0,
-  dragOff: 0, dragging: false, clearT: 0, sndT: 0, maxBalls: 0, shake: 0 };
+  dragOff: 0, dragging: false, clearT: 0, sndT: 0, maxBalls: 0, shake: 0,
+  pops: [], combo: 0, comboT: 0, bestCombo: 0, mile: 0, flash: 0, pulse: 0, shieldT: 0, gatePopT: 0 };
 
 // ばめんの ひろさ（たて長：うえに じょうほう、のこり ぜんぶが あそぶ ところ）
 const TOP = 84;
@@ -185,10 +192,13 @@ function startStage(i) {
     }
   });
   W.boss = S.boss ? { x: F.x + F.w / 2 - cw * 2.5, y: F.y + 70, w: cw * 5, h: CH * 3, hp: S.boss, mhp: S.boss, vx: 90, hit: 0 } : null;
-  W.gates = (S.gates || []).map((g, gi) => ({ id: gi, x: F.x + F.w * g[0], y: F.y + F.h * g[1], w: F.w * g[2], mult: g[3], vx: g[4], hit: 0 }));
+  // ゲートは ひろめ・ばいりつ +1（×2 → ×3、×3 → ×4）で どんどん ふえる
+  W.gates = (S.gates || []).map((g, gi) => ({ id: gi, x: F.x + F.w * g[0], y: F.y + F.h * g[1], w: Math.min(F.w * 0.8, F.w * g[2] * 1.3), mult: g[3] + 1, vx: g[4], hit: 0 }));
+  W.itemsDropped = 0;
   W.balls = []; W.items = []; W.parts = []; W.texts = [];
   W.pad = { x: F.x + F.w / 2, w: 110, wideT: 0 };
   W.fireT = 0; W.lives = 3; W.score = 0; W.held = true; W.maxBalls = 1;
+  W.pops = []; W.combo = 0; W.comboT = 0; W.bestCombo = 0; W.mile = 0; W.flash = 0; W.pulse = 0; W.shieldT = 0;
   resetBall();
   text2('ステージ ' + (i + 1) + '：' + S.name, '#FFE066', 2.2);
 }
@@ -197,8 +207,34 @@ function resetBall() {
   W.held = true;
 }
 function padY() { return field().y + field().h - 40; }
+// タップで うつ：5こ いっしょに ひろがって とぶ
+function launch() {
+  if (!W.held) return;
+  W.held = false;
+  const b = W.balls[0], a0 = -Math.PI / 2 + rnd(-0.2, 0.2);
+  const nb = newBall(b.x, b.y, Math.cos(a0), Math.sin(a0)); b.vx = nb.vx; b.vy = nb.vy;
+  for (const d of [-0.5, -0.25, 0.25, 0.5]) W.balls.push(newBall(b.x, b.y, Math.cos(a0 + d), Math.sin(a0 + d)));
+  // さいしょの 6びょうは シールドで おちない（まず ふやす）
+  W.shieldT = Math.max(W.shieldT, 6);
+  tone(700, 0.08, 'square', 0.1);
+}
+function pop(s, x, y, size, col) { W.pops.push({ s, x, y, size, col, t: 0.9 }); if (W.pops.length > 12) W.pops.shift(); }
+// 〇〇こ とっぱ！
+function checkMile() {
+  const n = W.balls.length;
+  W.maxBalls = Math.max(W.maxBalls, n);
+  let m = 0;
+  while (W.mile < MILES.length && n >= MILES[W.mile]) m = MILES[W.mile++];
+  if (m) {   // いっきに こえても いちばん 大きい 1つだけ 出す
+    const F = field();
+    W.pops = W.pops.filter((p) => !/とっぱ/.test(p.s));
+    pop('ボール ' + m + 'こ とっぱ！', F.x + F.w / 2, F.y + F.h * 0.38, m >= 500 ? 40 : 34, m >= 500 ? '#FF6FC8' : '#FFE066');
+    jingle(m >= 500 ? [72, 79, 84, 91, 96] : [79, 84, 91], 0.06, 'square', 0.12);
+    W.flash = 0.35; W.shake = 0.3;
+  }
+}
 function newBall(x, y, dx, dy) {
-  const sp = 470;
+  const sp = 490;
   const l = Math.hypot(dx, dy) || 1;
   return { x, y, vx: dx / l * sp, vy: dy / l * sp, gate: -1, gt: 0 };
 }
@@ -218,7 +254,8 @@ function multiply(mult, only) {
     }
   }
   W.balls.push(...add);
-  W.maxBalls = Math.max(W.maxBalls, W.balls.length);
+  if (add.length) W.pulse = 0.25;
+  checkMile();
   return add.length;
 }
 
@@ -235,17 +272,21 @@ function damageBrick(br, dmg) {
   W.score += 5;
   if (br.hp > 0) { hitSound(500 + br.hp * 60); return; }
   br.dead = true;
-  W.score += 20;
-  hitSound(900);
-  for (let i = 0; i < 4 && W.parts.length < 300; i++) {
+  W.score += 20 + Math.min(W.combo, 100);
+  W.combo++; W.comboT = 1.1; W.bestCombo = Math.max(W.bestCombo, W.combo);
+  hitSound(700 + Math.min(W.combo, 80) * 12);
+  for (let i = 0; i < 6 && W.parts.length < 700; i++) {
     W.parts.push({ x: br.x + br.w / 2, y: br.y + br.h / 2, vx: rnd(-160, 160), vy: rnd(-200, 60), t: 0.6, col: brickCol(br) });
   }
   let item = null;
   if (br.kind === 'x') item = 'x2';
   else if (br.kind === 'X') item = 'x3';
   else if (br.kind === 'p') item = 'plus';
-  else if (Math.random() < 0.06) item = Math.random() < 0.12 ? 'x5' : pick(['x2', 'plus', 'wide', 'fire', 'x2', 'x3']);
-  if (item) W.items.push({ k: item, x: br.x + br.w / 2, y: br.y + br.h / 2 });
+  // アイテムは たくさん 出る（4こに 1こ くらい）
+  else if (Math.random() < 0.24) item = pick(['x2', 'x2', 'x2', 'x3', 'x3', 'x5', 'plus', 'plus', 'burst', 'shield', 'wide', 'fire']);
+  if (item) { W.items.push({ k: item, x: br.x + br.w / 2, y: br.y + br.h / 2 }); W.itemsDropped = (W.itemsDropped || 0) + 1; }
+  // ブロックを こわすと 5こに 1こ ボールが ぶんれつして ふえる
+  if (Math.random() < 0.2 && W.balls.length < MAXB) { const a = rnd(-2.6, -0.5); W.balls.push(newBall(br.x + br.w / 2, br.y + br.h + 8, Math.cos(a), Math.sin(a))); }
   if (br.kind === 'b') {
     // ばくだん：まわりを いっしょに こわす
     noise(0.3, 0.3, 300); W.shake = 0.25;
@@ -269,7 +310,14 @@ function update(dt) {
   for (const t of W.texts) t.t -= dt;
   W.texts = W.texts.filter((t) => t.t > 0);
   if (W.shake > 0) W.shake -= dt;
+  if (W.flash > 0) W.flash -= dt;
+  if (W.pulse > 0) W.pulse -= dt;
+  for (const p of W.pops) { p.t -= dt; p.y -= 30 * dt; }
+  W.pops = W.pops.filter((p) => p.t > 0);
   if (W.mode !== 'play') return;
+  if (W.comboT > 0) { W.comboT -= dt; if (W.comboT <= 0) W.combo = 0; }
+  if (W.shieldT > 0) W.shieldT -= dt;
+  if (W.gatePopT > 0) W.gatePopT -= dt;
   const F = field();
   // パドル
   if (W.pad.wideT > 0) W.pad.wideT -= dt;
@@ -297,8 +345,8 @@ function update(dt) {
     b.x = W.pad.x; b.y = padY() - 9;
   } else {
     const keep = [];
+    const steps = W.balls.length > 400 ? 2 : 3;
     for (const b of W.balls) {
-      const steps = 3;
       let alive = true;
       for (let s = 0; s < steps && alive; s++) {
         const px = b.x, py = b.y;
@@ -317,13 +365,16 @@ function update(dt) {
           b.y = pyy - 9;
           hitSound(300);
         }
+        // シールド：した の かべで はねかえる
+        if (W.shieldT > 0 && b.vy > 0 && b.y > pyy + 22) { b.vy = -Math.abs(b.vy); b.y = pyy + 22; }
         if (b.y > F.y + F.h + 10) { alive = false; break; }
         // ゲート（したから うえへ とおりぬけた とき だけ）
         for (const g of W.gates) {
-          if (b.vy < 0 && py >= g.y && b.y < g.y && Math.abs(b.x - g.x) < g.w / 2 && !(b.gate === g.id && W.t - b.gt < 1.2)) {
+          if (b.vy < 0 && py >= g.y && b.y < g.y && Math.abs(b.x - g.x) < g.w / 2 && !(b.gate === g.id && W.t - b.gt < 0.8)) {
             b.gate = g.id; b.gt = W.t;
             g.hit = 0.15;
             multiply(g.mult, [b]);
+            if (W.gatePopT <= 0) { W.gatePopT = 0.25; pop('×' + g.mult, b.x, g.y - 18, 26, g.mult >= 3 ? '#FFB060' : '#FFFFFF'); }
             if (W.t - W.sndT > 0.05) { tone(1200 + g.mult * 200, 0.06, 'triangle', 0.08); W.sndT = W.t; }
           }
         }
@@ -363,6 +414,7 @@ function update(dt) {
     }
     W.balls = keep;
     if (!W.balls.length) {
+      W.mile = 0; W.combo = 0;
       W.lives--;
       noise(0.4, 0.25, 200);
       if (W.lives <= 0) { W.mode = 'over'; tone(300, 0.5, 'triangle', 0.15, 80); }
@@ -396,17 +448,24 @@ function update(dt) {
 function takeItem(k) {
   if (k === 'x2' || k === 'x3' || k === 'x5') {
     const m = k === 'x2' ? 2 : k === 'x3' ? 3 : 5;
-    if (W.held) { W.held = false; W.balls[0].vy = -470; }
+    if (W.held) launch();
     const n = multiply(m);
-    text2('ボール ×' + m + '！（+' + n + '）', '#FFE066', 1.4);
-    jingle([79, 84, 91], 0.06, 'square', 0.12);
-    W.shake = 0.12;
-  } else if (k === 'plus') {
-    for (let i = 0; i < 8 && W.balls.length < MAXB; i++) W.balls.push(newBall(W.pad.x, padY() - 12, rnd(-0.9, 0.9), -1));
-    W.held = false;
-    text2('ボール +8！', '#9AF0B8', 1.2);
-    jingle([72, 79], 0.06, 'square', 0.12);
-  } else if (k === 'wide') { W.pad.wideT = 12; text2('ワイド パドル！', '#7FC8F8', 1.2); tone(600, 0.2, 'sine', 0.12, 900); }
+    const F = field();
+    pop('×' + m + '！', F.x + F.w / 2, F.y + F.h * 0.55, m >= 5 ? 90 : m >= 3 ? 76 : 64, itemCol(k));
+    text2('ボール +' + n + '！', '#FFE066', 1.2);
+    jingle(m >= 5 ? [79, 84, 91, 96, 103] : [79, 84, 91], 0.06, 'square', 0.12);
+    W.shake = 0.12 + m * 0.04; W.flash = 0.12 + m * 0.03;
+    for (let i = 0; i < 30 && W.parts.length < 700; i++) { const a = rnd(0, Math.PI * 2); W.parts.push({ x: W.pad.x, y: padY(), vx: Math.cos(a) * 320, vy: Math.sin(a) * 320 - 100, t: 0.7, col: itemCol(k) }); }
+  } else if (k === 'plus' || k === 'burst') {
+    // +10：パドルから / ボール ばくはつ：パドルから 30こ いっせいに
+    const n = k === 'plus' ? 10 : 30, spread = k === 'plus' ? 0.9 : 1.25;
+    for (let i = 0; i < n && W.balls.length < MAXB; i++) { const a = -Math.PI / 2 + spread * (i / (n - 1) * 2 - 1); W.balls.push(newBall(W.pad.x, padY() - 12, Math.cos(a), Math.sin(a))); }
+    if (W.held) W.held = false;
+    W.pulse = 0.25; checkMile();
+    pop(k === 'plus' ? '+10！' : 'ボール ばくはつ！', W.pad.x, padY() - 60, k === 'plus' ? 44 : 38, itemCol(k));
+    jingle(k === 'plus' ? [72, 79] : [67, 72, 79, 84], 0.06, 'square', 0.12);
+    if (k === 'burst') { W.shake = 0.2; W.flash = 0.15; }
+  } else if (k === 'shield') { W.shieldT = 10; text2('シールド！ おちない（10びょう）', '#9AE0FF', 1.4); tone(500, 0.3, 'sine', 0.12, 1000); } else if (k === 'wide') { W.pad.wideT = 12; text2('ワイド パドル！', '#7FC8F8', 1.2); tone(600, 0.2, 'sine', 0.12, 900); }
   else if (k === 'fire') { W.fireT = 8; text2('ファイア ボール！ つきぬける！', '#FF8A5A', 1.4); tone(300, 0.3, 'sawtooth', 0.08, 900); }
   W.maxBalls = Math.max(W.maxBalls, W.balls.length);
 }
@@ -419,14 +478,16 @@ function brickCol(br) {
   if (br.kind === 'b') return '#3A3448';
   return HPCOL[Math.min(8, br.mhp - 1)];
 }
-function itemLabel(k) { return { x2: '×2', x3: '×3', x5: '×5', plus: '+8', wide: 'ワイド', fire: 'ファイア' }[k]; }
-function itemCol(k) { return { x2: '#FFE066', x3: '#FF8A3A', x5: '#FF6FC8', plus: '#9AF0B8', wide: '#7FC8F8', fire: '#FF5A5A' }[k]; }
+function itemLabel(k) { return { x2: '×2', x3: '×3', x5: '×5', plus: '+10', burst: '+30', shield: 'シールド', wide: 'ワイド', fire: 'ファイア' }[k]; }
+function itemCol(k) { return { x2: '#FFE066', x3: '#FF8A3A', x5: '#FF6FC8', plus: '#9AF0B8', burst: '#6AF0E0', shield: '#9AE0FF', wide: '#7FC8F8', fire: '#FF5A5A' }[k]; }
+const RAINBOW = ['#FF6A6A', '#FFB84A', '#FFE066', '#7FE0A0', '#7FC8F8', '#C8A0FF'];
 
 function drawPlay(t) {
   const F = field();
   const sx = W.shake > 0 ? rnd(-5, 5) : 0, sy = W.shake > 0 ? rnd(-4, 4) : 0;
   ctx.save(); ctx.translate(sx, sy);
-  ctx.fillStyle = grad(F.y, F.y + F.h, '#241A5A', '#0E0A28');
+  const fever = W.balls.length >= 300;
+  ctx.fillStyle = fever ? grad(F.y, F.y + F.h, 'hsl(' + Math.round(t * 80) % 360 + ',55%,28%)', '#0E0A28') : grad(F.y, F.y + F.h, '#241A5A', '#0E0A28');
   rr(F.x, F.y, F.w, F.h, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3; ctx.stroke();
   // ほし
@@ -463,22 +524,48 @@ function drawPlay(t) {
   }
   // アイテム
   for (const it of W.items) {
-    fillRR(it.x - 24, it.y - 12, 48, 24, 12, itemCol(it.k));
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; rr(it.x - 24, it.y - 12, 48, 24, 12); ctx.stroke();
-    text(itemLabel(it.k), it.x, it.y + 1, it.k.length > 3 ? 11 : 15, '#2A1A10', 'center', true, 44);
+    const gl = 1 + Math.sin(t * 10 + it.x) * 0.08;
+    fillC(it.x, it.y, 30 * gl, 'rgba(255,255,255,0.18)');
+    fillRR(it.x - 30, it.y - 15, 60, 30, 15, itemCol(it.k));
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.5; rr(it.x - 30, it.y - 15, 60, 30, 15); ctx.stroke();
+    text(itemLabel(it.k), it.x, it.y + 1, itemLabel(it.k).length > 3 ? 12 : 19, '#2A1A10', 'center', true, 56);
   }
   // ボール
-  const fire = W.fireT > 0;
-  ctx.fillStyle = fire ? '#FF8A5A' : '#FFFFFF';
-  for (const b of W.balls) { ctx.beginPath(); ctx.arc(b.x, b.y, 6.5, 0, Math.PI * 2); ctx.fill(); }
+  const fire = W.fireT > 0, many = W.balls.length >= 100;
+  // ボールが 100こ いじょうで にじいろ（いろ ごとに まとめて かく）
+  const nCol = fire || !many ? 1 : RAINBOW.length;
+  for (let ci = 0; ci < nCol; ci++) {
+    ctx.fillStyle = fire ? '#FF8A5A' : many ? RAINBOW[ci] : '#FFFFFF';
+    ctx.beginPath();
+    for (let i = ci; i < W.balls.length; i += nCol) { const b = W.balls[i]; ctx.moveTo(b.x + 6.5, b.y); ctx.arc(b.x, b.y, 6.5, 0, Math.PI * 2); }
+    ctx.fill();
+  }
   if (fire) { ctx.fillStyle = 'rgba(255,200,80,0.5)'; for (const b of W.balls) { ctx.beginPath(); ctx.arc(b.x - b.vx * 0.015, b.y - b.vy * 0.015, 5, 0, Math.PI * 2); ctx.fill(); } }
   for (const p of W.parts) { ctx.globalAlpha = clamp(p.t * 2, 0, 1); fillR(p.x - 3, p.y - 3, 6, 6, p.col); }
   ctx.globalAlpha = 1;
+  // シールド
+  if (W.shieldT > 0) {
+    const sy2 = padY() + 24, a = W.shieldT < 2 ? (Math.sin(t * 20) > 0 ? 0.9 : 0.3) : 0.9;
+    fillR(F.x + 4, sy2, F.w - 8, 5, 'rgba(154,224,255,' + a + ')');
+    fillR(F.x + 4, sy2 - 4, F.w - 8, 13, 'rgba(154,224,255,0.18)');
+  }
+  // フラッシュ
+  if (W.flash > 0) fillR(F.x, F.y, F.w, F.h, 'rgba(255,255,255,' + Math.min(0.45, W.flash) + ')');
+  // コンボ
+  if (W.combo >= 10) textO('コンボ ' + W.combo, F.x + F.w - 16 - 60, F.y + 30, Math.min(40, 18 + W.combo * 0.2), W.combo >= 50 ? '#FF6FC8' : '#FFE066');
+  if (fever) textO('フィーバー！', F.x + 90, F.y + 30, 22, 'hsl(' + Math.round(t * 200) % 360 + ',90%,70%)');
   // パドル
   const py = padY();
   fillRR(W.pad.x - W.pad.w / 2, py, W.pad.w, 16, 8, W.pad.wideT > 0 ? '#7FC8F8' : '#FF6FA8');
   fillRR(W.pad.x - W.pad.w / 2 + 6, py + 3, W.pad.w - 12, 4, 2, 'rgba(255,255,255,0.5)');
   if (W.held) textO('タップで スタート！', F.x + F.w / 2, py - 60, 24, '#FFE066');
+  // 大きな もじ（×3！ など）
+  for (const p of W.pops) {
+    const u = 1 - p.t / 0.9, sc = u < 0.15 ? 0.6 + u / 0.15 * 0.6 : 1.2 - Math.min(0.2, (u - 0.15));
+    ctx.globalAlpha = clamp(p.t / 0.3, 0, 1);
+    textO(p.s, p.x, p.y, p.size * sc, p.col);
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
   // うえの じょうほう（たて長）
   fillRR(8, 6, VW - 16, TOP - 12, 12, 'rgba(255,255,255,0.07)');
@@ -486,11 +573,12 @@ function drawPlay(t) {
   text(STAGES[W.stage].name, 20, 46, 13, '#FFE0B0', 'left', true, 150);
   text('ブロック あと ' + W.bricks.length, 20, 64, 12, '#C8B8E0', 'left', false, 150);
   text('ボール', 232, 18, 12, '#C8B8E0', 'center');
-  textO(String(W.held ? 1 : W.balls.length), 232, 44, 30, W.balls.length >= 100 ? '#FFB020' : '#FFFFFF');
+  textO(String(W.held ? 1 : W.balls.length), 232, 44, 30 * (1 + Math.max(0, W.pulse) * 1.2), W.balls.length >= 300 ? '#FF6FC8' : W.balls.length >= 100 ? '#FFB020' : '#FFFFFF');
   text('さいだい ' + W.maxBalls, 232, 66, 11, '#C8B8E0', 'center');
   for (let i = 0; i < 3; i++) fillC(318 + i * 22, 24, 8, i < W.lives ? '#FF6FA8' : 'rgba(255,255,255,0.2)');
   text('スコア ' + W.score, 340, 52, 14, '#FFE066', 'center', true, 110);
   if (W.fireT > 0) text('ファイア ' + Math.ceil(W.fireT), 340, 68, 11, '#FF8A5A', 'center');
+  else if (W.shieldT > 0) text('シールド ' + Math.ceil(W.shieldT), 340, 68, 11, '#9AE0FF', 'center');
   btn(VW - 88, 16, 74, 52, 'やめる', () => { W.mode = 'select'; }, { col: '#D8D0F0', size: 16 });
   // もじ
   W.texts.forEach((tx, i) => {
@@ -510,7 +598,7 @@ function drawTitle(t) {
   const ty = VH * 0.2;
   textO('ボール ふえふえ', VW / 2, ty, 56, '#FFE066', '#3A1A0A');
   textO('大くずし', VW / 2, ty + 72, 56, '#FF8FC8', '#3A0A1A');
-  text('×2 × ×3 で ボールが どんどん ふえる！', VW / 2, ty + 132, 19, '#FFFFFF', 'center');
+  text('×2 ×3 ×5 で ボールが 1000こ いじょうに！', VW / 2, ty + 132, 19, '#FFFFFF', 'center');
   btn(VW / 2 - 150, VH * 0.58, 300, 84, 'あそぶ', () => { fullScreen(); W.mode = 'select'; }, { col: '#FFE066' });
   text('クリア ' + sv.best + ' / ' + STAGES.length, VW / 2, VH * 0.58 + 124, 20, '#C8B8E0', 'center');
 }
@@ -540,7 +628,7 @@ function drawEnd(t) {
   const clear = W.mode === 'clear';
   const cy = VH * 0.3;
   textO(clear ? 'ステージ クリア！' : 'ゲームオーバー', VW / 2, cy, 48, clear ? '#FFE066' : '#FFB0B0');
-  text('さいだい ボール ' + W.maxBalls + 'こ', VW / 2, cy + 60, 22, '#FFFFFF', 'center');
+  text('さいだい ボール ' + W.maxBalls + 'こ　さいだい コンボ ' + W.bestCombo, VW / 2, cy + 60, 20, '#FFFFFF', 'center', true, VW - 30);
   text('スコア ' + W.score, VW / 2, cy + 92, 22, '#FFFFFF', 'center');
   if (clear) {
     for (let k = 0; k < 3; k++) { ctx.fillStyle = k < (W.lives >= 3 ? 3 : W.lives === 2 ? 2 : 1) ? '#FFB020' : 'rgba(255,255,255,0.2)'; star(VW / 2 - 60 + k * 60, cy + 150, 24); ctx.fill(); }
@@ -567,7 +655,7 @@ startGame({
   down(x) {
     if (W.mode !== 'play') return;
     W.dragging = true; W.dragOff = W.pad.x - x;
-    if (W.held) { W.held = false; W.balls[0].vx = rnd(-120, 120); W.balls[0].vy = -470; tone(700, 0.08, 'square', 0.1); }
+    if (W.held) launch();
   },
   move(x, y, drag) {
     if (W.mode !== 'play' || !drag) return;
@@ -576,6 +664,6 @@ startGame({
   up() { W.dragging = false; },
   key(code, down) {
     if (!down || W.mode !== 'play') return;
-    if ((code === 'Space' || code === 'ArrowUp') && W.held) { W.held = false; W.balls[0].vy = -470; }
+    if ((code === 'Space' || code === 'ArrowUp') && W.held) launch();
   },
 });

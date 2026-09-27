@@ -1,10 +1,13 @@
 name: Build Android APK
 
+# GitHub Actions は なるべく うごかさない：
+#   ・momo-adventure/site/（ウェブの メニュー）は アプリに つかって いないので、かえても ビルドしない
+#   ・この ファイルを かえた だけでは ビルドしない（ひつような ときは Actions の 画面から 手で うごかす）
 on:
   push:
     paths:
       - 'momo-adventure/**'
-      - '.github/workflows/android.yml'
+      - '!momo-adventure/site/**'
   workflow_dispatch:
 
 permissions:

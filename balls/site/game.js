@@ -16,6 +16,7 @@ const COLS = 14;
 
 // --- めん --------------------------------------------------------------------------
 //  1〜9 … かたさ   x … ×2が でる   X … ×3が でる   p … +8が でる   b … ばくだん
+//  s … スチール（こわれない。クリアに いらない）   ? … ふしぎ ブロック（こわすと アイテム 3こ）
 //  gates … [よこの いち(0〜1), たての いち(0〜1), はば(0〜1), ばいりつ, うごく はやさ]
 
 const STAGES = [
@@ -159,6 +160,253 @@ const STAGES = [
     '4444b4444b4444',
     '33X33333333X33',
   ], gates: [[0.5, 0.72, 0.3, 3, 110]] },
+  // --- 16〜40めん：あたらしい ブロック s＝スチール（こわれない）・?＝ふしぎ（アイテム 3こ） ---
+  { name: "スチールの かべ", rows: [
+    '22222222222222',
+    '2x2222222222X2',
+    '22222222222222',
+    'sss.ssssss.sss',
+    '11111111111111',
+    '1111p1111p1111',
+  ], gates: [[0.5, 0.62, 0.3, 2, 0]] },
+  { name: "ふしぎ ブロック", rows: [
+    '..?........?..',
+    '.333333333333.',
+    '.3?33333333?3.',
+    '.333333333333.',
+    '..2222x22222..',
+    '...22222222...',
+    '....2?22?2....',
+  ], gates: [[0.3, 0.64, 0.22, 2, 0], [0.7, 0.64, 0.22, 2, 0]] },
+  { name: "ジグザグ", rows: [
+    '4.............',
+    '44............',
+    '444x..........',
+    '.4444.........',
+    '..44444.......',
+    '...444444?....',
+    '....44444444..',
+    '.....444X44444',
+    '......44444444',
+  ], gates: [[0.5, 0.7, 0.34, 2, 90]] },
+  { name: "さかな", rows: [
+    '....55555.....',
+    '..555555555..5',
+    '.555s5555555.5',
+    '555555x5555555',
+    '55555555555555',
+    '.5555555X5555.',
+    '..555555555..5',
+    '....55555.....',
+  ], gates: [[0.5, 0.72, 0.3, 3, 0]] },
+  { name: "ボス：スチール ガード", boss: 4000, rows: [
+    '..............',
+    '..............',
+    '..............',
+    's..s..ss..s..s',
+    '33p333333333p3',
+    '44444b44b44444',
+    '?............?',
+  ], gates: [[0.3, 0.7, 0.22, 3, 80], [0.7, 0.7, 0.22, 3, -80]] },
+  { name: "ダイヤ", rows: [
+    '......66......',
+    '.....6666.....',
+    '....66?666....',
+    '...66666X66...',
+    '..6666666666..',
+    '...66x66666...',
+    '....666666....',
+    '.....6666.....',
+    '......66......',
+  ], gates: [[0.5, 0.74, 0.4, 2, 0]] },
+  { name: "はしご", rows: [
+    '5............5',
+    '55555555555555',
+    '5..s......s..5',
+    '555555x5555555',
+    '5............5',
+    '5555555X555555',
+    '5..s......s..5',
+    '55555555555555',
+  ], gates: [[0.25, 0.7, 0.2, 3, 0], [0.75, 0.7, 0.2, 3, 0]] },
+  { name: "ばくだん だらけ", rows: [
+    '6b6b6b6b6b6b6b',
+    'b6b6b6b6b6b6b6',
+    '6b6b6x6b6b6b6b',
+    'b6b6b6b6bX6b6b',
+    '6b6b6b6b6b6b6b',
+    '77777777777777',
+  ], gates: [[0.5, 0.66, 0.3, 3, 100]] },
+  { name: "ロケット", rows: [
+    '......77......',
+    '.....7777.....',
+    '.....7?77.....',
+    '.....7777.....',
+    '....777777....',
+    '....77X777....',
+    '...77777777...',
+    '..777.77.777..',
+    '..ss..ss..ss..',
+  ], gates: [[0.5, 0.76, 0.3, 3, 0]] },
+  { name: "ボス：はやい ブロック", boss: 6000, rows: [
+    '..............',
+    '..............',
+    '..............',
+    '..............',
+    '55p555555555p5',
+    '6666?6666?6666',
+    'ss.ss.ss.ss.ss',
+  ], gates: [[0.5, 0.72, 0.3, 3, 130]] },
+  { name: "めいろ", rows: [
+    '77777777777777',
+    'sssss.ssss.sss',
+    '7777?777777777',
+    's.ssssss.sssss',
+    '77X7777777x777',
+    'sss.sssss.ssss',
+    '77777777777777',
+  ], gates: [[0.5, 0.76, 0.4, 3, 0]] },
+  { name: "にじ", rows: [
+    '77777777777777',
+    '66666666666666',
+    '55555x55555555',
+    '44444444X44444',
+    '33333333333333',
+    '222?22222222?2',
+    '11111111111111',
+  ], gates: [[0.2, 0.7, 0.2, 3, 0], [0.5, 0.62, 0.2, 2, 0], [0.8, 0.7, 0.2, 3, 0]] },
+  { name: "ねこ", rows: [
+    '.8..........8.',
+    '.88........88.',
+    '.888888888888.',
+    '.88.88888.888.',
+    '.88?88888?888.',
+    '.888888888888.',
+    '.8888X88x8888.',
+    '..8888888888..',
+    '...88888888...',
+  ], gates: [[0.5, 0.76, 0.36, 3, 110]] },
+  { name: "うずまき", rows: [
+    '88888888888888',
+    '.............8',
+    '.99999999999.8',
+    '.9.........9.8',
+    '.9.77X77?..9.8',
+    '.9.7ssssss.9.8',
+    '.9.7777777x9.8',
+    '.9999999999..8',
+  ], gates: [[0.5, 0.78, 0.44, 3, 0]] },
+  { name: "ボス：ダブル ガード", boss: 8000, rows: [
+    '..............',
+    '..............',
+    '..............',
+    'ss..........ss',
+    '77p77777777p77',
+    '888?888888?888',
+    'ss.ssss.ssss.s',
+  ], gates: [[0.25, 0.72, 0.2, 3, 120], [0.75, 0.72, 0.2, 3, -120]] },
+  { name: "おしろ", rows: [
+    '9.9.9....9.9.9',
+    '999999..999999',
+    '9?9999..9999?9',
+    '99999999999999',
+    '888888X8888888',
+    '88888ssss88888',
+    '8888s....s8888',
+    '8x88s....s88X8',
+  ], gates: [[0.5, 0.76, 0.3, 3, 0]] },
+  { name: "ほしぞら", rows: [
+    '?.....?......?',
+    '...?......?...',
+    '.7.......7....',
+    '....?.7.....?.',
+    '7.......?...7.',
+    '..?..7....7...',
+    '....7...?.....',
+    '.?.....7.....?',
+  ], gates: [[0.3, 0.66, 0.22, 3, 90], [0.7, 0.66, 0.22, 3, -90]] },
+  { name: "かいだん", rows: [
+    '9.............',
+    '99............',
+    '999...........',
+    '9999x.........',
+    '99999?........',
+    '999999X.......',
+    '9999999?......',
+    '99999999s.....',
+    '999999999s....',
+    '9999999999s...',
+  ], gates: [[0.65, 0.72, 0.3, 3, 0]] },
+  { name: "モザイク", rows: [
+    '98989898989898',
+    '89898989898989',
+    '989?89898?8989',
+    '898989X8989898',
+    '98989898x89898',
+    'ssss.ssss.ssss',
+    '76767676767676',
+  ], gates: [[0.5, 0.7, 0.5, 3, 0]] },
+  { name: "ボス：メガ ブロック", boss: 12000, rows: [
+    '..............',
+    '..............',
+    '..............',
+    's.s.s.ss.s.s.s',
+    '88p8888888p888',
+    '999?9999?99999',
+    '9999b9999b9999',
+  ], gates: [[0.2, 0.74, 0.18, 3, 140], [0.5, 0.66, 0.2, 4, 0], [0.8, 0.74, 0.18, 3, -140]] },
+  { name: "まさきの かお", rows: [
+    '...88888888...',
+    '..8888888888..',
+    '.888s8888s888.',
+    '.888s8888s888.',
+    '.88888?888888.',
+    '.888x8888X888.',
+    '.8888ssss8888.',
+    '..8888888888..',
+    '...88888888...',
+  ], gates: [[0.5, 0.78, 0.34, 3, 0]] },
+  { name: "ドラゴン", rows: [
+    '99..........99',
+    '999........999',
+    '.999.9999.999.',
+    '..9999999999..',
+    '..99s9999s99..',
+    '..999X9?9999..',
+    '...99999999...',
+    '....9x99x9....',
+    '.....9999.....',
+  ], gates: [[0.3, 0.74, 0.22, 3, 120], [0.7, 0.74, 0.22, 3, -120]] },
+  { name: "さいごの とりで 1", rows: [
+    '99999999999999',
+    '9s9s9s9s9s9s9s',
+    '99999?99999999',
+    '88888888X88888',
+    '8s8s8s8s8s8s8s',
+    '88x88888888?88',
+    '77777777777777',
+    '7s7s7b7s7s7b7s',
+  ], gates: [[0.5, 0.76, 0.36, 4, 110]] },
+  { name: "さいごの とりで 2", rows: [
+    'ssssss..ssssss',
+    's9999999999999',
+    's9?999999999?s',
+    's99999X9999999',
+    's8888888888888',
+    's888x88888X88s',
+    's7777777777777',
+    'ssss..ssss..ss',
+  ], gates: [[0.25, 0.76, 0.22, 4, 0], [0.75, 0.76, 0.22, 4, 0]] },
+  { name: "ラスボス：キング オブ ブロック", boss: 20000, rows: [
+    '..............',
+    '..............',
+    '..............',
+    'ss.ss.ss.ss.ss',
+    '99p9999999p999',
+    '999?99bb99?999',
+    '8888X8888X8888',
+    'ss.ss.ss.ss.ss',
+  ], gates: [[0.2, 0.76, 0.2, 4, 150], [0.5, 0.68, 0.2, 3, 0], [0.8, 0.76, 0.2, 4, -150]] },
 ];
 
 // --- じょうたい ----------------------------------------------------------------------
@@ -191,7 +439,8 @@ function startStage(i) {
                       kind: /[1-9]/.test(ch) ? 'n' : ch, hit: 0 });
     }
   });
-  W.boss = S.boss ? { x: F.x + F.w / 2 - cw * 2.5, y: F.y + 70, w: cw * 5, h: CH * 3, hp: S.boss, mhp: S.boss, vx: 90, hit: 0 } : null;
+  // ボスは あとの めんほど はやい
+  W.boss = S.boss ? { x: F.x + F.w / 2 - cw * 2.5, y: F.y + 70, w: cw * 5, h: CH * 3, hp: S.boss, mhp: S.boss, vx: 90 + Math.max(0, i - 14) * 5, hit: 0 } : null;
   // ゲートは ひろめ・ばいりつ +1（×2 → ×3、×3 → ×4）で どんどん ふえる
   W.gates = (S.gates || []).map((g, gi) => ({ id: gi, x: F.x + F.w * g[0], y: F.y + F.h * g[1], w: Math.min(F.w * 0.8, F.w * g[2] * 1.3), mult: g[3] + 1, vx: g[4], hit: 0 }));
   W.itemsDropped = 0;
@@ -268,6 +517,7 @@ function hitSound(f) {
 }
 
 function damageBrick(br, dmg) {
+  if (br.kind === 's') { br.hit = 0.08; hitSound(180); return; }   // スチールは こわれない
   br.hp -= dmg; br.hit = 0.15;
   W.score += 5;
   if (br.hp > 0) { hitSound(500 + br.hp * 60); return; }
@@ -285,6 +535,11 @@ function damageBrick(br, dmg) {
   // アイテムは たくさん 出る（4こに 1こ くらい）
   else if (Math.random() < 0.24) item = pick(['x2', 'x2', 'x2', 'x3', 'x3', 'x5', 'plus', 'plus', 'burst', 'shield', 'wide', 'fire']);
   if (item) { W.items.push({ k: item, x: br.x + br.w / 2, y: br.y + br.h / 2 }); W.itemsDropped = (W.itemsDropped || 0) + 1; }
+  if (br.kind === '?') {
+    // ふしぎ ブロック：アイテムが 3こ とびだす
+    for (let i = 0; i < 3; i++) W.items.push({ k: pick(['x2', 'x3', 'x3', 'x5', 'burst', 'shield', 'plus']), x: br.x + br.w / 2 + (i - 1) * 50, y: br.y + br.h / 2 });
+    pop('？', br.x + br.w / 2, br.y, 40, '#FFE066'); jingle([84, 91, 96], 0.05, 'square', 0.1);
+  }
   // ブロックを こわすと 5こに 1こ ボールが ぶんれつして ふえる
   if (Math.random() < 0.2 && W.balls.length < MAXB) { const a = rnd(-2.6, -0.5); W.balls.push(newBall(br.x + br.w / 2, br.y + br.h + 8, Math.cos(a), Math.sin(a))); }
   if (br.kind === 'b') {
@@ -435,7 +690,7 @@ function update(dt) {
   for (const br of W.bricks) if (br.hit > 0) br.hit -= dt;
   W.bricks = W.bricks.filter((b) => !b.dead);
   // クリア
-  if (!W.bricks.length && (!bs || bs.hp <= 0)) {
+  if (!W.bricks.some((b) => b.kind !== 's') && (!bs || bs.hp <= 0)) {
     W.mode = 'clear';
     const stars = W.lives >= 3 ? 3 : W.lives === 2 ? 2 : 1;
     sv.stars[W.stage] = Math.max(sv.stars[W.stage] || 0, stars);
@@ -476,6 +731,8 @@ const HPCOL = ['#7FE0A0', '#7FC8F8', '#B98FE0', '#FF8FC8', '#FFB020', '#FF6A4A',
 function brickCol(br) {
   if (br.kind === 'x' || br.kind === 'X' || br.kind === 'p') return '#FFE066';
   if (br.kind === 'b') return '#3A3448';
+  if (br.kind === 's') return '#E4EAF2';
+  if (br.kind === '?') return '#FFB020';
   return HPCOL[Math.min(8, br.mhp - 1)];
 }
 function itemLabel(k) { return { x2: '×2', x3: '×3', x5: '×5', plus: '+10', burst: '+30', shield: 'シールド', wide: 'ワイド', fire: 'ファイア' }[k]; }
@@ -501,6 +758,13 @@ function drawPlay(t) {
     else if (br.kind === 'x' || br.kind === 'X') text(br.kind === 'x' ? '×2' : '×3', br.x + br.w / 2, br.y + br.h / 2 + 1, 13, '#8A4A00', 'center');
     else if (br.kind === 'p') text('+8', br.x + br.w / 2, br.y + br.h / 2 + 1, 13, '#8A4A00', 'center');
     else if (br.kind === 'b') text('💣', br.x + br.w / 2, br.y + br.h / 2 + 1, 13, '#FFFFFF', 'center');
+    else if (br.kind === 's') {
+      // スチール：ぎんいろ・ななめの ひかり・ふちどり・びょう
+      ctx.strokeStyle = '#5A6478'; ctx.lineWidth = 2; rr(br.x + 1.5, br.y + 1.5, br.w - 3, br.h - 3, 5); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(br.x + br.w * 0.35, br.y + br.h - 4); ctx.lineTo(br.x + br.w * 0.6, br.y + 4); ctx.stroke();
+      for (const dx of [6, br.w - 6]) fillC(br.x + dx, br.y + br.h / 2, 2.4, '#5A6478');
+    }
+    else if (br.kind === '?') text('?', br.x + br.w / 2, br.y + br.h / 2 + 1, 16 + Math.sin(t * 6) * 2, '#FFFFFF', 'center', true);
   }
   // ボス
   const bs = W.boss;
@@ -571,7 +835,7 @@ function drawPlay(t) {
   fillRR(8, 6, VW - 16, TOP - 12, 12, 'rgba(255,255,255,0.07)');
   text('ステージ ' + (W.stage + 1) + ' / ' + STAGES.length, 20, 24, 17, '#FFFFFF', 'left', true);
   text(STAGES[W.stage].name, 20, 46, 13, '#FFE0B0', 'left', true, 150);
-  text('ブロック あと ' + W.bricks.length, 20, 64, 12, '#C8B8E0', 'left', false, 150);
+  text('ブロック あと ' + W.bricks.filter((b) => b.kind !== 's').length, 20, 64, 12, '#C8B8E0', 'left', false, 150);
   text('ボール', 232, 18, 12, '#C8B8E0', 'center');
   textO(String(W.held ? 1 : W.balls.length), 232, 44, 30 * (1 + Math.max(0, W.pulse) * 1.2), W.balls.length >= 300 ? '#FF6FC8' : W.balls.length >= 100 ? '#FFB020' : '#FFFFFF');
   text('さいだい ' + W.maxBalls, 232, 66, 11, '#C8B8E0', 'center');
@@ -579,7 +843,7 @@ function drawPlay(t) {
   text('スコア ' + W.score, 340, 52, 14, '#FFE066', 'center', true, 110);
   if (W.fireT > 0) text('ファイア ' + Math.ceil(W.fireT), 340, 68, 11, '#FF8A5A', 'center');
   else if (W.shieldT > 0) text('シールド ' + Math.ceil(W.shieldT), 340, 68, 11, '#9AE0FF', 'center');
-  btn(VW - 88, 16, 74, 52, 'やめる', () => { W.mode = 'select'; }, { col: '#D8D0F0', size: 16 });
+  btn(VW - 88, 16, 74, 52, 'やめる', () => { W.page = undefined; W.mode = 'select'; }, { col: '#D8D0F0', size: 16 });
   // もじ
   W.texts.forEach((tx, i) => {
     ctx.globalAlpha = clamp(tx.t / 0.4, 0, 1);
@@ -599,7 +863,7 @@ function drawTitle(t) {
   textO('ボール ふえふえ', VW / 2, ty, 56, '#FFE066', '#3A1A0A');
   textO('大くずし', VW / 2, ty + 72, 56, '#FF8FC8', '#3A0A1A');
   text('×2 ×3 ×5 で ボールが 1000こ いじょうに！', VW / 2, ty + 132, 19, '#FFFFFF', 'center');
-  btn(VW / 2 - 150, VH * 0.58, 300, 84, 'あそぶ', () => { fullScreen(); W.mode = 'select'; }, { col: '#FFE066' });
+  btn(VW / 2 - 150, VH * 0.58, 300, 84, 'あそぶ', () => { fullScreen(); W.page = undefined; W.mode = 'select'; }, { col: '#FFE066' });
   text('クリア ' + sv.best + ' / ' + STAGES.length, VW / 2, VH * 0.58 + 124, 20, '#C8B8E0', 'center');
 }
 
@@ -607,18 +871,27 @@ function drawSelect(t) {
   ctx.fillStyle = grad(0, VH, '#2A1A6A', '#0E0A28'); ctx.fillRect(0, 0, VW, VH);
   text('ステージを えらんでね', VW / 2 + 50, 44, 24, '#FFFFFF', 'center');
   btn(12, 16, 96, 50, 'もどる', () => { W.mode = 'title'; }, { col: '#D8D0F0', size: 18 });
-  const cols = 3, rows = Math.ceil(STAGES.length / cols);
-  const bw = (VW - 40) / cols - 12, bh = Math.min(130, (VH - 100) / rows - 12);
+  // 15めんずつ ページで きりかえ
+  const PER = 15, pages = Math.ceil(STAGES.length / PER);
+  if (W.page === undefined) W.page = Math.min(pages - 1, Math.floor(Math.min(sv.best, STAGES.length - 1) / PER));
+  const cols = 3, rows = 5;
+  const bw = (VW - 40) / cols - 12, bh = Math.min(130, (VH - 170) / rows - 12);
   STAGES.forEach((S, i) => {
-    const x = VW / 2 - (cols * (bw + 12) - 12) / 2 + (i % cols) * (bw + 12);
-    const y = 86 + Math.floor(i / cols) * (bh + 12);
+    if (Math.floor(i / PER) !== W.page) return;
+    const k = i % PER;
+    const x = VW / 2 - (cols * (bw + 12) - 12) / 2 + (k % cols) * (bw + 12);
+    const y = 86 + Math.floor(k / cols) * (bh + 12);
     const open = i <= sv.best;
     btn(x, y, bw, bh, '', () => { if (open) startStage(i); }, { col: open ? (S.boss ? '#FFB0C8' : '#F4F0FF') : 'rgba(120,110,140,0.4)' });
     text(open ? String(i + 1) : '🔒', x + bw / 2, y + bh * 0.3, 30, '#2A2440', 'center');
     text(S.boss ? 'ボス' : S.name, x + bw / 2, y + bh * 0.6, 14, '#5A4A7A', 'center', true, bw - 12);
     const st = sv.stars[i] || 0;
-    for (let k = 0; k < 3; k++) { ctx.fillStyle = k < st ? '#FFB020' : 'rgba(0,0,0,0.15)'; star(x + bw / 2 - 22 + k * 22, y + bh * 0.84, 8); ctx.fill(); }
+    for (let k2 = 0; k2 < 3; k2++) { ctx.fillStyle = k2 < st ? '#FFB020' : 'rgba(0,0,0,0.15)'; star(x + bw / 2 - 22 + k2 * 22, y + bh * 0.84, 8); ctx.fill(); }
   });
+  const py = 86 + rows * (bh + 12) + 8;
+  btn(20, py, 120, 58, '◀', () => { W.page = (W.page + pages - 1) % pages; }, { col: '#D8D0F0', size: 26 });
+  btn(VW - 140, py, 120, 58, '▶', () => { W.page = (W.page + 1) % pages; }, { col: '#D8D0F0', size: 26 });
+  text((W.page * PER + 1) + '〜' + Math.min(STAGES.length, (W.page + 1) * PER) + 'めん（' + (W.page + 1) + ' / ' + pages + '）', VW / 2, py + 29, 18, '#FFFFFF', 'center', true);
   void t;
 }
 
@@ -638,7 +911,7 @@ function drawEnd(t) {
   if (clear && W.stage + 1 < STAGES.length) { btn(bx, by, bw, 70, 'つぎへ', () => startStage(W.stage + 1)); by += 86; }
   else if (clear) { text('ぜんぶ クリア！ すごい！', VW / 2, by + 30, 26, '#FFE066', 'center'); by += 70; }
   btn(bx, by, bw, 70, 'もういちど', () => startStage(W.stage), { col: '#D8D0F0' });
-  btn(bx + 30, by + 86, bw - 60, 56, 'ステージ いちらん', () => { W.mode = 'select'; }, { col: '#D8D0F0', size: 20 });
+  btn(bx + 30, by + 86, bw - 60, 56, 'ステージ いちらん', () => { W.page = undefined; W.mode = 'select'; }, { col: '#D8D0F0', size: 20 });
 }
 
 // --- そうさ ------------------------------------------------------------------------

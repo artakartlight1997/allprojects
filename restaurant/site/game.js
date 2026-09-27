@@ -131,6 +131,8 @@ function newSave(ch, startMoney, diff, name) {
 }
 let S = null;
 function save() { if (S) store.set(SAVE, S); }
+// だいじ：セーブの かたちを かえる ときは、ここで ふるい セーブに たりない ものを おぎなう。
+//   （アップデートしても「つづきから」あそべる ように。セーブキーと v は かえない）
 function load() {
   const d = store.get(SAVE, null);
   if (!d || d.v !== 1) return null;
@@ -140,6 +142,8 @@ function load() {
   if (d.rating === undefined) { d.rating = d.stars; d.reviews = 0; }
   if (d.ext === undefined) d.ext = 0;
   if (d.dayMoney === undefined) d.dayMoney = d.money;
+  // 営業の とちゅうで とじた ときは その日を やりなおし（けっさんの たし算が あう ように）
+  if (d.opened) { d.opened = false; d.dayMoney = d.money; }
   return d;
 }
 // あおいは えらんだ お金に かかわらず 30,000円から
@@ -352,6 +356,7 @@ function openShop() {
     surprise: Math.random() < 0.18 ? { k: pick(SURPRISES), at: rnd(14, 42) } : null };
   if (ev && ev.cafe) say('きょうは カフェの日！ コーヒー・ジュース・ケーキを 出そう', 3);
   G.mode = 'open';
+  S.opened = true;
   jingle([72, 76, 79, 84], 0.1, 'triangle', 0.12);
 }
 function tableSeats() {
@@ -597,7 +602,8 @@ function endDay() {
     S.money += g2; G.R.gift = g2; G.R.extra.push('あおいが くじびきで あたり！ +' + yen(g2));
   }
   S.day++;
-  S.dayMoney = S.money;   // あしたの じゅんびは ここから
+  S.dayMoney = S.money;
+  S.opened = false;   // あしたの じゅんびは ここから
   // つぎの 日の できごと
   G.event = null;
   let r = Math.random();

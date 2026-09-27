@@ -36,6 +36,15 @@ const DIFFS = [
   { name: '鬼', yomi: 'おに', col: '#D8A0FF', rev: -1.2, tip: 0, tipR: [0, 0], pat: 0.75, furn: 2, dirty: -1, badT: 3, desc: 'よごれが のこると ★1。めいわく客は すぐ おいだす。チップ なし。かぐ 2ばい' },
 ];
 const EXT_MAX = 2;
+// せいちょう：お店の グレード（ねだん アップ）・4人がけ テーブル・テイクアウト まどぐち
+const GRADES = [
+  { name: 'ふつうの 食堂', mul: 1 },
+  { name: '人気の レストラン', mul: 1.2, stars: 3, cost: 80000 },
+  { name: 'こうきゅう レストラン', mul: 1.45, stars: 4, cost: 600000 },
+  { name: '三つ星 レストラン', mul: 1.8, stars: 5, cost: 5000000 },
+];
+const BIG_COST = 6000, TAKE_COST = 30000, TAKE_MAX = 4;
+const KITCHEN_COST = [50000, 300000];   // キッチンを ひろげる（コンロ +2・スタッフ +2）
 function dayMenu() { return G.event && G.event.cafe ? CAFE_MENU : S.menu; }   // 増築できる 回数
 const SHOP_NAMES = ['にこにこ食堂', 'ほしぞらキッチン', 'もぐもぐ亭', 'おひさまレストラン', 'わくわく食堂', 'ぱくぱくハウス', 'レストラン にじいろ', 'まんぷく屋', 'きらきらダイナー', 'こもれびカフェ'];
 const COMMENTS = [null, ['まちくたびれた！', 'もう こない！', 'ぜんぜん 出て こない…'], ['ちょっと まった…', 'ねだんが たかいかも', 'いまいち'],
@@ -76,9 +85,9 @@ const RECIPES = {
 const CAFE_MENU = ['coffee', 'juice', 'cake'];
 // ふまんの りゆう（レビュー・おこって かえった お客さん）と アドバイス
 const WHY = {
-  slow:   { s: '料理が おそかった', tip: 'コンロと キッチン係を ふやそう' },
-  line:   { s: 'ならんで まちくたびれた', tip: 'テーブルを ふやそう（増築も）' },
-  full:   { s: 'まんせきで 入れなかった', tip: 'テーブルを ふやそう（増築も）' },
+  slow:   { s: '料理が おそかった', tip: 'コンロと キッチン係を ふやそう（「そだてる」で キッチンを ひろげる）' },
+  line:   { s: 'ならんで まちくたびれた', tip: '「そだてる」で 4人がけテーブル・テイクアウトを ふやそう' },
+  full:   { s: 'まんせきで 入れなかった', tip: '「そだてる」で 4人がけテーブル・テイクアウトを ふやそう' },
   nofood: { s: '食材が なくて たべられなかった', tip: '食材を 多めに 買って おこう' },
   price:  { s: 'ねだんが たかい', tip: 'ねだんを「ふつう」か「やすい」に' },
   dirty:  { s: 'テーブルが よごれて いた', tip: 'よごれた テーブルは すぐ タップ（ホール係も そうじ する）' },
@@ -127,7 +136,7 @@ const CITIES = [
 function newSave(ch, startMoney, diff, name) {
   return { v: 1, ch, diff, name, money: startMoneyOf(ch, startMoney), day: 1, land: -1, tables: 0, stoves: 0, decor: 0,
     stock: {}, coming: {}, menu: ['salad', 'onigiri'], known: ['salad', 'onigiri', 'omurice'], plv: {}, staff: [], branches: [],
-    stars: 1, rating: 1.4, reviews: 0, ext: 0, dayMoney: startMoneyOf(ch, startMoney), total: 0, served: 0, goalDone: 0, log: [], nameN: 0 };
+    stars: 1, rating: 1.4, reviews: 0, ext: 0, grade: 0, big: 0, takeout: 0, kitchen: 0, dayMoney: startMoneyOf(ch, startMoney), total: 0, served: 0, goalDone: 0, log: [], nameN: 0 };
 }
 let S = null;
 function save() { if (S) store.set(SAVE, S); }
@@ -142,6 +151,10 @@ function load() {
   if (d.rating === undefined) { d.rating = d.stars; d.reviews = 0; }
   if (d.ext === undefined) d.ext = 0;
   if (d.dayMoney === undefined) d.dayMoney = d.money;
+  if (d.grade === undefined) d.grade = 0;
+  if (d.big === undefined) d.big = 0;
+  if (d.takeout === undefined) d.takeout = 0;
+  if (d.kitchen === undefined) d.kitchen = 0;
   // 営業の とちゅうで とじた ときは その日を やりなおし（けっさんの たし算が あう ように）
   if (d.opened) { d.opened = false; d.dayMoney = d.money; }
   return d;
@@ -175,7 +188,7 @@ function land() {
   const L = LANDS[S.land];
   if (!L) return L;
   const e = S.ext || 0;
-  return Object.assign({}, L, { cols: L.cols + e * 2, tables: L.tables + e * 2, stoves: L.stoves + e, base: L.base + e * 0.2, baseCols: L.cols });
+  return Object.assign({}, L, { cols: L.cols + e * 2, tables: L.tables + e * 2, stoves: L.stoves + e + (S.kitchen || 0) * 2, base: L.base + e * 0.2, baseCols: L.cols });
 }
 function extPrice() { return Math.round(Math.max(15000, LANDS[S.land].price * 0.5) * (S.ext + 1)); }
 function buyExt() {
@@ -188,7 +201,34 @@ function buyExt() {
   save();
 }
 function furnPrice(k) { return Math.round(FURN[k].price * DIFF().furn / 10) * 10; }
-function seats() { return S.tables * 2; }
+function seats() { return S.tables * 2 + Math.min(S.big, S.tables) * 2; }
+function bigPrice() { return Math.round(BIG_COST * DIFF().furn / 10) * 10; }
+function buyBig() {
+  if (S.land < 0 || S.tables < 1) { say('さきに テーブルを 買おう'); return; }
+  if (S.big >= S.tables) { say('テーブルは ぜんぶ 4人がけ。 テーブルを ふやすか 増築しよう'); return; }
+  if (!spend(bigPrice())) return;
+  S.big++; jingle([72, 79, 84], 0.08, 'square', 0.12); say('テーブルを 4人がけに した！ すわれる 人が 2人 ふえた', 2.6); save();
+}
+function buyTake() {
+  if (S.land < 0) { say('さきに 土地を 買おう'); return; }
+  if (S.takeout) return;
+  if (!spend(TAKE_COST)) return;
+  S.takeout = 1; jingle([72, 76, 79, 84], 0.08, 'square', 0.12); say('テイクアウト まどぐちが できた！ まんせきでも もちかえりで 買って くれる', 3); save();
+}
+function buyKitchen() {
+  if (S.land < 0) { say('さきに 土地を 買おう'); return; }
+  if (S.kitchen >= KITCHEN_COST.length) return;
+  if (!spend(KITCHEN_COST[S.kitchen])) return;
+  S.kitchen++; jingle([60, 67, 72, 79], 0.09, 'square', 0.12); say('キッチンを ひろげた！ コンロ +2・スタッフ +2 まで ふやせる', 3); save();
+}
+function buyGrade() {
+  const N = GRADES[S.grade + 1];
+  if (!N) return;
+  if (S.stars < N.stars) { say('★' + N.stars + ' に なったら グレード アップ できる'); return; }
+  if (S.money < N.cost) { say('お金が たりない（' + yen(N.cost) + '）'); tone(200, 0.12, 'square', 0.07); return; }
+  S.money -= N.cost; S.grade++;
+  jingle([72, 76, 79, 84, 88, 91], 0.09, 'square', 0.13); say('「' + N.name + '」に なった！ 料理の ねだんが ' + N.mul + 'ばいに', 3.2); save();
+}
 function stockTotal() { let n = 0; for (const k in S.stock) n += S.stock[k]; return n; }
 
 // --- じゅんび：買いもの ----------------------------------------------------------------
@@ -286,7 +326,7 @@ function toggleMenu(k) {
   else { if (S.menu.length >= 6) { say('メニューに のせられるのは 6つ まで'); return; } S.menu.push(k); }
   save();
 }
-function priceOf(k) { return Math.round(RECIPES[k].price * PRICE_LV[S.plv[k] === undefined ? 1 : S.plv[k]][1] / 10) * 10; }
+function priceOf(k) { return Math.round(RECIPES[k].price * PRICE_LV[S.plv[k] === undefined ? 1 : S.plv[k]][1] * GRADES[S.grade || 0].mul / 10) * 10; }
 function costOf(k) { let c = 0; const R = RECIPES[k]; for (const i in R.need) c += ING[i].price / ING[i].pack * R.need[i]; return Math.round(c); }
 function hire(type) {
   if (S.land < 0) { say('さきに 土地を 買おう'); return; }
@@ -303,7 +343,7 @@ function hire(type) {
   say(staffName(who) + 'を ' + T.name + 'に やとった！' + (half ? '（まさきの ちからで 半がく！）' : ''), 2.6);
   save();
 }
-function staffMax() { return S.land < 0 ? 0 : 2 + (S.land + 1) * 2 + S.ext; }
+function staffMax() { return S.land < 0 ? 0 : 2 + (S.land + 1) * 2 + S.ext + (S.kitchen || 0) * 2; }
 function fire(i) { const s = S.staff[i]; S.staff.splice(i, 1); say(staffName(s.who) + 'は やめた', 1.6); save(); }
 function staffName(who) { return KIDS[who] ? KIDS[who].name : STAFF_NAMES[+who.slice(1)]; }
 function buyBranch(i) {
@@ -317,7 +357,8 @@ function buyBranch(i) {
   save();
 }
 // 支店の もうけも レビュー（ひょうばん）しだい
-function branchProfit(i) { return Math.round(CITIES[i].profit * Math.pow(S.rating / 4.5, 2) / 100) * 100; }
+// グレードが 上がると ブランドの ちからで 支店も もうかる
+function branchProfit(i) { return Math.round(CITIES[i].profit * Math.pow(S.rating / 4.5, 2) * GRADES[S.grade || 0].mul / 100) * 100; }
 
 // --- 営業 -------------------------------------------------------------------------------
 
@@ -361,7 +402,8 @@ function openShop() {
 }
 function tableSeats() {
   const out = [];
-  for (let t = 0; t < S.tables; t++) for (let s = 0; s < 2; s++) out.push({ t, s });
+  // 4人がけ テーブル（S.big こ）は 4せき
+  for (let t = 0; t < S.tables; t++) for (let s = 0; s < (t < S.big ? 4 : 2); s++) out.push({ t, s });
   return out;
 }
 function freeSeat() {
@@ -410,6 +452,7 @@ function serve(ri) {
   const D = G.D, r = D.ready[ri];
   D.ready.splice(ri, 1);
   const c = r.c;
+  if (c.state === 'take') { finishMeal(c, true); return; }
   if (c.state !== 'wait') return;
   c.state = 'eat'; c.t = 0;
   tone(880, 0.05, 'square', 0.06);
@@ -444,6 +487,50 @@ function reviewServed(c) {
   let why = null, big = 0.15;
   for (const k in minus) { b -= minus[k]; if (minus[k] > big) { big = minus[k]; why = k; } }
   return review(b, wt, why);
+}
+function chooseOrder(c) {
+  const D = G.D;
+  const can = D.menu.filter((k) => available(k) || D.stoves.some((x) => x && x.k === k));
+  if (!can.length) return null;
+  // VIPは いちばん たかい 料理を たのむ・イベントの 日は 人気の 料理が よく 出る
+  const fav = G.event && G.event.fav ? can.filter((k) => G.event.fav.includes(k)) : [];
+  return c.kind === 'vip' ? can.slice().sort((a, b) => RECIPES[b].price - RECIPES[a].price)[0] : fav.length && Math.random() < 0.55 ? pick(fav) : pick(can);
+}
+// たべおわり（テイクアウトは わたした とき）：おかね・レビュー・チップ
+function finishMeal(c, take) {
+  const D = G.D;
+  const p = Math.round(priceOf(c.k) * (c.kind === 'vip' ? 3 : 1) * (take ? 0.9 : 1) / 10) * 10;
+  S.money += p; D.sales += p; D.served++; c.state = 'leave'; c.t = 0;
+  if (take) D.takeN = (D.takeN || 0) + 1;
+  if (!take && S.diff > 0 && Math.random() < 0.6) {   // イージーは そうじ なし
+    D.dirty[c.seat.t] = true;
+    if (!G.dirtyTold) { G.dirtyTold = 1; say('テーブルが よごれた！ タップして そうじ しよう', 2.8); }
+  }
+  if (c.waited < 12) D.happy++;
+  const r = reviewServed(c), Df = DIFF();
+  D.fx.push({ s: (c.kind === 'vip' ? 'VIP ' : take ? 'もちかえり ' : '') + '+' + p + '円', t: 0, c });
+  D.fx.push({ s: starStr(r), t: 0, c, dy: -22, col: r >= 4 ? '#FFD24A' : r >= 3 ? '#FFFFFF' : '#FF8A8A' });
+  if (D.lastWhy) D.fx.push({ s: WHY[D.lastWhy].s, t: 0, c, dy: -40, col: '#FFC0C0' });
+  if (r >= 4 && Math.random() < Df.tip) {
+    const tip = Math.max(10, Math.round(p * rnd(Df.tipR[0], Df.tipR[1]) / 10) * 10);
+    S.money += tip; D.tips += tip;
+    D.fx.push({ s: 'チップ +' + tip + '円', t: 0, c, dy: 22, col: '#FFB0D8' });
+    tone(1760, 0.06, 'square', 0.05);
+  }
+  tone(1320, 0.05, 'square', 0.05);
+}
+function takeCount() { return G.D.cust.filter((c) => c.state === 'take').length; }
+// まんせきの とき：テイクアウト まどぐちへ
+function toTake(c) {
+  const D = G.D;
+  if (!S.takeout || c.kind === 'bad' || takeCount() >= TAKE_MAX) return false;
+  const k = chooseOrder(c);
+  if (!k) return false;
+  const used = new Set(D.cust.filter((o) => o.state === 'take').map((o) => o.slot));
+  let slot = 0; while (used.has(slot)) slot++;
+  c.k = k; c.state = 'take'; c.slot = slot; c.lineT = c.t; c.t = 0; c.dirty = false;
+  D.orders.push({ k, c });
+  return true;
 }
 function angryLeave(c, why) {
   if (c.kind === 'bad') { c.state = 'leave'; c.t = 0; return; }
@@ -488,12 +575,17 @@ function updateOpen(dt) {
   while (D.arrivals.length && D.arrivals[0] <= D.t && D.t < DAY_SEC) {
     D.arrivals.shift();
     const q = D.cust.filter((c) => c.state === 'line').length;
-    if (q >= 3) { D.angry++; D.angryWhy.full = (D.angryWhy.full || 0) + 1; review(2, 1, 'full'); continue; }
     // たまに VIP や めいわく客も くる
     const u = Math.random();
     const kind = u < 0.04 ? 'vip' : u < 0.04 + [0.03, 0.04, 0.05, 0.06][S.diff] ? 'bad' : 'n';
-    D.cust.push({ id: Math.random(), kind, state: 'line', t: 0, col: kind === 'vip' ? '#FFD24A' : kind === 'bad' ? '#4A3A5A' : pick(['#E84A4A', '#4A8AE8', '#FFB020', '#8AD06A', '#B98FE0', '#FF8FB8', '#6AC8C0']),
-      hair: pick(['#3A2418', '#6A3A22', '#2A2A2A', '#C8A060']), x: -0.1, y: 1 });
+    const nc = { id: Math.random(), kind, state: 'line', t: 0, col: kind === 'vip' ? '#FFD24A' : kind === 'bad' ? '#4A3A5A' : pick(['#E84A4A', '#4A8AE8', '#FFB020', '#8AD06A', '#B98FE0', '#FF8FB8', '#6AC8C0']),
+      hair: pick(['#3A2418', '#6A3A22', '#2A2A2A', '#C8A060']), x: -0.1, y: 1 };
+    if (q >= 3) {
+      // ならびが いっぱい：テイクアウトが あれば もちかえりで 買って くれる
+      if (toTake(nc)) { D.cust.push(nc); continue; }
+      D.angry++; D.angryWhy.full = (D.angryWhy.full || 0) + 1; review(2, 1, 'full'); continue;
+    }
+    D.cust.push(nc);
     if (kind === 'vip') { D.vip++; say('VIPの お客さんが きた！ いそいで 出そう（はらう お金 3ばい・レビューも 3ばい）', 2.8); }
     if (kind === 'bad') { D.bad++; if (!G.badTold) { G.badTold = 1; say('めいわく客だ！ タップして おいだそう', 2.8); } }
   }
@@ -504,18 +596,16 @@ function updateOpen(dt) {
     if (c.state === 'line') {
       const seat = freeSeat();
       if (seat) { c.seat = seat; c.lineT = c.t; c.state = 'walk'; c.t = 0; }
+      else if (c.t > 1.5 && toTake(c)) { /* テイクアウトへ */ }
       else if (c.t > 12 * DIFF().pat) angryLeave(c, 'line');
     } else if (c.state === 'walk') {
       if (c.t > 0.8 && c.kind === 'bad') { c.state = 'bad'; c.t = 0; continue; }
       if (c.t > 0.8) {
         c.dirty = D.dirty[c.seat.t];
         // ちゅうもん：ざいりょうが ある メニューから
-        const can = D.menu.filter((k) => available(k) || D.stoves.some((x) => x && x.k === k));
-        if (!can.length) { angryLeave(c, 'nofood'); continue; }
-        // VIPは いちばん たかい 料理を たのむ・イベントの 日は 人気の 料理が よく 出る
-        const fav = G.event && G.event.fav ? can.filter((k) => G.event.fav.includes(k)) : [];
-        c.k = c.kind === 'vip' ? can.slice().sort((a, b) => RECIPES[b].price - RECIPES[a].price)[0] : fav.length && Math.random() < 0.55 ? pick(fav) : pick(can);
-        c.state = 'wait'; c.t = 0;
+        const k = chooseOrder(c);
+        if (!k) { angryLeave(c, 'nofood'); continue; }
+        c.k = k; c.state = 'wait'; c.t = 0;
         D.orders.push({ k: c.k, c });
       }
     } else if (c.state === 'bad') {
@@ -523,36 +613,17 @@ function updateOpen(dt) {
       if (c.t > DIFF().badT && !c.trig) { c.trig = true; D.fx.push({ s: 'ガヤガヤ！ うるさい…', t: 0, c, dy: -22, col: '#D8A0FF' }); }
       if (c.trig) for (const o of D.cust) if (o.kind !== 'bad' && o.seat && (o.state === 'wait' || o.state === 'eat')) o.annoyed = true;
       if (c.t > 25) { c.state = 'leave'; c.t = 0; if (S.diff > 0) D.dirty[c.seat.t] = true; }
-    } else if (c.state === 'wait') {
+    } else if (c.state === 'wait' || c.state === 'take') {
       if (c.t > patience(c)) {
         angryLeave(c, 'slow');
         D.orders = D.orders.filter((o) => o.c !== c);
         D.ready = D.ready.filter((r) => r.c !== c);
       }
     } else if (c.state === 'eat') {
-      if (c.t > 4) {
-        const p = priceOf(c.k) * (c.kind === 'vip' ? 3 : 1);
-        S.money += p; D.sales += p; D.served++; c.state = 'leave'; c.t = 0;
-        if (S.diff > 0 && Math.random() < 0.6) {   // イージーは そうじ なし
-          D.dirty[c.seat.t] = true;
-          if (!G.dirtyTold) { G.dirtyTold = 1; say('テーブルが よごれた！ タップして そうじ しよう', 2.8); }
-        }
-        if (c.waited < 12) D.happy++;
-        const r = reviewServed(c), Df = DIFF();
-        D.fx.push({ s: (c.kind === 'vip' ? 'VIP ' : '') + '+' + p + '円', t: 0, c });
-        D.fx.push({ s: starStr(r), t: 0, c, dy: -22, col: r >= 4 ? '#FFD24A' : r >= 3 ? '#FFFFFF' : '#FF8A8A' });
-        if (D.lastWhy) D.fx.push({ s: WHY[D.lastWhy].s, t: 0, c, dy: -40, col: '#FFC0C0' });
-        if (r >= 4 && Math.random() < Df.tip) {
-          const tip = Math.max(10, Math.round(p * rnd(Df.tipR[0], Df.tipR[1]) / 10) * 10);
-          S.money += tip; D.tips += tip;
-          D.fx.push({ s: 'チップ +' + tip + '円', t: 0, c, dy: 22, col: '#FFB0D8' });
-          tone(1760, 0.06, 'square', 0.05);
-        }
-        tone(1320, 0.05, 'square', 0.05);
-      }
+      if (c.t > 4) finishMeal(c, false);
       continue;
     } else if (c.state === 'leave' && c.t > 1) c.gone = true;
-    if (c.state === 'wait') c.waited = c.t;
+    if (c.state === 'wait' || c.state === 'take') c.waited = c.t;
   }
   D.cust = D.cust.filter((c) => !c.gone);
   // コンロ
@@ -561,7 +632,7 @@ function updateOpen(dt) {
     st.t += dt * cookSpeed();
     if (st.t >= st.need) {
       D.stoves[i] = null;
-      if (st.c.state === 'wait') { D.ready.push({ k: st.k, c: st.c, t: 0 }); tone(1000, 0.06, 'triangle', 0.06); }
+      if (st.c.state === 'wait' || st.c.state === 'take') { D.ready.push({ k: st.k, c: st.c, t: 0 }); tone(1000, 0.06, 'triangle', 0.06); }
     }
   });
   for (const r of D.ready) r.t += dt;
@@ -592,7 +663,7 @@ function endDay() {
   S.total += D.sales; S.served += D.served;
   const avg = D.revs.length ? D.revs.reduce((a, b) => a + b, 0) / D.revs.length : 0;
   G.R = { sales: D.sales, tips: D.tips, cost: D.cost, wages, util, br, served: D.served, angry: D.angry, stars: S.stars, extra: [], prep: D.prep, start: S.dayMoney, gift: 0,
-    avg, nrev: D.revs.length, best: D.best, worst: D.worst, vip: D.vip, bad: D.bad, kicked: D.kicked, cleaned: D.cleaned };
+    avg, nrev: D.revs.length, best: D.best, worst: D.worst, vip: D.vip, bad: D.bad, kicked: D.kicked, cleaned: D.cleaned, takeN: D.takeN || 0 };
   // きょうだいの ちから（たまに）
   G.R.why = D.why; G.R.angryWhy = D.angryWhy;
   if (D.surpriseText) G.R.extra.push('サプライズ：' + D.surpriseText + '！');
@@ -633,7 +704,12 @@ function tablePos(t) {
   const r = Math.floor(t / perRow), c = t % perRow;
   return { x: F.x0 + (1.5 + c * 2) * F.ts, y: F.y0 + (1.8 + r * 1.1) * F.ts };
 }
-function seatPos(z) { const p = tablePos(z.t), F = floorRect(); return { x: p.x + (z.s ? 0.55 : -0.55) * F.ts, y: p.y + 0.1 * F.ts }; }
+function seatPos(z) {
+  const p = tablePos(z.t), F = floorRect();
+  if (z.t < S.big) return { x: p.x + (z.s % 2 ? 0.55 : -0.55) * F.ts, y: p.y + (z.s < 2 ? -0.18 : 0.36) * F.ts };
+  return { x: p.x + (z.s ? 0.55 : -0.55) * F.ts, y: p.y + 0.1 * F.ts };
+}
+function takePos(i) { const F = floorRect(); return { x: F.x0 + (F.cols - 0.55 - i * 0.7) * F.ts, y: F.y0 + (F.rows - 0.3) * F.ts }; }
 function drawPerson(x, y, s, col, hair, sad, kind) {
   ellipse(x, y + s * 0.02, s * 0.28, s * 0.08); ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fill();
   fillRR(x - s * 0.2, y - s * 0.5, s * 0.4, s * 0.48, s * 0.12, col);
@@ -705,10 +781,12 @@ function drawShop(t, withD) {
   for (let i = 0; i < L.tables; i++) {
     const p = tablePos(i);
     if (i < S.tables) {
-      fillRR(p.x - F.ts * 0.9, p.y - F.ts * 0.05, F.ts * 0.36, F.ts * 0.36, 5, '#C8905A');
-      fillRR(p.x + F.ts * 0.54, p.y - F.ts * 0.05, F.ts * 0.36, F.ts * 0.36, 5, '#C8905A');
-      fillRR(p.x - F.ts * 0.4, p.y - F.ts * 0.25, F.ts * 0.8, F.ts * 0.6, 6, '#FFFFFF');
-      ctx.strokeStyle = '#E84A6A'; ctx.lineWidth = 2; rr(p.x - F.ts * 0.4, p.y - F.ts * 0.25, F.ts * 0.8, F.ts * 0.6, 6); ctx.stroke();
+      const big = i < S.big;
+      if (big) for (const [dx, dy] of [[-0.9, -0.32], [0.54, -0.32], [-0.9, 0.24], [0.54, 0.24]]) fillRR(p.x + F.ts * dx, p.y + F.ts * dy, F.ts * 0.36, F.ts * 0.3, 5, '#C8905A');
+      else { fillRR(p.x - F.ts * 0.9, p.y - F.ts * 0.05, F.ts * 0.36, F.ts * 0.36, 5, '#C8905A'); fillRR(p.x + F.ts * 0.54, p.y - F.ts * 0.05, F.ts * 0.36, F.ts * 0.36, 5, '#C8905A'); }
+      const th = big ? 0.8 : 0.6, ty = big ? -0.32 : -0.25;
+      fillRR(p.x - F.ts * 0.4, p.y + ty * F.ts, F.ts * 0.8, F.ts * th, 6, big ? '#FFF8E0' : '#FFFFFF');
+      ctx.strokeStyle = big ? '#E8A020' : '#E84A6A'; ctx.lineWidth = 2; rr(p.x - F.ts * 0.4, p.y + ty * F.ts, F.ts * 0.8, F.ts * th, 6); ctx.stroke();
       if (withD && G.D.dirty[i]) {
         // よごれ（のこった おさら・しみ）
         ellipse(p.x - F.ts * 0.15, p.y + F.ts * 0.12, F.ts * 0.12, F.ts * 0.06); ctx.fillStyle = 'rgba(140,90,40,0.55)'; ctx.fill();
@@ -721,6 +799,14 @@ function drawShop(t, withD) {
   }
   // ドア
   fillR(F.x0 - 6, F.y0 + (F.rows - 0.9) * F.ts, 8, F.ts * 0.8, '#FFE066');
+  // テイクアウト まどぐち（みぎした）
+  if (S.takeout) {
+    const x1 = F.x0 + (F.cols - 0.2 - TAKE_MAX * 0.7) * F.ts;
+    fillRR(x1, F.y0 + (F.rows - 0.12) * F.ts, (F.cols * F.ts + F.x0) - x1 - 4, F.ts * 0.12, 3, '#E8A020');
+    text('テイクアウト', F.x0 + (F.cols - 0.2 - TAKE_MAX * 0.35) * F.ts, F.y0 + (F.rows - 0.9) * F.ts, Math.max(10, F.ts * 0.16), '#B87000', 'center', true);
+  }
+  // グレードが 上がると 入り口から あかい じゅうたん
+  if (S.grade >= 1) fillR(F.x0, F.y0 + (F.rows - 0.75) * F.ts, F.ts * (0.8 + S.grade * 0.6), F.ts * 0.5, 'rgba(200,50,60,' + (0.15 + S.grade * 0.08) + ')');
   // スタッフ
   S.staff.forEach((s, i) => {
     const x = s.type === 'kitchen' ? F.x0 + (F.cols - 1.5 - i * 0.5) * F.ts : F.x0 + (1 + i * 0.7) * F.ts;
@@ -732,16 +818,13 @@ function drawShop(t, withD) {
   // お客さん
   const D = G.D;
   if (D.catT > 0) drawCat(F.x0 + F.ts * 1.3 + Math.sin(t * 0.8) * F.ts * 0.6, F.y0 + (F.rows - 0.35) * F.ts, F.ts * 0.5, t);
-  if (G.event) {
-    fillRR(F.x0 + F.cols * F.ts - 160, F.y0 + F.rows * F.ts - 32, 152, 26, 8, 'rgba(90,40,120,0.85)');
-    text('きょう：' + G.event.short, F.x0 + F.cols * F.ts - 84, F.y0 + F.rows * F.ts - 19, 13, '#FFFFFF', 'center', true, 144);
-  }
   for (const c of D.cust) {
     let x, y;
     const door = { x: F.x0 + 0.2 * F.ts, y: F.y0 + (F.rows - 0.4) * F.ts };
     if (c.state === 'line') { const q = D.cust.filter((o) => o.state === 'line').indexOf(c); x = F.x0 - 30 - q * 26; y = door.y + 10; }
     else if (c.state === 'walk') { const sp = seatPos(c.seat), u = Math.min(1, c.t / 0.8); x = lerp(door.x, sp.x, u); y = lerp(door.y, sp.y, u); }
-    else if (c.state === 'leave') { const sp = c.seat ? seatPos(c.seat) : door, u = Math.min(1, c.t); x = lerp(sp.x, door.x - 40, u); y = lerp(sp.y, door.y, u); }
+    else if (c.state === 'take') { const tp = takePos(c.slot); x = tp.x; y = tp.y - F.ts * 0.2; }
+    else if (c.state === 'leave') { const sp = c.seat ? seatPos(c.seat) : c.slot !== undefined ? takePos(c.slot) : door, u = Math.min(1, c.t); x = lerp(sp.x, door.x - 40, u); y = lerp(sp.y, door.y, u); }
     else { const sp = seatPos(c.seat); x = sp.x; y = sp.y; }
     drawPerson(x, y + F.ts * 0.2, F.ts * 0.75, c.col, c.hair, c.sad, c.kind);
     c.dx = x; c.dy = y;
@@ -751,19 +834,20 @@ function drawShop(t, withD) {
       text('ガヤガヤ', x, y - F.ts * 0.8, Math.max(10, F.ts * 0.17), c.trig ? '#FFFFFF' : '#6A2A9A', 'center', true);
       if (!c.trig) fillR(x - F.ts * 0.38, y - F.ts * 0.6, F.ts * 0.76 * (1 - u), 4, '#B04AE0');
     }
-    if (c.state === 'wait') {
+    if (c.state === 'wait' || c.state === 'take') {
       const u = c.t / patience(c);
       fillRR(x - F.ts * 0.3, y - F.ts * 0.95, F.ts * 0.6, F.ts * 0.46, 8, c.kind === 'vip' ? '#FFD24A' : '#FFFFFF');
       drawDish(c.k, x, y - F.ts * 0.72, F.ts * 0.36);
       fillR(x - F.ts * 0.26, y - F.ts * 0.52, F.ts * 0.52 * (1 - u), 4, u > 0.7 ? '#FF6A6A' : '#7FE0A0');
       c.px = x; c.py = y;
     }
-    if (c.state === 'eat') drawDish(c.k, x + (c.seat.s ? -0.3 : 0.3) * F.ts, y - F.ts * 0.05, F.ts * 0.32);
+    if (c.state === 'eat') drawDish(c.k, x + (c.seat.s % 2 ? -0.3 : 0.3) * F.ts, y - F.ts * 0.05, F.ts * 0.32);
   }
   for (const f of D.fx) {
     ctx.globalAlpha = Math.max(0, 1 - f.t / 1.4);
-    const x = f.px !== undefined ? f.px : f.c && f.c.seat ? seatPos(f.c.seat).x : (VW - 280) * (f.x || 0.5);
-    const y = f.py !== undefined ? f.py : f.c && f.c.seat ? seatPos(f.c.seat).y - F.ts : 90;
+    const tk = f.c && !f.c.seat && f.c.slot !== undefined ? takePos(f.c.slot) : null;
+    const x = f.px !== undefined ? f.px : f.c && f.c.seat ? seatPos(f.c.seat).x : tk ? tk.x : (VW - 280) * (f.x || 0.5);
+    const y = f.py !== undefined ? f.py : f.c && f.c.seat ? seatPos(f.c.seat).y - F.ts : tk ? tk.y - F.ts : 90;
     textO(f.s, x, y + (f.dy || 0) - f.t * 30, f.dy ? 14 : 17, f.col || '#FFE066', '#6A3A1A');
     ctx.globalAlpha = 1;
   }
@@ -783,7 +867,7 @@ function shadeC(c) { const n = parseInt(c.slice(1), 16); return 'rgb(' + Math.ro
 function drawTop(t) {
   fillR(0, 0, VW, 50, '#5A2A1A');
   drawKidFace(S.ch, 26, 25, 16);
-  text('「' + S.name + '」' + DIFF().name, 50, 12, 12, '#FFC89A', 'left', true, 330);
+  text('「' + S.name + '」' + DIFF().name + '・' + GRADES[S.grade || 0].name, 50, 12, 12, '#FFC89A', 'left', true, VW - 330);
   text(S.day + '日め', 52, 33, 16, '#FFE0B0', 'left');
   text(yen(S.money), 124, 33, 20, S.money < 0 ? '#FF8A8A' : '#FFE066', 'left');
   if (S.money < 0) text('赤字', 124 + ctx.measureText(yen(S.money)).width + 30, 33, 13, '#FF8A8A', 'left');
@@ -800,8 +884,8 @@ function drawPrep(t) {
   drawTop(t);
   const X = VW - 276, W = 268;
   fillRR(X, 56, W, VH - 62, 14, '#FFFFFF');
-  const tabs = ['お店', '食材', 'メニュー', 'スタッフ', '支店'];
-  tabs.forEach((s, i) => btn(X + 4 + i * 53, 60, 50, 40, s, () => { G.tab = i; }, { col: G.tab === i ? '#FFB84A' : '#F4E8D8', size: 12 }));
+  const tabs = ['お店', '食材', 'メニュー', 'スタッフ', '支店', 'そだてる'];
+  tabs.forEach((s, i) => btn(X + 3 + i * 44, 60, 42, 40, s, () => { G.tab = i; }, { col: G.tab === i ? '#FFB84A' : i === 5 ? '#FFE8A0' : '#F4E8D8', size: 11 }));
   const y0 = 108;
   if (G.tab === 0) {
     if (S.land < 0) text('まずは 土地を 買おう', X + W / 2, y0 + 8, 15, '#8A4A1A', 'center');
@@ -863,14 +947,40 @@ function drawPrep(t) {
       text(staffName(s.who) + '（' + STAFF_TYPES[s.type].name + '）', X + 42, y + 14, 12, '#4A2A1A', 'left', false, 160);
       btn(X + W - 62, y, 52, 28, 'やめる', () => fire(i), { col: '#F0D8D8', size: 11, flat: 1 });
     });
-  } else {
+  } else if (G.tab === 4) {
     drawMapPanel(X, y0, W, t);
-  }
+  } else drawGrowPanel(X, y0, W);
   const why = canOpen();
   btn(X + 8, VH - 64, W - 16, 56, why ? why : '開店する！', openShop, { col: why ? '#E8E0D8' : '#FF8A5A', size: why ? 15 : 24 });
   if (G.event && !why && G.msgT <= 0) { fillRR((VW - 280) / 2 - 200, VH - 50, 400, 34, 10, 'rgba(90,40,120,0.85)'); text(G.event.s, (VW - 280) / 2, VH - 33, 13, '#FFFFFF', 'center', true, 380); }
   if (G.msgT > 0) { const mw = Math.min(480, VW - 310); fillRR((VW - 280) / 2 - mw / 2, VH - 58, mw, 44, 12, 'rgba(40,20,10,0.85)'); text(G.msg, (VW - 280) / 2, VH - 36, 15, '#FFFFFF', 'center', true, mw - 20); }
   if (G.roul) drawRoulette();
+}
+// そだてる：まんせきで かえる お客さんを へらし、1人あたりの うりあげを ふやす
+function drawGrowPanel(X, y0, W) {
+  text('まんせきや 料理が まにあわない ときに', X + W / 2, y0 + 4, 11, '#8A6A4A', 'center');
+  const row = (y, h, on, col, t1, t2, t3) => {
+    btn(X + 8, y, W - 16, h, '', on, { col, flat: 1 });
+    text(t1, X + 18, y + 13, 13, '#4A2A1A', 'left', true, W - 40);
+    text(t2, X + 18, y + 30, 11, '#8A5A20', 'left', true, W - 40);
+    if (t3) text(t3, X + 18, y + 45, 10, '#6A5A4A', 'left', false, W - 40);
+  };
+  const g = S.grade || 0, N = GRADES[g + 1];
+  let y = y0 + 14;
+  row(y, 58, buyGrade, !N ? '#E8F8E0' : S.stars >= N.stars && S.money >= N.cost ? '#FFE8A0' : '#EEE8E0', 'お店の グレード（ねだん・支店 アップ）',
+    'いま：' + GRADES[g].name + '（料理と 支店 ×' + GRADES[g].mul + '）', N ? 'つぎ：' + N.name + ' ×' + N.mul + '　★' + N.stars + '・' + yen(N.cost) : 'さいこうの グレード！');
+  y += 64;
+  row(y, 58, buyBig, S.big >= S.tables ? '#EEE8E0' : '#FFF4D8', '4人がけ テーブルに する',
+    yen(bigPrice()) + '　' + Math.min(S.big, S.tables) + ' / ' + S.tables + 'つ　せき ' + seats() + 'こ', '1つの テーブルに 4人 すわれる');
+  y += 64;
+  const kFull = S.kitchen >= KITCHEN_COST.length;
+  row(y, 58, buyKitchen, kFull ? '#E8F8E0' : '#FFF4D8', 'キッチンを ひろげる',
+    (kFull ? 'もう いっぱい' : yen(KITCHEN_COST[S.kitchen])) + '　' + S.kitchen + ' / ' + KITCHEN_COST.length, 'コンロ +2・スタッフ +2 まで ふやせる');
+  y += 64;
+  row(y, 58, buyTake, S.takeout ? '#E8F8E0' : '#FFF4D8', 'テイクアウト まどぐち',
+    S.takeout ? 'もう ある！' : yen(TAKE_COST), 'まんせきでも もちかえりで 買って くれる（' + TAKE_MAX + '人）');
+  y += 64;
+  row(y, 44, () => { G.tab = 4; }, '#E0F0FF', '2号店を 出す → 支店タブへ', '★2 から。まいにち もうけ（いま ' + S.branches.length + 'けん）');
 }
 function drawMapPanel(X, y0, W, t) {
   // 日本の かんたんな ちず
@@ -923,6 +1033,7 @@ function drawOpen(t) {
     btn(x, y, 80, 64, '', () => serve(D.ready.indexOf(r)), { col: '#E0F8D8', flat: 1 });
     drawDish(r.k, x + 40, y + 28, 38);
   });
+  if (G.event) { fillRR(X + 40, VH - 132, W - 80, 24, 8, 'rgba(120,60,180,0.9)'); text('きょう：' + G.event.short, X + W / 2, VH - 120, 13, '#FFFFFF', 'center', true, W - 90); }
   text('売上 ' + yen(D.sales) + '　お客さん ' + D.served + '人', X + W / 2, VH - 96, 13, '#4A2A1A', 'center', true, W - 20);
   if (D.angry) text('おこって かえった ' + D.angry + '人', X + W / 2, VH - 78, 12, '#C83A3A', 'center');
   const cooking = S.stoves - D.stoves.filter((x) => !x).length;
@@ -997,6 +1108,7 @@ function drawResult(t) {
   if (R.vip) st2.push('VIP ' + R.vip + '人');
   if (R.bad) st2.push('おいだした ' + R.kicked + ' / ' + R.bad + '人');
   if (R.cleaned) st2.push('そうじ ' + R.cleaned + 'かい');
+  if (R.takeN) st2.push('もちかえり ' + R.takeN + '人');
   if (st2.length) text(st2.join('　'), rx, Math.min(y, 426), 13, '#4A5A8A', 'left', true, rw);
   // --- した：イベント・サプライズ ---
   R.extra.forEach((s2, i) => text(s2, (VW - 160) / 2, 456 + i * 21, 14, '#6A3AA8', 'center', true, VW - 380));
@@ -1143,7 +1255,7 @@ startGame({
     if (D.pop) { D.pop = null; return; }
     // めいわく客 → おいだす
     for (const c of D.cust) if (c.state === 'bad' && c.dx !== undefined && Math.hypot(x - c.dx, y - (c.dy - F.ts * 0.4)) < Math.max(36, F.ts * 0.6)) { kickOut(c); return; }
-    for (const c of D.cust) if (c.state === 'wait' && c.px !== undefined && Math.hypot(x - c.px, y - (c.py - 30)) < 36) {
+    for (const c of D.cust) if ((c.state === 'wait' || c.state === 'take') && c.px !== undefined && Math.hypot(x - c.px, y - (c.py - 30)) < 36) {
       const ri = D.ready.findIndex((r) => r.c === c);
       if (ri >= 0) { serve(ri); return; }
       const oi = D.orders.findIndex((o) => o.c === c);

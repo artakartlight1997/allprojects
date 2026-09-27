@@ -409,6 +409,108 @@ const STAGES = [
   ], gates: [[0.2, 0.76, 0.2, 4, 150], [0.5, 0.68, 0.2, 3, 0], [0.8, 0.76, 0.2, 4, -150]] },
 ];
 
+// --- 41〜500めん：じどうで つくる めん --------------------------------------------------
+// めんの ばんごうを「たね」に して つくるので、おなじ めんは いつも おなじ かたち。
+// 50めんごとに ワールドが かわり、あとの めんほど かたく・スチールが ふえ・ゲートが はやい。
+// 10めんごとに ボス。スチールで かこまれて とどかない ブロックが できたら スチールを あける。
+const TOTAL = 500;
+const WORLDS = [
+  { name: 'はじまりの ひろば', boss: 'キング ブロック', col: '#241A5A' },
+  { name: 'おかしの くに', boss: 'ケーキ ブロック', col: '#5A2A4A' },
+  { name: 'うみの そこ', boss: 'クジラ ブロック', col: '#0A3A5A' },
+  { name: 'もりの おく', boss: 'きのこ ブロック', col: '#1A4A2A' },
+  { name: 'こおりの しま', boss: 'ゆきだるま ブロック', col: '#2A4A6A' },
+  { name: 'かざんの まち', boss: 'マグマ ブロック', col: '#5A1A0A' },
+  { name: 'そらの しろ', boss: 'くも ブロック', col: '#3A5A8A' },
+  { name: 'うちゅう', boss: 'ユーフォー ブロック', col: '#0A0A2A' },
+  { name: 'ゆめの せかい', boss: 'ユニコーン ブロック', col: '#4A2A6A' },
+  { name: 'さいごの せかい', boss: 'ブロック だいまおう', col: '#2A0A1A' },
+];
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+// スチールで かこまれた ブロックを なくす（とどかない ところの となりの スチールを あける）
+function openSteel(g) {
+  const R = g.length, C = 14;
+  for (let guard = 0; guard < 200; guard++) {
+    const seen = Array.from({ length: R + 2 }, () => Array(C).fill(false));
+    const q = [];
+    for (let c = 0; c < C; c++) q.push([R, c]);
+    while (q.length) {
+      const [r, c] = q.pop();
+      if (r < -1 || r > R || c < 0 || c >= C || seen[r + 1][c]) continue;
+      if (r >= 0 && r < R && g[r][c] === 's') continue;
+      seen[r + 1][c] = true;
+      q.push([r + 1, c], [r - 1, c], [r, c + 1], [r, c - 1]);
+    }
+    let fixed = false, bad = false;
+    for (let r = 0; r < R && !fixed; r++) for (let c = 0; c < C && !fixed; c++) {
+      if (g[r][c] === '.' || g[r][c] === 's' || seen[r + 1][c]) continue;
+      bad = true;
+      // となりの スチールで、その むこうが とどく ところ → あける
+      for (const [dr, dc] of [[1, 0], [0, 1], [0, -1], [-1, 0]]) {
+        const rr2 = r + dr, cc = c + dc;
+        if (rr2 >= 0 && rr2 < R && cc >= 0 && cc < C && g[rr2][cc] === 's') { g[rr2][cc] = '1'; fixed = true; break; }
+      }
+    }
+    if (!bad) return g;
+    if (!fixed) { for (const row of g) for (let c = 0; c < C; c++) if (row[c] === 's') { row[c] = '1'; } return g; }
+  }
+  return g;
+}
+function genStage(i) {
+  const n = i + 1, R = seeded(n * 9973 + 17), w = Math.min(WORLDS.length - 1, Math.floor(i / 50));
+  const boss = n % 10 === 0;
+  const nr = boss ? 7 : Math.min(10, 5 + Math.floor(R() * 4) + Math.floor(n / 150));
+  const hpBase = Math.min(8, 1 + Math.floor(n / 60));
+  const pat = Math.floor(R() * 8), dens = 0.55 + R() * 0.35, ph = R() * 6;
+  const g = Array.from({ length: nr }, () => Array(14).fill('.'));
+  const top = boss ? 3 : 0;
+  for (let r = top; r < nr; r++) for (let c = 0; c < 14; c++) {
+    const m = c < 7 ? c : 13 - c;          // ひだりみぎ たいしょう
+    const rr2 = r - top, cr = (nr - top) / 2;
+    let on;
+    if (pat === 0) on = seeded(n * 31 + rr2 * 7 + m)() < dens;
+    else if (pat === 1) on = rr2 % 2 === 0 || m % 3 === 0;
+    else if (pat === 2) on = (rr2 + m) % 2 === 0;
+    else if (pat === 3) on = Math.abs(rr2 - cr) + Math.abs(m - 6.5) * 0.7 < cr + 2;
+    else if (pat === 4) { const d = Math.hypot(rr2 - cr, (m - 6.5) * 0.6); on = d > 1.2 && d < cr + 1.5; }
+    else if (pat === 5) on = Math.abs(Math.sin(m * 0.7 + ph) * 2 + cr - rr2) < 1.6;
+    else if (pat === 6) on = m % 3 !== 1 || rr2 % 3 === 0;
+    else on = Math.min(rr2, nr - top - 1 - rr2, m) % 2 === 0;
+    if (!on) continue;
+    const hp = Math.max(1, Math.min(9, hpBase + Math.floor(R() * 3) - 1 + (rr2 < 2 ? 1 : 0)));
+    let ch = String(hp);
+    const u = R();
+    if (u < 0.03) ch = 'x'; else if (u < 0.045) ch = 'X'; else if (u < 0.055) ch = 'p'; else if (u < 0.07) ch = 'b'; else if (u < 0.085) ch = '?';
+    g[r][c] = ch;
+  }
+  // スチール：よこの かべ（すきまつき）と ぽつぽつ
+  const steelP = Math.min(0.12, 0.02 + n / 4000);
+  for (let r = top; r < nr; r++) {
+    if (R() < 0.18 + n / 3000) {
+      const gap1 = Math.floor(R() * 6), gap2 = gap1 + 2 + Math.floor(R() * 3);
+      for (let c = 0; c < 7; c++) if (c !== gap1 && c !== gap2 && g[r][c] !== '.') { g[r][c] = 's'; g[r][13 - c] = 's'; }
+    }
+    for (let c = 0; c < 7; c++) if (g[r][c] !== '.' && R() < steelP) { g[r][c] = 's'; g[r][13 - c] = 's'; }
+  }
+  openSteel(g);
+  // こわせる ブロックが すくなすぎたら 1れつ たす
+  if (g.flat().filter((ch) => ch !== '.' && ch !== 's').length < 14) for (let c = 0; c < 14; c++) g[nr - 1][c] = String(hpBase);
+  const gates = [];
+  const ng = boss ? 2 + Math.floor(R() * 2) : 1 + Math.floor(R() * 3);
+  for (let k = 0; k < ng; k++) {
+    const sp = R() < 0.5 ? 0 : Math.min(220, 60 + n * 0.3) * (R() < 0.5 ? -1 : 1);
+    gates.push([0.2 + R() * 0.6, 0.6 + R() * 0.18, 0.16 + R() * 0.16, 2 + Math.floor(R() * 2) + (n > 200 ? 1 : 0), sp]);
+  }
+  return { name: boss ? 'ボス：' + WORLDS[w].boss : WORLDS[w].name + ' ' + (n - w * 50), boss: boss ? 20000 + (n - 40) * 400 : 0, rows: g.map((row) => row.join('')), gates, world: w };
+}
+const BOSS_COL = ['#7A3AB8', '#E86AA8', '#3A8AD8', '#8A5A2A', '#8AC8E8', '#E85A2A', '#F0F0FF', '#4AE8B0', '#C88AF0', '#2A2A3A'];
+const _stageCache = {};
+function stage(i) { return i < STAGES.length ? STAGES[i] : (_stageCache[i] = _stageCache[i] || genStage(i)); }
+function worldOf(i) { return Math.min(WORLDS.length - 1, Math.floor(i / 50)); }
+
 // --- じょうたい ----------------------------------------------------------------------
 
 const sv = store.get(SAVE, { best: 0, stars: {} });
@@ -428,7 +530,7 @@ const CH = 24;
 function startStage(i) {
   W.stage = i; W.mode = 'play';
   const F = field(), cw = cellW();
-  const S = STAGES[i];
+  const S = stage(i);
   W.bricks = [];
   S.rows.forEach((row, r) => {
     for (let c = 0; c < COLS; c++) {
@@ -440,7 +542,7 @@ function startStage(i) {
     }
   });
   // ボスは あとの めんほど はやい
-  W.boss = S.boss ? { x: F.x + F.w / 2 - cw * 2.5, y: F.y + 70, w: cw * 5, h: CH * 3, hp: S.boss, mhp: S.boss, vx: 90 + Math.max(0, i - 14) * 5, hit: 0 } : null;
+  W.boss = S.boss ? { x: F.x + F.w / 2 - cw * 2.5, y: F.y + 70, w: cw * 5, h: CH * 3, hp: S.boss, mhp: S.boss, vx: 90 + Math.min(250, Math.max(0, i - 14) * 5), hit: 0 } : null;
   // ゲートは ひろめ・ばいりつ +1（×2 → ×3、×3 → ×4）で どんどん ふえる
   W.gates = (S.gates || []).map((g, gi) => ({ id: gi, x: F.x + F.w * g[0], y: F.y + F.h * g[1], w: Math.min(F.w * 0.8, F.w * g[2] * 1.3), mult: g[3] + 1, vx: g[4], hit: 0 }));
   W.itemsDropped = 0;
@@ -744,7 +846,7 @@ function drawPlay(t) {
   const sx = W.shake > 0 ? rnd(-5, 5) : 0, sy = W.shake > 0 ? rnd(-4, 4) : 0;
   ctx.save(); ctx.translate(sx, sy);
   const fever = W.balls.length >= 300;
-  ctx.fillStyle = fever ? grad(F.y, F.y + F.h, 'hsl(' + Math.round(t * 80) % 360 + ',55%,28%)', '#0E0A28') : grad(F.y, F.y + F.h, '#241A5A', '#0E0A28');
+  ctx.fillStyle = fever ? grad(F.y, F.y + F.h, 'hsl(' + Math.round(t * 80) % 360 + ',55%,28%)', '#0E0A28') : grad(F.y, F.y + F.h, WORLDS[worldOf(W.stage)].col, '#0E0A28');
   rr(F.x, F.y, F.w, F.h, 10); ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3; ctx.stroke();
   // ほし
@@ -769,7 +871,7 @@ function drawPlay(t) {
   // ボス
   const bs = W.boss;
   if (bs && bs.hp > 0) {
-    fillRR(bs.x, bs.y, bs.w, bs.h, 12, bs.hit > 0 ? '#FFFFFF' : '#7A3AB8');
+    fillRR(bs.x, bs.y, bs.w, bs.h, 12, bs.hit > 0 ? '#FFFFFF' : BOSS_COL[worldOf(W.stage)]);
     fillRR(bs.x + 6, bs.y + 6, bs.w - 12, 10, 5, 'rgba(255,255,255,0.25)');
     for (const sg of [-1, 1]) { fillC(bs.x + bs.w / 2 + sg * bs.w * 0.2, bs.y + bs.h * 0.45, 11, '#FFFFFF'); fillC(bs.x + bs.w / 2 + sg * bs.w * 0.2 + Math.sin(t * 2) * 3, bs.y + bs.h * 0.47, 6, '#2A2028'); }
     ctx.strokeStyle = '#2A2028'; ctx.lineWidth = 3;
@@ -833,8 +935,8 @@ function drawPlay(t) {
   ctx.restore();
   // うえの じょうほう（たて長）
   fillRR(8, 6, VW - 16, TOP - 12, 12, 'rgba(255,255,255,0.07)');
-  text('ステージ ' + (W.stage + 1) + ' / ' + STAGES.length, 20, 24, 17, '#FFFFFF', 'left', true);
-  text(STAGES[W.stage].name, 20, 46, 13, '#FFE0B0', 'left', true, 150);
+  text('ステージ ' + (W.stage + 1) + ' / ' + TOTAL, 20, 24, 17, '#FFFFFF', 'left', true);
+  text(stage(W.stage).name, 20, 46, 13, '#FFE0B0', 'left', true, 150);
   text('ブロック あと ' + W.bricks.filter((b) => b.kind !== 's').length, 20, 64, 12, '#C8B8E0', 'left', false, 150);
   text('ボール', 232, 18, 12, '#C8B8E0', 'center');
   textO(String(W.held ? 1 : W.balls.length), 232, 44, 30 * (1 + Math.max(0, W.pulse) * 1.2), W.balls.length >= 300 ? '#FF6FC8' : W.balls.length >= 100 ? '#FFB020' : '#FFFFFF');
@@ -863,35 +965,43 @@ function drawTitle(t) {
   textO('ボール ふえふえ', VW / 2, ty, 56, '#FFE066', '#3A1A0A');
   textO('大くずし', VW / 2, ty + 72, 56, '#FF8FC8', '#3A0A1A');
   text('×2 ×3 ×5 で ボールが 1000こ いじょうに！', VW / 2, ty + 132, 19, '#FFFFFF', 'center');
+  text('ぜんぶで 500めん・10ワールド', VW / 2, ty + 162, 17, '#FFE0B0', 'center', true);
   btn(VW / 2 - 150, VH * 0.58, 300, 84, 'あそぶ', () => { fullScreen(); W.page = undefined; W.mode = 'select'; }, { col: '#FFE066' });
-  text('クリア ' + sv.best + ' / ' + STAGES.length, VW / 2, VH * 0.58 + 124, 20, '#C8B8E0', 'center');
+  text('クリア ' + sv.best + ' / ' + TOTAL, VW / 2, VH * 0.58 + 124, 20, '#C8B8E0', 'center');
 }
 
 function drawSelect(t) {
   ctx.fillStyle = grad(0, VH, '#2A1A6A', '#0E0A28'); ctx.fillRect(0, 0, VW, VH);
-  text('ステージを えらんでね', VW / 2 + 50, 44, 24, '#FFFFFF', 'center');
   btn(12, 16, 96, 50, 'もどる', () => { W.mode = 'title'; }, { col: '#D8D0F0', size: 18 });
-  // 15めんずつ ページで きりかえ
-  const PER = 15, pages = Math.ceil(STAGES.length / PER);
-  if (W.page === undefined) W.page = Math.min(pages - 1, Math.floor(Math.min(sv.best, STAGES.length - 1) / PER));
-  const cols = 3, rows = 5;
-  const bw = (VW - 40) / cols - 12, bh = Math.min(130, (VH - 170) / rows - 12);
-  STAGES.forEach((S, i) => {
-    if (Math.floor(i / PER) !== W.page) return;
-    const k = i % PER;
-    const x = VW / 2 - (cols * (bw + 12) - 12) / 2 + (k % cols) * (bw + 12);
-    const y = 86 + Math.floor(k / cols) * (bh + 12);
-    const open = i <= sv.best;
-    btn(x, y, bw, bh, '', () => { if (open) startStage(i); }, { col: open ? (S.boss ? '#FFB0C8' : '#F4F0FF') : 'rgba(120,110,140,0.4)' });
-    text(open ? String(i + 1) : '🔒', x + bw / 2, y + bh * 0.3, 30, '#2A2440', 'center');
-    text(S.boss ? 'ボス' : S.name, x + bw / 2, y + bh * 0.6, 14, '#5A4A7A', 'center', true, bw - 12);
+  // 25めんずつ ページ（50めんで 1ワールド）
+  const PER = 25, pages = Math.ceil(TOTAL / PER);
+  const latest = Math.min(sv.best, TOTAL - 1);
+  if (W.page === undefined) W.page = Math.floor(latest / PER);
+  const w = worldOf(W.page * PER);
+  fillRR(120, 14, VW - 132, 56, 12, WORLDS[w].col);
+  text('ワールド ' + (w + 1) + '：' + WORLDS[w].name, 120 + (VW - 132) / 2, 34, 18, '#FFFFFF', 'center', true, VW - 150);
+  text((W.page * PER + 1) + '〜' + Math.min(TOTAL, (W.page + 1) * PER) + 'めん', 120 + (VW - 132) / 2, 56, 13, '#E0D8F8', 'center');
+  const cols = 5, rows = 5;
+  const bw = (VW - 30) / cols - 8, bh = Math.min(110, (VH - 250) / rows - 8);
+  for (let k = 0; k < PER; k++) {
+    const i = W.page * PER + k;
+    if (i >= TOTAL) break;
+    const x = VW / 2 - (cols * (bw + 8) - 8) / 2 + (k % cols) * (bw + 8);
+    const y = 84 + Math.floor(k / cols) * (bh + 8);
+    const open = i <= sv.best, isBoss = (i + 1) % 10 === 0 || (i < STAGES.length && STAGES[i].boss);
+    btn(x, y, bw, bh, '', () => { if (open) startStage(i); }, { col: open ? (isBoss ? '#FFB0C8' : '#F4F0FF') : 'rgba(120,110,140,0.4)', flat: 1 });
+    text(open ? String(i + 1) : '🔒', x + bw / 2, y + bh * 0.36, open ? 24 : 20, '#2A2440', 'center', true);
+    if (isBoss && open) text('ボス', x + bw / 2, y + bh * 0.62, 12, '#A02A5A', 'center', true);
     const st = sv.stars[i] || 0;
-    for (let k2 = 0; k2 < 3; k2++) { ctx.fillStyle = k2 < st ? '#FFB020' : 'rgba(0,0,0,0.15)'; star(x + bw / 2 - 22 + k2 * 22, y + bh * 0.84, 8); ctx.fill(); }
-  });
-  const py = 86 + rows * (bh + 12) + 8;
-  btn(20, py, 120, 58, '◀', () => { W.page = (W.page + pages - 1) % pages; }, { col: '#D8D0F0', size: 26 });
-  btn(VW - 140, py, 120, 58, '▶', () => { W.page = (W.page + 1) % pages; }, { col: '#D8D0F0', size: 26 });
-  text((W.page * PER + 1) + '〜' + Math.min(STAGES.length, (W.page + 1) * PER) + 'めん（' + (W.page + 1) + ' / ' + pages + '）', VW / 2, py + 29, 18, '#FFFFFF', 'center', true);
+    if (open) for (let k2 = 0; k2 < 3; k2++) { ctx.fillStyle = k2 < st ? '#FFB020' : 'rgba(0,0,0,0.15)'; star(x + bw / 2 - 16 + k2 * 16, y + bh * 0.84, 6); ctx.fill(); }
+  }
+  const py = 84 + rows * (bh + 8) + 10;
+  btn(12, py, 70, 56, '◀◀', () => { W.page = Math.max(0, W.page - 2); }, { col: '#C8C0E8', size: 18 });
+  btn(88, py, 90, 56, '◀', () => { W.page = (W.page + pages - 1) % pages; }, { col: '#D8D0F0', size: 24 });
+  btn(VW - 178, py, 90, 56, '▶', () => { W.page = (W.page + 1) % pages; }, { col: '#D8D0F0', size: 24 });
+  btn(VW - 82, py, 70, 56, '▶▶', () => { W.page = Math.min(pages - 1, W.page + 2); }, { col: '#C8C0E8', size: 18 });
+  text((W.page + 1) + ' / ' + pages, VW / 2, py + 28, 16, '#FFFFFF', 'center', true);
+  btn(VW / 2 - 110, py + 70, 220, 50, 'さいしんの めんへ（' + (latest + 1) + '）', () => { W.page = Math.floor(latest / PER); }, { col: '#FFE066', size: 15 });
   void t;
 }
 
@@ -908,7 +1018,7 @@ function drawEnd(t) {
   }
   const bw = 300, bx = VW / 2 - bw / 2;
   let by = cy + 200;
-  if (clear && W.stage + 1 < STAGES.length) { btn(bx, by, bw, 70, 'つぎへ', () => startStage(W.stage + 1)); by += 86; }
+  if (clear && W.stage + 1 < TOTAL) { btn(bx, by, bw, 70, 'つぎへ', () => startStage(W.stage + 1)); by += 86; }
   else if (clear) { text('ぜんぶ クリア！ すごい！', VW / 2, by + 30, 26, '#FFE066', 'center'); by += 70; }
   btn(bx, by, bw, 70, 'もういちど', () => startStage(W.stage), { col: '#D8D0F0' });
   btn(bx + 30, by + 86, bw - 60, 56, 'ステージ いちらん', () => { W.page = undefined; W.mode = 'select'; }, { col: '#D8D0F0', size: 20 });

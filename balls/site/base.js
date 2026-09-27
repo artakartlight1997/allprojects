@@ -13,7 +13,10 @@
 
 const canvas = document.getElementById('screen');
 const ctx = canvas.getContext('2d');
-const VH = 540;
+// ★ html に data-portrait="1" が ある ゲームは たて長：よこ 540 を きじゅんに、
+//   たては 画面の 形に あわせて 720〜1170 で のびちぢみ する。
+const PORTRAIT = document.documentElement.getAttribute('data-portrait') === '1';
+let VH = 540;
 let VW = 960;
 let SC = 1, OX = 0, OY = 0;       // かそう → 本物の ピクセル
 let PW = 0, PH = 0;               // 本物の 画面（CSS px）
@@ -25,7 +28,8 @@ function fitScreen() {
   canvas.width = Math.round(PW * dpr);
   canvas.height = Math.round(PH * dpr);
   const asp = PW / Math.max(1, PH);
-  VW = Math.round(Math.max(720, Math.min(1170, VH * asp)));
+  if (PORTRAIT) { VW = 540; VH = Math.round(Math.max(720, Math.min(1170, VW / asp))); }
+  else VW = Math.round(Math.max(720, Math.min(1170, VH * asp)));
   SC = Math.min(PW / VW, PH / VH);
   OX = (PW - VW * SC) / 2; OY = (PH - VH * SC) / 2;
   ctx.setTransform(dpr * SC, 0, 0, dpr * SC, dpr * OX, dpr * OY);
@@ -301,7 +305,7 @@ function fullScreen() {
   const f = e.requestFullscreen || e.webkitRequestFullscreen;
   if (f && !document.fullscreenElement) { try { const p = f.call(e); if (p && p.catch) p.catch(() => {}); } catch (err) {} }
   const so = window.screen && window.screen.orientation;
-  if (so && so.lock) { try { const r = so.lock('landscape'); if (r && r.catch) r.catch(() => {}); } catch (err) {} }
+  if (so && so.lock) { try { const r = so.lock(PORTRAIT ? 'portrait' : 'landscape'); if (r && r.catch) r.catch(() => {}); } catch (err) {} }
 }
 
 // --- こまかい どうぐ ------------------------------------------------------------------
@@ -342,7 +346,8 @@ function frame(now) {
   _last = now;
   TIME += dt;
   UI.btns = [];
-  if (PW < PH * 1.1) { drawRotate(); return; }
+  // たて長の ゲームは まわす ように 言わない（パソコンの よこ長 画面でも まんなかに たてで 出す）
+  if (!PORTRAIT && PW < PH * 1.1) { drawRotate(); return; }
   if (GAME.update) GAME.update(dt);
   // すきまの ぬりつぶし
   ctx.save();

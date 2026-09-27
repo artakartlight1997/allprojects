@@ -186,7 +186,7 @@
        index.html を ブラウザが おぼえて しまって、あたらしい ゲームが
        メニューに 出て こない ことが あった ので、ならびだけ 外に 出した。 -->
   <div class="games" id="games"></div>
-<script src="games.js?v=15"></script>
+<script src="games.js?v=16"></script>
 <script>
   // games.js の ならびから ふだを 作る。見た目は 前と まったく おなじ。
   (function () {
@@ -195,7 +195,8 @@
     var html = '';
     for (var i = 0; i < GAMES.length; i++) {
       var g = GAMES[i];
-      html += '<a class="game" href="/allprojects/' + g.p + '/" style="--accent:' + g.c + '">' +
+      // v が ある ゲームは ?v= を つけて、ブラウザに のこった 古い ページを つかわせない
+      html += '<a class="game" href="/allprojects/' + g.p + '/' + (g.v ? '?v=' + g.v : '') + '" style="--accent:' + g.c + '">' +
         (g.b ? '<span class="badge">' + g.b + '</span>' : '') +
         '<img src="' + g.i + '" alt="" width="72" height="72" loading="lazy">' +
         '<span class="txt"><span class="name">' + g.n + '</span>' +
